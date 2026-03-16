@@ -21,8 +21,7 @@ public class PlayerBlockMovementTests
             startPosition: new Vector2(0f, 0f),
             size: new Point(32, 32),
             moveSpeedPixelsPerSecond: 120f,
-            worldBounds: new Rectangle(0, 0, 1024, 640),
-            color: Color.CornflowerBlue);
+            worldBounds: new Rectangle(0, 0, 1024, 640));
 
         input.Press(InputAction.MoveRight);
 
@@ -44,8 +43,7 @@ public class PlayerBlockMovementTests
             startPosition: new Vector2(0f, 0f),
             size: new Point(32, 32),
             moveSpeedPixelsPerSecond: 120f,
-            worldBounds: new Rectangle(0, 0, 1024, 640),
-            color: Color.CornflowerBlue);
+            worldBounds: new Rectangle(0, 0, 1024, 640));
 
         input.Press(InputAction.MoveRight);
         player.Update(FakeGameTime.OneFrame(), input, NoBlockedTiles);
@@ -56,6 +54,30 @@ public class PlayerBlockMovementTests
 
         Assert.Equal(2f, player.Position.X, 4);
         Assert.Equal(0f, player.Position.Y);
+    }
+
+    [Fact]
+    public void Update__WithAccelerationRamp__AcceleratesOverMultipleFrames()
+    {
+        var input = new FakeInputManager();
+        var player = new PlayerBlock(
+            startPosition: new Vector2(0f, 0f),
+            size: new Point(32, 32),
+            moveSpeedPixelsPerSecond: 120f,
+            worldBounds: new Rectangle(0, 0, 1024, 640),
+            accelerationRate: 10f);
+
+        input.Press(InputAction.MoveRight);
+
+        player.Update(FakeGameTime.OneFrame(), input, NoBlockedTiles);
+        var posAfterFrame1 = player.Position.X;
+
+        input.Update();
+        player.Update(FakeGameTime.OneFrame(), input, NoBlockedTiles);
+        var distFrame2 = player.Position.X - posAfterFrame1;
+
+        // Second frame should cover more distance than first (accelerating).
+        Assert.True(distFrame2 > posAfterFrame1);
     }
 
     private sealed class NoCollisionData : IMapCollisionData

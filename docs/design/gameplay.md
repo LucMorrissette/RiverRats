@@ -12,6 +12,7 @@
 | **Diagonal movement** | Input vector normalization before speed scaling | Prevents diagonal movement from being faster than cardinal movement. |
 | **Prototype actor bounds** | Player actor is clamped to world pixel bounds | Ensures camera follow and actor stay within authored map area. |
 | **Terrain collision source** | Tile properties (`blocked=true`) in TSX | Passability is authored once per terrain tile and reused wherever that tile appears. |
+| **Placed obstacle collision** | Static prop AABBs are merged through `WorldCollisionMap` | Player/follower movement uses one collision contract for both terrain and screen-placed solids. |
 
 *(Add entries as movement speed, hitbox sizing, terrain modifiers, combat, and other gameplay systems are designed.)*
 

@@ -20,6 +20,10 @@ src/RiverRats.Game/pipeline-references/
 .vs/
 .vscode/*.user
 
+# Environment / secrets
+.env
+.env.local
+
 # OS files
 Thumbs.db
 Desktop.ini

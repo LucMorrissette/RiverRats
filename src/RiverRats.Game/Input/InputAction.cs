@@ -11,5 +11,6 @@ public enum InputAction
     MoveRight,
     Confirm,
     Cancel,
-    Exit
+    Exit,
+    ToggleCollisionDebug
 }

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Character Sprite Preview</title>
+<style>
+body { background: #444; color: #fff; font-family: sans-serif; padding: 20px; }
+h2 { margin-top: 32px; }
+.frame { 
+  display: inline-block; margin: 4px; 
+  image-rendering: pixelated; 
+  border: 1px solid #666;
+  background: #888;
+}
+.sheet { image-rendering: pixelated; border: 2px solid #aaa; background: #888; }
+canvas { image-rendering: pixelated; border: 1px solid #666; background: #888; margin: 8px; }
+</style>
+</head>
+<body>
+<h1>Character Sprite Sheet Preview</h1>
+
+<h2>Full Sheet (4x)</h2>
+<img class="sheet" src="generic_character_sheet.png" width="512" height="512">
+
+<h2>Individual Frames (4x upscaled)</h2>
+<div>
+<h3>Down</h3>
+<img class="frame" src="frames_4x/down_idle_4x.png">
+<img class="frame" src="frames_4x/down_walk_a_4x.png">
+<img class="frame" src="frames_4x/down_idle2_4x.png">
+<img class="frame" src="frames_4x/down_walk_b_4x.png">
+</div>
+<div>
+<h3>Left</h3>
+<img class="frame" src="frames_4x/left_idle_4x.png">
+<img class="frame" src="frames_4x/left_walk_a_4x.png">
+<img class="frame" src="frames_4x/left_idle2_4x.png">
+<img class="frame" src="frames_4x/left_walk_b_4x.png">
+</div>
+<div>
+<h3>Right</h3>
+<img class="frame" src="frames_4x/right_idle_4x.png">
+<img class="frame" src="frames_4x/right_walk_a_4x.png">
+<img class="frame" src="frames_4x/right_idle2_4x.png">
+<img class="frame" src="frames_4x/right_walk_b_4x.png">
+</div>
+<div>
+<h3>Up</h3>
+<img class="frame" src="frames_4x/up_idle_4x.png">
+<img class="frame" src="frames_4x/up_walk_a_4x.png">
+<img class="frame" src="frames_4x/up_idle2_4x.png">
+<img class="frame" src="frames_4x/up_walk_b_4x.png">
+</div>
+
+<h2>Animated Walk Cycles (4x)</h2>
+<div id="animations"></div>
+
+<script>
+const FRAME_SIZE = 32;
+const SCALE = 4;
+const DIRECTIONS = ['Down', 'Left', 'Right', 'Up'];
+const FRAME_NAMES = ['idle', 'walk_a', 'idle2', 'walk_b'];
+
+DIRECTIONS.forEach((dir, dirIdx) => {
+  const container = document.getElementById('animations');
+  const label = document.createElement('h3');
+  label.textContent = dir + ' Walk';
+  container.appendChild(label);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = FRAME_SIZE * SCALE;
+  canvas.height = FRAME_SIZE * SCALE;
+  canvas.style.width = (FRAME_SIZE * SCALE) + 'px';
+  canvas.style.height = (FRAME_SIZE * SCALE) + 'px';
+  container.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  const images = FRAME_NAMES.map(fn => {
+    const img = new Image();
+    img.src = `frames/${dir.toLowerCase()}_${fn}.png`;
+    return img;
+  });
+
+  let frameIdx = 0;
+  Promise.all(images.map(img => new Promise(r => img.onload = r))).then(() => {
+    setInterval(() => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(images[frameIdx], 0, 0, canvas.width, canvas.height);
+      frameIdx = (frameIdx + 1) % 4;
+    }, 150);
+  });
+});
+</script>
+</body>
+</html>

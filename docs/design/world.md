@@ -6,6 +6,7 @@
 |---|---|
 | `IMapCollisionData` | World collision query contract for blocked-tile checks using world-space rectangles. |
 | `TiledWorldRenderer` | TMX/TSX-backed world renderer that applies terrain tile properties (`blocked`, `terrainType`) for drawing and collision queries. |
+| `WorldCollisionMap` | Collision aggregator that combines terrain blockers with additional placed obstacle bounds. |
 
 *(Add entries as world/tilemap classes are created — TileMap, TileMapRenderer, etc.)*
 

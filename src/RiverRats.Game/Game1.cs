@@ -12,9 +12,9 @@ namespace RiverRats.Game;
 /// </summary>
 public class Game1 : Microsoft.Xna.Framework.Game
 {
-    private const int VirtualWidth = 960;
-    private const int VirtualHeight = 540;
-    private const int StartupScale = 2;
+    private const int VirtualWidth = 480;
+    private const int VirtualHeight = 270;
+    private const int StartupScale = 3;
 
     private readonly GraphicsDeviceManager _graphics;
     private readonly IInputManager _inputManager;

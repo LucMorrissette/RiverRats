@@ -41,6 +41,7 @@
 | Class | Description |
 |---|---|
 | `Camera2D` | Produces a world-space view `Matrix` for `SpriteBatch`. Clamps position to map pixel bounds. |
+| `DayNightCycle` | Looping time-of-day cycle that outputs a multiply-blend tint `Color`. Phases: Night → Dawn → Day → Dusk. Pure logic, no GPU dependency. |
 | `TiledWorldRenderer` | Wraps MonoGame.Extended tiled map loading and deterministic weighted tile-variant drawing. |
 
 *(Add entries as graphics classes are created — ScreenScaler, etc.)*
