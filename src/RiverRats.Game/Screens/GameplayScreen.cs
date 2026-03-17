@@ -22,9 +22,10 @@ public sealed class GameplayScreen : IGameScreen
     private const float PlayerAccelerationRate = 10f;
     private const int WalkFramesPerDirection = 4;
     private const float WalkFrameDuration = 0.15f;
-    private const float DayNightCycleDurationSeconds = 60f;
+    private const float DayNightCycleDurationSeconds = 300f;
     private const float DayNightCycleStartProgress = 0.30f;
-    private static readonly Vector2 FollowerPositionOffset = new(0f, 32f);
+    private static readonly FollowerMovementConfig FollowerConfig = new();
+    private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
 
     private static readonly Point[] BoulderTilePositions =
     {
@@ -128,12 +129,12 @@ public sealed class GameplayScreen : IGameScreen
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
             PlayerAccelerationRate);
 
-        var followerStartPosition = initialPosition + FollowerPositionOffset;
+        var followerStartPosition = initialPosition + FollowerStartOffset;
         _follower = new FollowerBlock(
             followerStartPosition,
             new Point(PlayerFramePixels, PlayerFramePixels),
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
-            FollowerPositionOffset);
+            FollowerConfig);
 
         _boulders = CreateBoulders(_boulderTexture);
         _collisionMap = new WorldCollisionMap(_worldRenderer, GetBoulderBounds(_boulders));
@@ -162,11 +163,12 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         _player.Update(gameTime, input, _collisionMap);
+        _follower.Update(gameTime, _player.Position, _player.Facing, GetFollowerRestPosition());
 
         _playerAnimator.Direction = _player.Facing;
         _playerAnimator.Update(gameTime, _player.IsMoving);
         _followerAnimator.Direction = _follower.Facing;
-        _followerAnimator.Update(gameTime, false);
+        _followerAnimator.Update(gameTime, _follower.IsMoving);
         _camera.LookAt(_player.Center);
         _worldRenderer.Update(gameTime);
         _dayNightCycle.Update(gameTime);
@@ -250,6 +252,69 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         return bounds;
+    }
+
+    private Vector2? GetFollowerRestPosition()
+    {
+        if (_player.IsMoving || _follower is null || _collisionMap is null)
+        {
+            return null;
+        }
+
+        var (firstOffset, secondOffset) = GetRestOffsetsForFacing(_player.Facing);
+        var firstPosition = _player.Position + firstOffset;
+        var secondPosition = _player.Position + secondOffset;
+        var firstOpen = IsFollowerRestPositionOpen(firstPosition);
+        var secondOpen = IsFollowerRestPositionOpen(secondPosition);
+
+        if (!firstOpen && !secondOpen)
+        {
+            return null;
+        }
+
+        if (firstOpen && secondOpen)
+        {
+            var firstDistance = Vector2.DistanceSquared(_follower.Position, firstPosition);
+            var secondDistance = Vector2.DistanceSquared(_follower.Position, secondPosition);
+            return firstDistance <= secondDistance ? firstPosition : secondPosition;
+        }
+
+        return firstOpen ? firstPosition : secondPosition;
+    }
+
+    private static (Vector2 FirstOffset, Vector2 SecondOffset) GetRestOffsetsForFacing(FacingDirection facing)
+    {
+        var sideOffset = FollowerConfig.SideRestOffsetPixels;
+
+        return facing switch
+        {
+            FacingDirection.Left or FacingDirection.Right =>
+                (new Vector2(0f, -sideOffset), new Vector2(0f, sideOffset)),
+            _ =>
+                (new Vector2(-sideOffset, 0f), new Vector2(sideOffset, 0f))
+        };
+    }
+
+    private bool IsFollowerRestPositionOpen(Vector2 candidatePosition)
+    {
+        var candidateBounds = new Rectangle(
+            (int)MathF.Round(candidatePosition.X),
+            (int)MathF.Round(candidatePosition.Y),
+            PlayerFramePixels,
+            PlayerFramePixels);
+        var worldBounds = new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight);
+
+        if (!worldBounds.Contains(candidateBounds))
+        {
+            return false;
+        }
+
+        if (candidateBounds.Intersects(_player.Bounds))
+        {
+            return false;
+        }
+
+        return !_collisionMap.IsWorldRectangleBlocked(candidateBounds);
     }
 
     private static Boulder[] CreateBoulders(Texture2D boulderTexture)

@@ -15,7 +15,7 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Target Platforms** | PC (windowed + fullscreen) | Guides resolution/input decisions from day one. |
 | **XNA-native first** | Always verify MonoGame/XNA default behaviors before building custom solutions | Prevents bugs from unverified assumptions about framework defaults. |
 | **Prototype actor control** | `PlayerBlock` uses action input + delta-time movement in world space | Establishes first controllable gameplay actor without sprite/animation complexity. |
-| **Party follow prototype** | `FollowerBlock` maintains side-adjacent formation slots relative to leader facing | Keeps companion visible beside the player while preserving deterministic movement. |
+| **Party follow prototype** | `FollowerBlock` samples the player path and renders one companion at a fixed breadcrumb lag | Keeps follower motion deterministic, corner-safe, and aligned to the leader's real route. |
 | **Static world obstacles** | Screen-owned prop entities feed a shared `WorldCollisionMap` | Keeps terrain collision and placed solid props under one movement query contract. |
 
 ---

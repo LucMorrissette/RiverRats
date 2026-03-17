@@ -16,7 +16,7 @@ This feature establishes three important foundations:
 
 ## Player-Facing Outcome
 
-When the game runs, the player should see a full-screen field of grass tiles using the reference asset at [reference_assets/narsty-grass2.png](../../reference_assets/narsty-grass2.png). The result should feel like the first playable layer of an EarthBound/Stardew-style world: simple, readable, and pixel-stable.
+When the game runs, the player should see a full-screen field of grass tiles using the reference asset at [reference_assets/grass2.png](../../reference_assets/grass2.png). The result should feel like the first playable layer of an EarthBound/Stardew-style world: simple, readable, and pixel-stable.
 
 ## Design Decisions Locked By This Feature
 
@@ -32,7 +32,7 @@ When the game runs, the player should see a full-screen field of grass tiles usi
 
 1. Add the **MonoGame.Extended.Tiled** package and any required supporting MonoGame.Extended packages.
 2. Set up the content pipeline so a Tiled-authored map can be loaded by the game.
-3. Create a starter tileset using [reference_assets/narsty-grass2.png](../../reference_assets/narsty-grass2.png).
+3. Create a starter tileset using [reference_assets/grass2.png](../../reference_assets/grass2.png).
 4. Create a simple map that fills the visible play area with repeating grass tiles.
 5. Render the map through a dedicated world/tilemap path, not by hardcoding tile loops directly in `Game1`.
 6. Preserve pixel stability at the chosen **960×540** virtual resolution.

@@ -25,6 +25,8 @@
 | Class | Location | Description |
 |---|---|---|
 | `InputAction` | `Input/` | Enum of logical gameplay actions that key bindings map to. |
+| `FacingDirection` | `Data/` | Cardinal facing enum shared by movement and sprite animation. |
+| `FollowerMovementConfig` | `Data/` | Breadcrumb follower tuning for trailing distance, trail sampling, and facing dead-zone behavior. |
 
 *(Add entries as data classes are created — configs, enums, save DTOs, etc.)*
 

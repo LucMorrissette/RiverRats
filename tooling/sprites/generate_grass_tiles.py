@@ -6,11 +6,11 @@ Decorations are kept small relative to the character (16×22 art in a 32×32 fra
 so grass blades, sprouts, and flowers look like realistic ground-level detail.
 
 Output tiles:
-  narsty-grass1.png  — plain grass (solid fill)
-  narsty-grass2.png  — subtle short grass blades
-  narsty-grass3.png  — a few more grass blades
-  narsty-grass4.png  — small leaf/sprout cluster
-  narsty-grass5.png  — small flower with leaves
+  grass1.png  — plain grass (solid fill)
+  grass2.png  — subtle short grass blades
+  grass3.png  — a few more grass blades
+  grass4.png  — small leaf/sprout cluster
+  grass5.png  — small flower with leaves
 
 Color palette (matches existing tiles):
   Base grass:   (83, 138, 11)
@@ -179,11 +179,11 @@ def make_grass5():
 # ---------------------------------------------------------------------------
 def main():
     tiles = {
-        "narsty-grass1.png": make_grass1(),
-        "narsty-grass2.png": make_grass2(),
-        "narsty-grass3.png": make_grass3(),
-        "narsty-grass4.png": make_grass4(),
-        "narsty-grass5.png": make_grass5(),
+        "grass1.png": make_grass1(),
+        "grass2.png": make_grass2(),
+        "grass3.png": make_grass3(),
+        "grass4.png": make_grass4(),
+        "grass5.png": make_grass5(),
     }
 
     for name, img in tiles.items():

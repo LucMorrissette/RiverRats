@@ -15,7 +15,7 @@ namespace RiverRats.Game.World;
 public sealed class TiledWorldRenderer : IMapCollisionData
 {
     private const string GrassTerrainType = "Grass";
-    private const string WaterTerrainType = "Water";
+    private const string SandTerrainType = "Sand";
 
     private readonly int _mapWidth;
     private readonly int _mapHeight;
@@ -23,12 +23,13 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private readonly int _tileHeight;
     private readonly int[] _tileGlobalIds;
     private readonly bool[] _blockedByTile;
-    private readonly bool[] _isWaterByTile;
     private readonly int[] _variantIndexByTile;
     private readonly int _tilesetFirstGlobalIdentifier;
     private readonly SpriteBatch _spriteBatch;
     private readonly Texture2D[] _grassVariants;
-    private readonly Texture2D _waterTexture;
+    private readonly Texture2D[] _sandVariants;
+    private readonly int[] _sandVariantIndexByTile;
+    private readonly Dictionary<int, TerrainTileInfo> _terrainTiles;
 
     /// <summary>Total map width in pixels (tile columns × tile pixel width).</summary>
     public int MapPixelWidth => _mapWidth * _tileWidth;
@@ -62,15 +63,16 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 
         var terrainTiles = LoadTerrainTiles(tilesetPath, content);
         _grassVariants = terrainTiles.GrassVariants;
-        _waterTexture = terrainTiles.WaterTexture;
+        _sandVariants = terrainTiles.SandVariants;
+        _terrainTiles = terrainTiles.ByLocalIdentifier;
 
         var groundLayer = mapElement.Element("layer") ?? throw new InvalidOperationException("TMX ground layer was not found.");
         var dataElement = groundLayer.Element("data") ?? throw new InvalidOperationException("TMX ground layer data was not found.");
         _tileGlobalIds = ParseCsvTileData(dataElement.Value, _mapWidth * _mapHeight);
 
         _blockedByTile = new bool[_tileGlobalIds.Length];
-        _isWaterByTile = new bool[_tileGlobalIds.Length];
         _variantIndexByTile = new int[_tileGlobalIds.Length];
+        _sandVariantIndexByTile = new int[_tileGlobalIds.Length];
 
         for (var y = 0; y < _mapHeight; y++)
         {
@@ -87,10 +89,10 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                 if (terrainTiles.ByLocalIdentifier.TryGetValue(localTileIdentifier, out var terrainTile))
                 {
                     _blockedByTile[tileIndex] = terrainTile.Blocked;
-                    _isWaterByTile[tileIndex] = string.Equals(terrainTile.TerrainType, WaterTerrainType, StringComparison.OrdinalIgnoreCase);
                 }
 
                 _variantIndexByTile[tileIndex] = PickWeightedVariantIndex(x, y);
+                _sandVariantIndexByTile[tileIndex] = PickSandVariantIndex(x, y);
             }
         }
 
@@ -130,19 +132,29 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                     continue;
                 }
 
+                var localId = globalIdentifier - _tilesetFirstGlobalIdentifier;
+                if (!_terrainTiles.TryGetValue(localId, out var terrainTile))
+                {
+                    continue;
+                }
+
                 var destination = new Rectangle(
                     x * _tileWidth,
                     y * _tileHeight,
                     _tileWidth,
                     _tileHeight);
 
-                if (_isWaterByTile[tileIndex])
+                if (terrainTile.TerrainType == GrassTerrainType)
                 {
-                    _spriteBatch.Draw(_waterTexture, destination, Color.White);
+                    _spriteBatch.Draw(_grassVariants[variantIndex], destination, Color.White);
+                }
+                else if (terrainTile.TerrainType == SandTerrainType)
+                {
+                    _spriteBatch.Draw(_sandVariants[_sandVariantIndexByTile[tileIndex]], destination, Color.White);
                 }
                 else
                 {
-                    _spriteBatch.Draw(_grassVariants[variantIndex], destination, Color.White);
+                    _spriteBatch.Draw(terrainTile.Texture, destination, Color.White);
                 }
             }
         }
@@ -232,7 +244,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         var tiles = tilesetElement.Elements("tile");
         var byLocalIdentifier = new Dictionary<int, TerrainTileInfo>();
         var grassTextures = new List<Texture2D>();
-        Texture2D waterTexture = null;
+        var sandTextures = new List<Texture2D>();
 
         foreach (var tileElement in tiles)
         {
@@ -251,9 +263,9 @@ public sealed class TiledWorldRenderer : IMapCollisionData
             {
                 grassTextures.Add(texture);
             }
-            else if (string.Equals(terrainType, WaterTerrainType, StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(terrainType, SandTerrainType, StringComparison.OrdinalIgnoreCase))
             {
-                waterTexture = texture;
+                sandTextures.Add(texture);
             }
         }
 
@@ -262,12 +274,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
             throw new InvalidOperationException("Terrain tileset does not define any grass tiles.");
         }
 
-        if (waterTexture is null)
-        {
-            throw new InvalidOperationException("Terrain tileset does not define a water tile.");
-        }
-
-        return new TerrainTilesetData(byLocalIdentifier, grassTextures.ToArray(), waterTexture);
+        return new TerrainTilesetData(byLocalIdentifier, grassTextures.ToArray(), sandTextures.ToArray());
     }
 
     private static string GetTileProperty(XElement tileElement, string propertyName)
@@ -324,34 +331,39 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private readonly record struct TerrainTilesetData(
         Dictionary<int, TerrainTileInfo> ByLocalIdentifier,
         Texture2D[] GrassVariants,
-        Texture2D WaterTexture);
+        Texture2D[] SandVariants);
 
     private static int PickWeightedVariantIndex(int x, int y)
     {
         // Position-hashed roll: stable for a tile coordinate, varied across the map.
         var roll = GetDeterministicPercentRoll(x, y);
 
-        if (roll < 50)
+        if (roll < 32)
         {
             return 0;
         }
 
-        if (roll < 70)
+        if (roll < 54)
         {
             return 1;
         }
 
-        if (roll < 85)
+        if (roll < 79)
         {
             return 2;
         }
 
-        if (roll < 95)
+        if (roll < 98)
         {
             return 3;
         }
 
-        return 4;
+        if (roll < 99)
+        {
+            return 4;
+        }
+
+        return 5;
     }
 
     private static int GetDeterministicPercentRoll(int x, int y)
@@ -359,6 +371,35 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         unchecked
         {
             var hash = ((uint)x * 73856093u) ^ ((uint)y * 19349663u) ^ 0x9E3779B9u;
+            hash ^= hash >> 13;
+            hash *= 1274126177u;
+            hash ^= hash >> 16;
+            return (int)(hash % 100u);
+        }
+    }
+
+    private static int PickSandVariantIndex(int x, int y)
+    {
+        // Different prime seeds from grass to avoid identical patterns.
+        var roll = GetDeterministicSandRoll(x, y);
+        if (roll < 34)
+        {
+            return 0;
+        }
+
+        if (roll < 67)
+        {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private static int GetDeterministicSandRoll(int x, int y)
+    {
+        unchecked
+        {
+            var hash = ((uint)x * 83492791u) ^ ((uint)y * 27644437u) ^ 0x517CC1B7u;
             hash ^= hash >> 13;
             hash *= 1274126177u;
             hash ^= hash >> 16;
