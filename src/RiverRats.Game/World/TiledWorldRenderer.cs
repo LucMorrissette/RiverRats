@@ -16,6 +16,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 {
     private const string GrassTerrainType = "Grass";
     private const string SandTerrainType = "Sand";
+    private const string WaterTerrainType = "Water";
 
     private readonly int _mapWidth;
     private readonly int _mapHeight;
@@ -29,7 +30,9 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private readonly Texture2D[] _grassVariants;
     private readonly Texture2D[] _sandVariants;
     private readonly int[] _sandVariantIndexByTile;
+    private readonly bool[] _isWaterTile;
     private readonly Dictionary<int, TerrainTileInfo> _terrainTiles;
+    private float _waterElapsedSeconds;
 
     /// <summary>Total map width in pixels (tile columns × tile pixel width).</summary>
     public int MapPixelWidth => _mapWidth * _tileWidth;
@@ -73,6 +76,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         _blockedByTile = new bool[_tileGlobalIds.Length];
         _variantIndexByTile = new int[_tileGlobalIds.Length];
         _sandVariantIndexByTile = new int[_tileGlobalIds.Length];
+        _isWaterTile = new bool[_tileGlobalIds.Length];
 
         for (var y = 0; y < _mapHeight; y++)
         {
@@ -89,6 +93,8 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                 if (terrainTiles.ByLocalIdentifier.TryGetValue(localTileIdentifier, out var terrainTile))
                 {
                     _blockedByTile[tileIndex] = terrainTile.Blocked;
+                    _isWaterTile[tileIndex] = string.Equals(
+                        terrainTile.TerrainType, WaterTerrainType, StringComparison.OrdinalIgnoreCase);
                 }
 
                 _variantIndexByTile[tileIndex] = PickWeightedVariantIndex(x, y);
@@ -105,14 +111,17 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     /// <param name="gameTime">Frame timing values.</param>
     public void Update(GameTime gameTime)
     {
-        _ = gameTime;
+        _waterElapsedSeconds += (float)gameTime.ElapsedGameTime.TotalSeconds;
     }
 
+    /// <summary>Elapsed seconds used by the water distortion shader.</summary>
+    public float WaterElapsedSeconds => _waterElapsedSeconds;
+
     /// <summary>
-    /// Draws the tiled map using the provided transform matrix.
+    /// Draws non-water terrain tiles using the provided transform matrix.
     /// </summary>
     /// <param name="transformMatrix">World transform matrix.</param>
-    public void Draw(Matrix transformMatrix)
+    public void DrawTerrain(Matrix transformMatrix)
     {
         _spriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
@@ -120,12 +129,54 @@ public sealed class TiledWorldRenderer : IMapCollisionData
             samplerState: SamplerState.PointClamp,
             transformMatrix: transformMatrix);
 
+        DrawTiles(waterPass: false);
+
+        _spriteBatch.End();
+    }
+
+    /// <summary>
+    /// Draws water tiles only using the provided transform matrix.
+    /// Call this to render water into a separate render target for shader post-processing.
+    /// </summary>
+    /// <param name="transformMatrix">World transform matrix.</param>
+    public void DrawWater(Matrix transformMatrix)
+    {
+        _spriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: transformMatrix);
+
+        DrawTiles(waterPass: true);
+
+        _spriteBatch.End();
+    }
+
+    /// <summary>
+    /// Draws all tiles (water and non-water) in a single pass.
+    /// Use when no water shader is needed.
+    /// </summary>
+    /// <param name="transformMatrix">World transform matrix.</param>
+    public void Draw(Matrix transformMatrix)
+    {
+        DrawTerrain(transformMatrix);
+        DrawWater(transformMatrix);
+    }
+
+    private void DrawTiles(bool waterPass)
+    {
         for (var y = 0; y < _mapHeight; y++)
         {
             for (var x = 0; x < _mapWidth; x++)
             {
-                var variantIndex = _variantIndexByTile[(y * _mapWidth) + x];
                 var tileIndex = (y * _mapWidth) + x;
+
+                // Filter: only draw water tiles on water pass, non-water on terrain pass.
+                if (_isWaterTile[tileIndex] != waterPass)
+                {
+                    continue;
+                }
+
                 var globalIdentifier = _tileGlobalIds[tileIndex];
                 if (globalIdentifier <= 0)
                 {
@@ -146,6 +197,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 
                 if (terrainTile.TerrainType == GrassTerrainType)
                 {
+                    var variantIndex = _variantIndexByTile[tileIndex];
                     _spriteBatch.Draw(_grassVariants[variantIndex], destination, Color.White);
                 }
                 else if (terrainTile.TerrainType == SandTerrainType)
@@ -158,8 +210,6 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                 }
             }
         }
-
-        _spriteBatch.End();
     }
 
     /// <inheritdoc />

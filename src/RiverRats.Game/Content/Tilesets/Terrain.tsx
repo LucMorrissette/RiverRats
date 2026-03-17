@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.0" name="Terrain" tilewidth="32" tileheight="32" tilecount="23" columns="0">
+<tileset version="1.10" tiledversion="1.11.0" name="Terrain" tilewidth="32" tileheight="32" tilecount="24" columns="0">
   <tile id="0">
     <properties>
       <property name="terrainType" value="Grass"/>
@@ -137,5 +137,11 @@
       <property name="terrainType" value="SandGrassTransition"/>
     </properties>
     <image source="sand-grass-esw.png" width="32" height="32"/>
+  </tile>
+  <tile id="23">
+    <properties>
+      <property name="terrainType" value="Water"/>
+    </properties>
+    <image source="water-horizontal.png" width="32" height="32"/>
   </tile>
 </tileset>

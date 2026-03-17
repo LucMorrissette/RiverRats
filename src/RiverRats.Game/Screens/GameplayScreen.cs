@@ -24,6 +24,8 @@ public sealed class GameplayScreen : IGameScreen
     private const float WalkFrameDuration = 0.15f;
     private const float DayNightCycleDurationSeconds = 300f;
     private const float DayNightCycleStartProgress = 0.30f;
+    private const int MaxRipples = 8;
+    private const float RippleMaxAge = 2f;
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
 
@@ -70,7 +72,13 @@ public sealed class GameplayScreen : IGameScreen
     private WorldCollisionMap _collisionMap;
     private DayNightCycle _dayNightCycle;
     private Texture2D _pixelTexture;
+    private RenderTarget2D _waterRenderTarget;
+    private Effect _waterDistortionEffect;
     private bool _showCollisionBounds;
+    private readonly Vector2[] _rippleWorldPositions = new Vector2[MaxRipples];
+    private readonly float[] _rippleAges = new float[MaxRipples];
+    private readonly Vector3[] _rippleShaderData = new Vector3[MaxRipples];
+    private int _rippleCount;
 
     /// <inheritdoc />
     public bool IsTransparent => false;
@@ -146,6 +154,29 @@ public sealed class GameplayScreen : IGameScreen
 
         _pixelTexture = new Texture2D(_graphicsDevice, 1, 1);
         _pixelTexture.SetData(new[] { Color.White });
+
+        _waterRenderTarget = new RenderTarget2D(
+            _graphicsDevice,
+            _virtualWidth,
+            _virtualHeight,
+            false,
+            SurfaceFormat.Color,
+            DepthFormat.None,
+            0,
+            RenderTargetUsage.DiscardContents);
+        _waterDistortionEffect = _content.Load<Effect>("Effects/WaterDistortion");
+
+        // Adjust these parameters to change the overall wave effect on water tiles.
+        _waterDistortionEffect.Parameters["Amplitude"].SetValue(0.002f); // How far pixels get displaced. Higher = more dramatic waves.
+        _waterDistortionEffect.Parameters["Frequency"].SetValue(25f); 	// Wave tightness. Higher = more ripples packed in. Lower = broad rolling waves.
+        _waterDistortionEffect.Parameters["Speed"].SetValue(1f); //How fast waves animate.
+
+        // water riples are additive on top of the base wave distortion, so they can be stronger without looking unnatural. Adjust these to change the click ripple effect.
+        _waterDistortionEffect.Parameters["RippleAmplitude"].SetValue(0.005f); // Additional displacement for click ripples. Higher = bigger splashes.
+        _waterDistortionEffect.Parameters["RippleFrequency"].SetValue(40f); // Ripple tightness. Higher = tighter, more circular ripples. Lower = looser, more wave-like ripples.
+        _waterDistortionEffect.Parameters["RippleSpeed"].SetValue(15f); // How fast ripples expand and fade.
+        
+        _waterDistortionEffect.Parameters["AspectRatio"].SetValue((float)_virtualWidth / _virtualHeight);
     }
 
     /// <inheritdoc />
@@ -172,14 +203,49 @@ public sealed class GameplayScreen : IGameScreen
         _camera.LookAt(_player.Center);
         _worldRenderer.Update(gameTime);
         _dayNightCycle.Update(gameTime);
+        UpdateRipples(gameTime, input);
     }
 
     /// <inheritdoc />
     public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
         var worldMatrix = _camera.GetViewMatrix();
-        _worldRenderer.Draw(worldMatrix);
 
+        // --- Pass 1: Render water tiles to a separate render target ---
+        var previousRenderTarget = _graphicsDevice.GetRenderTargets().Length > 0
+            ? _graphicsDevice.GetRenderTargets()[0].RenderTarget as RenderTarget2D
+            : null;
+
+        _graphicsDevice.SetRenderTarget(_waterRenderTarget);
+        _graphicsDevice.Clear(Color.Transparent);
+        _worldRenderer.DrawWater(worldMatrix);
+
+        // --- Switch back to the scene render target ---
+        _graphicsDevice.SetRenderTarget(previousRenderTarget);
+
+        // --- Pass 2: Draw non-water terrain ---
+        _worldRenderer.DrawTerrain(worldMatrix);
+
+        // --- Pass 3: Composite water with distortion shader ---
+        // LinearClamp smooths the UV displacement for natural-looking waves
+        // instead of the pixel-snapping that PointClamp would produce.
+        _waterDistortionEffect.Parameters["Time"].SetValue(_worldRenderer.WaterElapsedSeconds);
+        // Anchor waves to world space so they don't slide when the camera pans.
+        _waterDistortionEffect.Parameters["CameraOffset"].SetValue(
+            new Vector2(_camera.Position.X / _virtualWidth, _camera.Position.Y / _virtualHeight));
+        SetRippleShaderParameters();
+        _worldSpriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.LinearClamp,
+            effect: _waterDistortionEffect);
+        _worldSpriteBatch.Draw(
+            _waterRenderTarget,
+            new Rectangle(0, 0, _virtualWidth, _virtualHeight),
+            Color.White);
+        _worldSpriteBatch.End();
+
+        // --- Pass 4: Entities ---
         _worldSpriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
             blendState: BlendState.AlphaBlend,
@@ -215,6 +281,7 @@ public sealed class GameplayScreen : IGameScreen
     {
         _worldSpriteBatch?.Dispose();
         _pixelTexture?.Dispose();
+        _waterRenderTarget?.Dispose();
     }
 
     private void DrawCollisionBounds()
@@ -330,5 +397,61 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         return boulders;
+    }
+
+    private void UpdateRipples(GameTime gameTime, IInputManager input)
+    {
+        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+        // Age existing ripples; remove expired ones by swapping with the last.
+        for (var i = _rippleCount - 1; i >= 0; i--)
+        {
+            _rippleAges[i] += dt;
+            if (_rippleAges[i] >= RippleMaxAge)
+            {
+                _rippleCount--;
+                _rippleWorldPositions[i] = _rippleWorldPositions[_rippleCount];
+                _rippleAges[i] = _rippleAges[_rippleCount];
+            }
+        }
+
+        if (input.IsMouseLeftPressed() && _rippleCount < MaxRipples)
+        {
+            var virtualPos = PhysicalToVirtualMousePosition(input.GetMousePosition());
+            var worldPos = _camera.ScreenToWorld(virtualPos);
+            _rippleWorldPositions[_rippleCount] = worldPos;
+            _rippleAges[_rippleCount] = 0f;
+            _rippleCount++;
+        }
+    }
+
+    private void SetRippleShaderParameters()
+    {
+        // Convert world positions to screen UV space for the shader.
+        for (var i = 0; i < _rippleCount; i++)
+        {
+            var screenX = (_rippleWorldPositions[i].X - _camera.Position.X) / _virtualWidth + 0.5f;
+            var screenY = (_rippleWorldPositions[i].Y - _camera.Position.Y) / _virtualHeight + 0.5f;
+            _rippleShaderData[i] = new Vector3(screenX, screenY, _rippleAges[i]);
+        }
+
+        _waterDistortionEffect.Parameters["Ripples"].SetValue(_rippleShaderData);
+        _waterDistortionEffect.Parameters["RippleCount"].SetValue(_rippleCount);
+    }
+
+    private Vector2 PhysicalToVirtualMousePosition(Point physicalPosition)
+    {
+        var viewport = _graphicsDevice.Viewport;
+        var scaleX = viewport.Width / _virtualWidth;
+        var scaleY = viewport.Height / _virtualHeight;
+        var scale = Math.Max(1, Math.Min(scaleX, scaleY));
+        var scaledW = _virtualWidth * scale;
+        var scaledH = _virtualHeight * scale;
+        var offsetX = (viewport.Width - scaledW) / 2;
+        var offsetY = (viewport.Height - scaledH) / 2;
+
+        return new Vector2(
+            (physicalPosition.X - offsetX) / (float)scale,
+            (physicalPosition.Y - offsetY) / (float)scale);
     }
 }

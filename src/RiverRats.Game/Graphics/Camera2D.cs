@@ -87,4 +87,15 @@ public sealed class Camera2D
             _viewportHeight / 2f - _position.Y,
             0f);
     }
+
+    /// <summary>
+    /// Converts a position in virtual screen coordinates to world coordinates.
+    /// </summary>
+    /// <param name="screenPosition">Position in virtual-resolution screen space (0,0 = top-left).</param>
+    public Vector2 ScreenToWorld(Vector2 screenPosition)
+    {
+        return new Vector2(
+            screenPosition.X + _position.X - _viewportWidth / 2f,
+            screenPosition.Y + _position.Y - _viewportHeight / 2f);
+    }
 }

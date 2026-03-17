@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
 namespace RiverRats.Game.Input;
@@ -15,6 +16,8 @@ public sealed class InputManager : IInputManager
 
     private KeyboardState _previousState;
     private KeyboardState _currentState;
+    private MouseState _previousMouseState;
+    private MouseState _currentMouseState;
 
     /// <summary>
     /// Creates an input manager with default key bindings and a production keyboard source.
@@ -34,6 +37,8 @@ public sealed class InputManager : IInputManager
         _bindings = CreateDefaultBindings();
         _previousState = _keyboardStateSource.GetState();
         _currentState = _previousState;
+        _previousMouseState = Mouse.GetState();
+        _currentMouseState = _previousMouseState;
     }
 
     /// <inheritdoc />
@@ -41,6 +46,8 @@ public sealed class InputManager : IInputManager
     {
         _previousState = _currentState;
         _currentState = _keyboardStateSource.GetState();
+        _previousMouseState = _currentMouseState;
+        _currentMouseState = Mouse.GetState();
     }
 
     /// <inheritdoc />
@@ -103,6 +110,19 @@ public sealed class InputManager : IInputManager
         }
 
         _bindings[action] = keys;
+    }
+
+    /// <inheritdoc />
+    public bool IsMouseLeftPressed()
+    {
+        return _currentMouseState.LeftButton == ButtonState.Pressed
+            && _previousMouseState.LeftButton == ButtonState.Released;
+    }
+
+    /// <inheritdoc />
+    public Point GetMousePosition()
+    {
+        return _currentMouseState.Position;
     }
 
     private Keys[] GetBoundKeys(InputAction action)

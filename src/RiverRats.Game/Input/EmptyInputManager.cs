@@ -1,3 +1,5 @@
+using Microsoft.Xna.Framework;
+
 namespace RiverRats.Game.Input;
 
 /// <summary>
@@ -31,4 +33,10 @@ public sealed class EmptyInputManager : IInputManager
         _ = action;
         return false;
     }
+
+    /// <inheritdoc />
+    public bool IsMouseLeftPressed() => false;
+
+    /// <inheritdoc />
+    public Point GetMousePosition() => Point.Zero;
 }

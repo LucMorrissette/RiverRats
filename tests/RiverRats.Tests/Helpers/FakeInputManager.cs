@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 using RiverRats.Game.Input;
 
 namespace RiverRats.Tests.Helpers;
@@ -11,12 +12,15 @@ public sealed class FakeInputManager : IInputManager
     private readonly HashSet<InputAction> _held = new();
     private readonly HashSet<InputAction> _pressed = new();
     private readonly HashSet<InputAction> _released = new();
+    private bool _mouseLeftPressed;
+    private Point _mousePosition;
 
     /// <summary>Clears one-frame pressed/released flags and keeps held states.</summary>
     public void Update()
     {
         _pressed.Clear();
         _released.Clear();
+        _mouseLeftPressed = false;
     }
 
     /// <summary>Sets an action as pressed for this frame and held until released.</summary>
@@ -34,6 +38,19 @@ public sealed class FakeInputManager : IInputManager
         _held.Remove(action);
         _pressed.Remove(action);
     }
+
+    /// <summary>Sets a left mouse click at the given position for this frame.</summary>
+    public void ClickMouse(Point position)
+    {
+        _mouseLeftPressed = true;
+        _mousePosition = position;
+    }
+
+    /// <inheritdoc />
+    public bool IsMouseLeftPressed() => _mouseLeftPressed;
+
+    /// <inheritdoc />
+    public Point GetMousePosition() => _mousePosition;
 
     /// <inheritdoc />
     public bool IsHeld(InputAction action)

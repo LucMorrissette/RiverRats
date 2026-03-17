@@ -32,6 +32,9 @@ public class Game1 : Microsoft.Xna.Framework.Game
         Window.Title = "River Rats";
         Window.ClientSizeChanged += OnClientSizeChanged;
 
+        // HiDef unlocks ps_4_0 shaders (needed for water ripple loop).
+        _graphics.GraphicsProfile = GraphicsProfile.HiDef;
+
         _inputManager = new InputManager();
         _screenManager = new ScreenManager();
 

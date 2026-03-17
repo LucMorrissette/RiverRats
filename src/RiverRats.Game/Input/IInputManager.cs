@@ -1,3 +1,5 @@
+using Microsoft.Xna.Framework;
+
 namespace RiverRats.Game.Input;
 
 /// <summary>
@@ -16,4 +18,10 @@ public interface IInputManager
 
     /// <summary>Returns true only on the frame a bound key transitions down -> up.</summary>
     bool IsReleased(InputAction action);
+
+    /// <summary>Returns true only on the frame the left mouse button transitions up -> down.</summary>
+    bool IsMouseLeftPressed();
+
+    /// <summary>Gets the current mouse cursor position in physical window client coordinates.</summary>
+    Point GetMousePosition();
 }

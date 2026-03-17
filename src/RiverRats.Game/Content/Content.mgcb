@@ -5,7 +5,7 @@
 /intermediateDir:obj/$(Platform)
 /platform:Windows
 /config:
-/profile:Reach
+/profile:HiDef
 /compress:False
 
 #-------------------------------- References --------------------------------#
@@ -14,9 +14,6 @@
 
 
 #---------------------------------- Content ---------------------------------#
-
-#begin Maps/StarterMap.tmx
-/build:Maps/StarterMap.tmx
 
 #begin Sprites/generic_character_sheet.png
 /importer:TextureImporter
@@ -53,6 +50,12 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:Sprites/boulder.png
+
+#begin Effects/WaterDistortion.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Effects/WaterDistortion.fx
 
 #begin Tilesets/Terrain.tsx
 /importer:TiledMapTilesetImporter
