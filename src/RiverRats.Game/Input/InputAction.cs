@@ -12,5 +12,6 @@ public enum InputAction
     Confirm,
     Cancel,
     Exit,
-    ToggleCollisionDebug
+    ToggleCollisionDebug,
+    CopyScreenshotToClipboard
 }

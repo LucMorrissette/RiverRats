@@ -25,6 +25,9 @@
     <None Update="Content\Maps\StarterMap.tmx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Content\Tilesets\Props.tsx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Content\Tilesets\Terrain.tsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

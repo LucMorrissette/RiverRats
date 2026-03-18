@@ -53,6 +53,45 @@ public class WorldCollisionMapTests
         Assert.False(blocked);
     }
 
+    [Fact]
+    public void IsWorldRectangleBlocked__FullyInsideWalkableOverride__IgnoresTerrainCollision()
+    {
+        var collisionMap = new WorldCollisionMap(
+            new AlwaysBlockedCollisionData(),
+            [],
+            [new Rectangle(100, 100, 64, 64)]);
+
+        var blocked = collisionMap.IsWorldRectangleBlocked(new Rectangle(112, 112, 32, 32));
+
+        Assert.False(blocked);
+    }
+
+    [Fact]
+    public void IsWorldRectangleBlocked__PartiallyOutsideWalkableOverride__KeepsTerrainBlocked()
+    {
+        var collisionMap = new WorldCollisionMap(
+            new AlwaysBlockedCollisionData(),
+            [],
+            [new Rectangle(100, 100, 64, 64)]);
+
+        var blocked = collisionMap.IsWorldRectangleBlocked(new Rectangle(140, 112, 32, 32));
+
+        Assert.True(blocked);
+    }
+
+    [Fact]
+    public void IsWorldRectangleBlocked__InsideWalkableOverrideButOverlappingObstacle__ReturnsTrue()
+    {
+        var collisionMap = new WorldCollisionMap(
+            new AlwaysBlockedCollisionData(),
+            [new Rectangle(120, 120, 32, 32)],
+            [new Rectangle(100, 100, 64, 64)]);
+
+        var blocked = collisionMap.IsWorldRectangleBlocked(new Rectangle(120, 120, 16, 16));
+
+        Assert.True(blocked);
+    }
+
     private sealed class NoCollisionData : IMapCollisionData
     {
         public bool IsWorldRectangleBlocked(Rectangle worldBounds)

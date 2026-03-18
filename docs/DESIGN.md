@@ -14,9 +14,12 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Target Runtime** | .NET 9 (net9.0-windows) | Current LTS-adjacent; aligns with MonoGame 3.8 support. |
 | **Target Platforms** | PC (windowed + fullscreen) | Guides resolution/input decisions from day one. |
 | **XNA-native first** | Always verify MonoGame/XNA default behaviors before building custom solutions | Prevents bugs from unverified assumptions about framework defaults. |
+| **Water rendering grouping** | TMX layers prefixed with `Water/` are composited into the water distortion pass | Decouples the shader from individual tile definitions and supports stacked underwater layers. |
 | **Prototype actor control** | `PlayerBlock` uses action input + delta-time movement in world space | Establishes first controllable gameplay actor without sprite/animation complexity. |
 | **Party follow prototype** | `FollowerBlock` samples the player path and renders one companion at a fixed breadcrumb lag | Keeps follower motion deterministic, corner-safe, and aligned to the leader's real route. |
-| **Static world obstacles** | Screen-owned prop entities feed a shared `WorldCollisionMap` | Keeps terrain collision and placed solid props under one movement query contract. |
+| **Static world obstacles** | TMX object-layer prop placements spawn screen-owned entities that feed `WorldCollisionMap` | Keeps terrain collision and placed solid props under one movement query contract. |
+| **Static prop rendering** | TMX object-layer placements support both collidable and decorative prop sprites | Keeps world decoration editor-driven without coupling visuals to collision rules. |
+| **Walkable prop surfaces** | Prop bounds can override blocked terrain beneath them | Supports authored surfaces like docks or bridges without hand-editing collision mask tiles. |
 
 ---
 

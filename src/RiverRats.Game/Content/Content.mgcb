@@ -51,6 +51,30 @@
 /processorParam:TextureFormat=Color
 /build:Sprites/boulder.png
 
+#begin Sprites/sunken-log.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Sprites/sunken-log.png
+
+#begin Sprites/wooden-dock.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Sprites/wooden-dock.png
+
 #begin Effects/WaterDistortion.fx
 /importer:EffectImporter
 /processor:EffectProcessor
@@ -61,4 +85,9 @@
 /importer:TiledMapTilesetImporter
 /processor:TiledMapTilesetProcessor
 /build:Tilesets/Terrain.tsx
+
+#begin Tilesets/Props.tsx
+/importer:TiledMapTilesetImporter
+/processor:TiledMapTilesetProcessor
+/build:Tilesets/Props.tsx
 

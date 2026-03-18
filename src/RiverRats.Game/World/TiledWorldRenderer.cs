@@ -16,22 +16,35 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 {
     private const string GrassTerrainType = "Grass";
     private const string SandTerrainType = "Sand";
-    private const string WaterTerrainType = "Water";
+    private const string RiverbedTerrainType = "Riverbed";
+    private const string ShorelineTerrainType = "Shoreline";
+    private const string WaterLayerPrefix = "Water/";
+    private const string WaterSurfaceLayerName = "Water/surface";
+    private const string PropTypePropertyName = "propType";
+    private const string IsUnderwaterPropertyName = "isUnderwater";
+    private const uint TiledHorizontalFlipFlag = 0x80000000;
+    private const uint TiledVerticalFlipFlag = 0x40000000;
+    private const uint TiledDiagonalFlipFlag = 0x20000000;
+    private const uint TiledFlipMask = TiledHorizontalFlipFlag | TiledVerticalFlipFlag | TiledDiagonalFlipFlag;
 
     private readonly int _mapWidth;
     private readonly int _mapHeight;
     private readonly int _tileWidth;
     private readonly int _tileHeight;
-    private readonly int[] _tileGlobalIds;
+    private readonly MapLayer[] _layers;
     private readonly bool[] _blockedByTile;
     private readonly int[] _variantIndexByTile;
     private readonly int _tilesetFirstGlobalIdentifier;
     private readonly SpriteBatch _spriteBatch;
     private readonly Texture2D[] _grassVariants;
     private readonly Texture2D[] _sandVariants;
+    private readonly Texture2D[] _riverbedVariants;
+    private readonly Texture2D[] _shorelineVariants;
     private readonly int[] _sandVariantIndexByTile;
-    private readonly bool[] _isWaterTile;
+    private readonly int[] _riverbedVariantIndexByTile;
+    private readonly int[] _shorelineVariantIndexByTile;
     private readonly Dictionary<int, TerrainTileInfo> _terrainTiles;
+    private readonly MapPropPlacement[] _propPlacements;
     private float _waterElapsedSeconds;
 
     /// <summary>Total map width in pixels (tile columns × tile pixel width).</summary>
@@ -39,6 +52,17 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 
     /// <summary>Total map height in pixels (tile rows × tile pixel height).</summary>
     public int MapPixelHeight => _mapHeight * _tileHeight;
+
+    /// <summary>Width of an individual map tile in pixels.</summary>
+    public int TileWidthPixels => _tileWidth;
+
+    /// <summary>Height of an individual map tile in pixels.</summary>
+    public int TileHeightPixels => _tileHeight;
+
+    /// <summary>
+    /// Prop instances placed through TMX object layers.
+    /// </summary>
+    public IReadOnlyList<MapPropPlacement> PropPlacements => _propPlacements;
 
     /// <summary>
     /// Initializes a world renderer from a tiled map asset in the content pipeline.
@@ -67,38 +91,60 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         var terrainTiles = LoadTerrainTiles(tilesetPath, content);
         _grassVariants = terrainTiles.GrassVariants;
         _sandVariants = terrainTiles.SandVariants;
+        _riverbedVariants = terrainTiles.RiverbedVariants;
+        _shorelineVariants = terrainTiles.ShorelineVariants;
         _terrainTiles = terrainTiles.ByLocalIdentifier;
 
-        var groundLayer = mapElement.Element("layer") ?? throw new InvalidOperationException("TMX ground layer was not found.");
-        var dataElement = groundLayer.Element("data") ?? throw new InvalidOperationException("TMX ground layer data was not found.");
-        _tileGlobalIds = ParseCsvTileData(dataElement.Value, _mapWidth * _mapHeight);
+        var propMetadataByGlobalIdentifier = LoadPropMetadataByGlobalIdentifier(mapElement, mapDirectory);
+        _propPlacements = LoadPropPlacements(mapElement, propMetadataByGlobalIdentifier);
 
-        _blockedByTile = new bool[_tileGlobalIds.Length];
-        _variantIndexByTile = new int[_tileGlobalIds.Length];
-        _sandVariantIndexByTile = new int[_tileGlobalIds.Length];
-        _isWaterTile = new bool[_tileGlobalIds.Length];
+        var layers = new List<MapLayer>();
+        foreach (var layerElement in mapElement.Elements("layer"))
+        {
+            var layerName = GetRequiredStringAttribute(layerElement, "name");
+            var dataElement = layerElement.Element("data") ?? throw new InvalidOperationException($"TMX layer '{layerName}' data was not found.");
+            var tileGlobalIds = ParseCsvTileData(dataElement.Value, _mapWidth * _mapHeight);
+            layers.Add(new MapLayer(layerName, tileGlobalIds, IsWaterLayerName(layerName)));
+        }
+
+        if (layers.Count == 0)
+        {
+            throw new InvalidOperationException("TMX map does not define any tile layers.");
+        }
+
+        _layers = layers.ToArray();
+
+        var tileCount = _mapWidth * _mapHeight;
+        _blockedByTile = new bool[tileCount];
+        _variantIndexByTile = new int[tileCount];
+        _sandVariantIndexByTile = new int[tileCount];
+        _riverbedVariantIndexByTile = new int[tileCount];
+        _shorelineVariantIndexByTile = new int[tileCount];
 
         for (var y = 0; y < _mapHeight; y++)
         {
             for (var x = 0; x < _mapWidth; x++)
             {
                 var tileIndex = (y * _mapWidth) + x;
-                var globalIdentifier = _tileGlobalIds[tileIndex];
-                if (globalIdentifier <= 0)
+                for (var layerIndex = 0; layerIndex < _layers.Length; layerIndex++)
                 {
-                    continue;
-                }
+                    var globalIdentifier = _layers[layerIndex].TileGlobalIds[tileIndex];
+                    if (globalIdentifier <= 0)
+                    {
+                        continue;
+                    }
 
-                var localTileIdentifier = globalIdentifier - _tilesetFirstGlobalIdentifier;
-                if (terrainTiles.ByLocalIdentifier.TryGetValue(localTileIdentifier, out var terrainTile))
-                {
-                    _blockedByTile[tileIndex] = terrainTile.Blocked;
-                    _isWaterTile[tileIndex] = string.Equals(
-                        terrainTile.TerrainType, WaterTerrainType, StringComparison.OrdinalIgnoreCase);
+                    var localTileIdentifier = globalIdentifier - _tilesetFirstGlobalIdentifier;
+                    if (terrainTiles.ByLocalIdentifier.TryGetValue(localTileIdentifier, out var terrainTile))
+                    {
+                        _blockedByTile[tileIndex] |= terrainTile.Blocked;
+                    }
                 }
 
                 _variantIndexByTile[tileIndex] = PickWeightedVariantIndex(x, y);
                 _sandVariantIndexByTile[tileIndex] = PickSandVariantIndex(x, y);
+                _riverbedVariantIndexByTile[tileIndex] = PickRiverbedVariantIndex(x, y, _riverbedVariants.Length);
+                _shorelineVariantIndexByTile[tileIndex] = PickShorelineVariantIndex(x, y, _shorelineVariants.Length);
             }
         }
 
@@ -118,7 +164,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     public float WaterElapsedSeconds => _waterElapsedSeconds;
 
     /// <summary>
-    /// Draws non-water terrain tiles using the provided transform matrix.
+    /// Draws all non-water tile layers using the provided transform matrix.
     /// </summary>
     /// <param name="transformMatrix">World transform matrix.</param>
     public void DrawTerrain(Matrix transformMatrix)
@@ -135,8 +181,8 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     }
 
     /// <summary>
-    /// Draws water tiles only using the provided transform matrix.
-    /// Call this to render water into a separate render target for shader post-processing.
+    /// Draws all water-prefixed tile layers using the provided transform matrix.
+    /// Call this to render a composite water stack into a separate render target for shader post-processing.
     /// </summary>
     /// <param name="transformMatrix">World transform matrix.</param>
     public void DrawWater(Matrix transformMatrix)
@@ -153,31 +199,94 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     }
 
     /// <summary>
-    /// Draws all tiles (water and non-water) in a single pass.
+    /// Draws water layers below the surface (e.g. "Water/Bottom").
+    /// Call this before drawing underwater props so they sit on the riverbed.
+    /// </summary>
+    /// <param name="transformMatrix">World transform matrix.</param>
+    public void DrawWaterBottom(Matrix transformMatrix)
+    {
+        _spriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: transformMatrix);
+
+        DrawWaterLayers(isSurface: false);
+
+        _spriteBatch.End();
+    }
+
+    /// <summary>
+    /// Draws the water surface layer ("Water/surface") on top.
+    /// Call this after drawing underwater props so the surface renders over them.
+    /// </summary>
+    /// <param name="transformMatrix">World transform matrix.</param>
+    public void DrawWaterSurface(Matrix transformMatrix)
+    {
+        _spriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: transformMatrix);
+
+        DrawWaterLayers(isSurface: true);
+
+        _spriteBatch.End();
+    }
+
+    /// <summary>
+    /// Draws all tile layers in two passes with water below terrain.
     /// Use when no water shader is needed.
     /// </summary>
     /// <param name="transformMatrix">World transform matrix.</param>
     public void Draw(Matrix transformMatrix)
     {
-        DrawTerrain(transformMatrix);
         DrawWater(transformMatrix);
+        DrawTerrain(transformMatrix);
     }
 
     private void DrawTiles(bool waterPass)
+    {
+        for (var layerIndex = 0; layerIndex < _layers.Length; layerIndex++)
+        {
+            var layer = _layers[layerIndex];
+            if (layer.IsWaterLayer != waterPass)
+            {
+                continue;
+            }
+
+            DrawLayerTiles(layer.TileGlobalIds);
+        }
+    }
+
+    private void DrawWaterLayers(bool isSurface)
+    {
+        for (var layerIndex = 0; layerIndex < _layers.Length; layerIndex++)
+        {
+            var layer = _layers[layerIndex];
+            if (!layer.IsWaterLayer)
+            {
+                continue;
+            }
+
+            var layerIsSurface = string.Equals(layer.Name, WaterSurfaceLayerName, StringComparison.OrdinalIgnoreCase);
+            if (layerIsSurface != isSurface)
+            {
+                continue;
+            }
+
+            DrawLayerTiles(layer.TileGlobalIds);
+        }
+    }
+
+    private void DrawLayerTiles(int[] tileGlobalIds)
     {
         for (var y = 0; y < _mapHeight; y++)
         {
             for (var x = 0; x < _mapWidth; x++)
             {
                 var tileIndex = (y * _mapWidth) + x;
-
-                // Filter: only draw water tiles on water pass, non-water on terrain pass.
-                if (_isWaterTile[tileIndex] != waterPass)
-                {
-                    continue;
-                }
-
-                var globalIdentifier = _tileGlobalIds[tileIndex];
+                var globalIdentifier = tileGlobalIds[tileIndex];
                 if (globalIdentifier <= 0)
                 {
                     continue;
@@ -203,6 +312,14 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                 else if (terrainTile.TerrainType == SandTerrainType)
                 {
                     _spriteBatch.Draw(_sandVariants[_sandVariantIndexByTile[tileIndex]], destination, Color.White);
+                }
+                else if (terrainTile.TerrainType == RiverbedTerrainType && _riverbedVariants.Length > 0)
+                {
+                    _spriteBatch.Draw(_riverbedVariants[_riverbedVariantIndexByTile[tileIndex]], destination, Color.White);
+                }
+                else if (terrainTile.TerrainType == ShorelineTerrainType && _shorelineVariants.Length > 0)
+                {
+                    _spriteBatch.Draw(_shorelineVariants[_shorelineVariantIndexByTile[tileIndex]], destination, Color.White);
                 }
                 else
                 {
@@ -266,6 +383,18 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         return attribute.Value;
     }
 
+    internal static bool IsWaterLayerName(string layerName)
+    {
+        return layerName.StartsWith(WaterLayerPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static Vector2 GetTileObjectTopLeft(float x, float y, float height)
+    {
+        return new Vector2(
+            MathF.Round(x),
+            MathF.Round(y - height));
+    }
+
     private static int[] ParseCsvTileData(string csvData, int expectedTileCount)
     {
         var values = csvData
@@ -285,6 +414,83 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         return tiles;
     }
 
+    private static Dictionary<int, PropTileMetadata> LoadPropMetadataByGlobalIdentifier(XElement mapElement, string mapDirectory)
+    {
+        var metadataByGlobalIdentifier = new Dictionary<int, PropTileMetadata>();
+
+        foreach (var tilesetRefElement in mapElement.Elements("tileset"))
+        {
+            var firstGlobalIdentifier = GetRequiredIntAttribute(tilesetRefElement, "firstgid");
+            var tilesetSource = tilesetRefElement.Attribute("source")?.Value;
+            if (string.IsNullOrWhiteSpace(tilesetSource))
+            {
+                continue;
+            }
+
+            var tilesetPath = Path.GetFullPath(Path.Combine(mapDirectory, tilesetSource));
+            var tilesetDocument = XDocument.Load(tilesetPath);
+            var tilesetElement = tilesetDocument.Element("tileset") ?? throw new InvalidOperationException("TSX root element was not found.");
+
+            foreach (var tileElement in tilesetElement.Elements("tile"))
+            {
+                var propType = GetTileProperty(tileElement, PropTypePropertyName);
+                if (string.IsNullOrWhiteSpace(propType))
+                {
+                    continue;
+                }
+
+                var isUnderwater = bool.TryParse(GetTileProperty(tileElement, IsUnderwaterPropertyName), out var parsed) && parsed;
+                var localIdentifier = GetRequiredIntAttribute(tileElement, "id");
+                metadataByGlobalIdentifier[firstGlobalIdentifier + localIdentifier] = new PropTileMetadata(propType, isUnderwater);
+            }
+        }
+
+        return metadataByGlobalIdentifier;
+    }
+
+    private static MapPropPlacement[] LoadPropPlacements(XElement mapElement, Dictionary<int, PropTileMetadata> metadataByGlobalIdentifier)
+    {
+        if (metadataByGlobalIdentifier.Count == 0)
+        {
+            return Array.Empty<MapPropPlacement>();
+        }
+
+        var props = new List<MapPropPlacement>();
+
+        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
+        {
+            foreach (var objectElement in objectGroupElement.Elements("object"))
+            {
+                var gidAttribute = objectElement.Attribute("gid");
+                if (gidAttribute is null)
+                {
+                    continue;
+                }
+
+                if (!uint.TryParse(gidAttribute.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rawGlobalIdentifier))
+                {
+                    continue;
+                }
+
+                var globalIdentifier = (int)(rawGlobalIdentifier & ~TiledFlipMask);
+                if (!metadataByGlobalIdentifier.TryGetValue(globalIdentifier, out var metadata))
+                {
+                    continue;
+                }
+
+                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
+                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
+                var height = objectElement.Attribute("height") is { } heightAttribute
+                    ? float.Parse(heightAttribute.Value, CultureInfo.InvariantCulture)
+                    : 0f;
+                var topLeft = GetTileObjectTopLeft(x, y, height);
+                props.Add(new MapPropPlacement(metadata.PropType, topLeft, metadata.IsUnderwater));
+            }
+        }
+
+        return props.ToArray();
+    }
+
     private static TerrainTilesetData LoadTerrainTiles(string tilesetPath, ContentManager content)
     {
         var tilesetDirectory = Path.GetDirectoryName(tilesetPath) ?? throw new InvalidOperationException("Tileset directory is unavailable.");
@@ -295,6 +501,8 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         var byLocalIdentifier = new Dictionary<int, TerrainTileInfo>();
         var grassTextures = new List<Texture2D>();
         var sandTextures = new List<Texture2D>();
+        var riverbedTextures = new List<Texture2D>();
+        var shorelineTextures = new List<Texture2D>();
 
         foreach (var tileElement in tiles)
         {
@@ -317,6 +525,14 @@ public sealed class TiledWorldRenderer : IMapCollisionData
             {
                 sandTextures.Add(texture);
             }
+            else if (string.Equals(terrainType, RiverbedTerrainType, StringComparison.OrdinalIgnoreCase))
+            {
+                riverbedTextures.Add(texture);
+            }
+            else if (string.Equals(terrainType, ShorelineTerrainType, StringComparison.OrdinalIgnoreCase))
+            {
+                shorelineTextures.Add(texture);
+            }
         }
 
         if (grassTextures.Count == 0)
@@ -324,7 +540,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
             throw new InvalidOperationException("Terrain tileset does not define any grass tiles.");
         }
 
-        return new TerrainTilesetData(byLocalIdentifier, grassTextures.ToArray(), sandTextures.ToArray());
+        return new TerrainTilesetData(byLocalIdentifier, grassTextures.ToArray(), sandTextures.ToArray(), riverbedTextures.ToArray(), shorelineTextures.ToArray());
     }
 
     private static string GetTileProperty(XElement tileElement, string propertyName)
@@ -378,10 +594,24 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 
     private readonly record struct TerrainTileInfo(string TerrainType, bool Blocked, Texture2D Texture);
 
+    private readonly record struct MapLayer(string Name, int[] TileGlobalIds, bool IsWaterLayer);
+
+    /// <summary>
+    /// A prop instance placed by TMX object data.
+    /// </summary>
+    /// <param name="PropType">Prop identifier from TSX tile property <c>propType</c>.</param>
+    /// <param name="Position">World-space top-left position in pixels.</param>
+    /// <param name="IsUnderwater">When true the prop is drawn into the water render target so the distortion shader affects it.</param>
+    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater);
+
+    private readonly record struct PropTileMetadata(string PropType, bool IsUnderwater);
+
     private readonly record struct TerrainTilesetData(
         Dictionary<int, TerrainTileInfo> ByLocalIdentifier,
         Texture2D[] GrassVariants,
-        Texture2D[] SandVariants);
+        Texture2D[] SandVariants,
+        Texture2D[] RiverbedVariants,
+        Texture2D[] ShorelineVariants);
 
     private static int PickWeightedVariantIndex(int x, int y)
     {
@@ -445,6 +675,53 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         return 2;
     }
 
+    internal static int PickRiverbedVariantIndex(int x, int y, int variantCount)
+    {
+        if (variantCount <= 0)
+        {
+            return 0;
+        }
+
+        var regionCategory = GetDeterministicRiverbedRegionCategory(x, y);
+        var categoryCount = 4;
+        var localVariantCount = (variantCount + categoryCount - 1) / categoryCount;
+        var preferredVariant = (GetDeterministicRiverbedLocalRoll(x, y) % localVariantCount) * categoryCount;
+        preferredVariant += regionCategory;
+
+        if (preferredVariant >= variantCount)
+        {
+            preferredVariant = regionCategory % variantCount;
+        }
+
+        var accentRoll = GetDeterministicRiverbedAccentRoll(x, y);
+        if (accentRoll < 72)
+        {
+            return preferredVariant;
+        }
+
+        var neighboringCategory = (regionCategory + 1 + (accentRoll % 3)) % categoryCount;
+        var neighboringVariant = (GetDeterministicRiverbedNeighborRoll(x, y) % localVariantCount) * categoryCount;
+        neighboringVariant += neighboringCategory;
+
+        if (neighboringVariant >= variantCount)
+        {
+            neighboringVariant = neighboringCategory % variantCount;
+        }
+
+        return neighboringVariant;
+    }
+
+    internal static int PickShorelineVariantIndex(int x, int y, int variantCount)
+    {
+        if (variantCount <= 0)
+        {
+            return 0;
+        }
+
+        var roll = GetDeterministicShorelineRoll(x, y);
+        return roll % variantCount;
+    }
+
     private static int GetDeterministicSandRoll(int x, int y)
     {
         unchecked
@@ -454,6 +731,80 @@ public sealed class TiledWorldRenderer : IMapCollisionData
             hash *= 1274126177u;
             hash ^= hash >> 16;
             return (int)(hash % 100u);
+        }
+    }
+
+    private static int GetDeterministicRiverbedRoll(int x, int y)
+    {
+        unchecked
+        {
+            var hash = ((uint)x * 961748927u) ^ ((uint)y * 982451653u) ^ 0x68E31DA4u;
+            hash ^= hash >> 13;
+            hash *= 1274126177u;
+            hash ^= hash >> 16;
+            return (int)(hash % 100u);
+        }
+    }
+
+    private static int GetDeterministicRiverbedRegionCategory(int x, int y)
+    {
+        unchecked
+        {
+            var regionX = x / 4;
+            var regionY = y / 3;
+            var hash = ((uint)regionX * 2246822519u) ^ ((uint)regionY * 3266489917u) ^ 0xC2B2AE35u;
+            hash ^= hash >> 15;
+            hash *= 2246822519u;
+            hash ^= hash >> 13;
+            return (int)(hash % 4u);
+        }
+    }
+
+    private static int GetDeterministicRiverbedLocalRoll(int x, int y)
+    {
+        unchecked
+        {
+            var hash = ((uint)x * 668265263u) ^ ((uint)y * 2147483647u) ^ 0x165667B1u;
+            hash ^= hash >> 13;
+            hash *= 2246822519u;
+            hash ^= hash >> 16;
+            return (int)(hash & 0x7FFFFFFF);
+        }
+    }
+
+    private static int GetDeterministicRiverbedAccentRoll(int x, int y)
+    {
+        unchecked
+        {
+            var hash = ((uint)x * 374761393u) ^ ((uint)y * 1103515245u) ^ 0x85EBCA77u;
+            hash ^= hash >> 15;
+            hash *= 1274126177u;
+            hash ^= hash >> 14;
+            return (int)(hash % 100u);
+        }
+    }
+
+    private static int GetDeterministicRiverbedNeighborRoll(int x, int y)
+    {
+        unchecked
+        {
+            var hash = ((uint)x * 1597334677u) ^ ((uint)y * 3812015801u) ^ 0x27D4EB2Fu;
+            hash ^= hash >> 13;
+            hash *= 3266489917u;
+            hash ^= hash >> 16;
+            return (int)(hash & 0x7FFFFFFF);
+        }
+    }
+
+    private static int GetDeterministicShorelineRoll(int x, int y)
+    {
+        unchecked
+        {
+            var hash = ((uint)x * 2654435761u) ^ ((uint)y * 2246822519u) ^ 0xA136AAABu;
+            hash ^= hash >> 13;
+            hash *= 3266489917u;
+            hash ^= hash >> 16;
+            return (int)(hash & 0x7FFFFFFF);
         }
     }
 }

@@ -96,6 +96,19 @@ public class InputManagerTests
         Assert.Throws<ArgumentException>(() => input.SetBinding(InputAction.Confirm));
     }
 
+    [Fact]
+    public void IsPressed__ScreenshotBindingUsesPKey__ReturnsTrue()
+    {
+        var source = new FakeKeyboardStateSource(
+            new KeyboardState(),
+            new KeyboardState(Keys.P));
+
+        var input = new InputManager(source);
+        input.Update();
+
+        Assert.True(input.IsPressed(InputAction.CopyScreenshotToClipboard));
+    }
+
     private sealed class FakeKeyboardStateSource : IKeyboardStateSource
     {
         private readonly Queue<KeyboardState> _states;

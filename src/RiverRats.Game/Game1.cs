@@ -1,6 +1,9 @@
 ﻿using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Threading;
+using Clipboard = System.Windows.Forms.Clipboard;
+using DrawingBitmap = System.Drawing.Bitmap;
 using RiverRats.Game.Input;
 using RiverRats.Game.Screens;
 
@@ -23,12 +26,15 @@ public class Game1 : Microsoft.Xna.Framework.Game
     private SpriteBatch _spriteBatch;
     private RenderTarget2D _sceneRenderTarget;
     private Rectangle _sceneDestination;
+    private bool _copyScreenshotRequested;
+    private Color[] _screenshotBuffer;
 
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
+        Window.AllowUserResizing = true;
         Window.Title = "River Rats";
         Window.ClientSizeChanged += OnClientSizeChanged;
 
@@ -75,6 +81,11 @@ public class Game1 : Microsoft.Xna.Framework.Game
     protected override void Update(GameTime gameTime)
     {
         _inputManager.Update();
+        if (_inputManager.IsPressed(InputAction.CopyScreenshotToClipboard))
+        {
+            _copyScreenshotRequested = true;
+        }
+
         _screenManager.Update(gameTime, _inputManager);
         base.Update(gameTime);
     }
@@ -93,7 +104,46 @@ public class Game1 : Microsoft.Xna.Framework.Game
         _spriteBatch.Draw(_sceneRenderTarget, _sceneDestination, Color.White);
         _spriteBatch.End();
 
+        if (_copyScreenshotRequested)
+        {
+            CopySceneRenderTargetToClipboard();
+            _copyScreenshotRequested = false;
+        }
+
         base.Draw(gameTime);
+    }
+
+    private void CopySceneRenderTargetToClipboard()
+    {
+        if (_sceneRenderTarget is null)
+        {
+            return;
+        }
+
+        var pixelCount = _sceneRenderTarget.Width * _sceneRenderTarget.Height;
+        if (_screenshotBuffer is null || _screenshotBuffer.Length != pixelCount)
+        {
+            _screenshotBuffer = new Color[pixelCount];
+        }
+
+        _sceneRenderTarget.GetData(_screenshotBuffer);
+
+        using var bitmap = new DrawingBitmap(_sceneRenderTarget.Width, _sceneRenderTarget.Height);
+        for (var y = 0; y < _sceneRenderTarget.Height; y++)
+        {
+            var rowOffset = y * _sceneRenderTarget.Width;
+            for (var x = 0; x < _sceneRenderTarget.Width; x++)
+            {
+                var color = _screenshotBuffer[rowOffset + x];
+                bitmap.SetPixel(x, y, System.Drawing.Color.FromArgb(color.A, color.R, color.G, color.B));
+            }
+        }
+
+        using var clipboardImage = new DrawingBitmap(bitmap);
+        var clipboardThread = new Thread(() => Clipboard.SetImage(clipboardImage));
+        clipboardThread.SetApartmentState(ApartmentState.STA);
+        clipboardThread.Start();
+        clipboardThread.Join();
     }
 
     private void RecalculateSceneDestination()

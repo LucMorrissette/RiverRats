@@ -8,9 +8,11 @@
 | **Virtual resolution** | 960×540 | 30×16.875 tiles visible. Clean 2× integer scale to 1080p. |
 | **Scaling mode** | 2× integer scaling with letterbox | Pixel-perfect rendering; no sub-pixel blur. Fills 1080p exactly. |
 | **Map format** | Tiled `.tmx` with external `.tsx` tilesets | Editor-authored maps via MonoGame.Extended content pipeline. |
-| **Terrain variation** | Deterministic position-hash with weighted tile variants | Organic-looking grass distribution without per-tile authoring or runtime flicker. |
+| **Water post-process grouping** | Tile layers named `Water/*` render into a shared water render target before distortion | Lets water bottoms, props, and future surface overlays share one shader pass without tile-level coupling. |
+| **Terrain variation** | Deterministic position-hash with weighted tile variants | Organic-looking grass, sand, and riverbed distribution without per-tile authoring or runtime flicker. |
 | **Camera** | Camera2D producing a `Matrix` transform | All world-space drawing uses camera matrix in SpriteBatch.Begin(). |
 | **UI rendering pass** | Separate SpriteBatch without camera transform | Screen-space UI stays fixed regardless of camera position. |
+| **Screenshot capture source** | Final virtual scene render target | Copies the post-processed gameplay frame to the clipboard without depending on window size or letterboxing. |
 | **Y-sorting** | IYSortable interface | Entities sorted by Y position for correct depth ordering. |
 | **VSync** | *(TBD)* | Off for uncapped frames or on for tear-free. |
 | **Fixed timestep** | *(TBD)* | Off for variable delta unless physics requires it. |
@@ -42,6 +44,6 @@
 |---|---|
 | `Camera2D` | Produces a world-space view `Matrix` for `SpriteBatch`. Clamps position to map pixel bounds. |
 | `DayNightCycle` | Looping time-of-day cycle that outputs a multiply-blend tint `Color`. Phases: Night → Dawn → Day → Dusk. Pure logic, no GPU dependency. |
-| `TiledWorldRenderer` | Wraps MonoGame.Extended tiled map loading and deterministic weighted tile-variant drawing. |
+| `TiledWorldRenderer` | Wraps TMX/TSX map loading, deterministic weighted tile-variant drawing, and `Water/*` layer grouping for the distortion pass. |
 
 *(Add entries as graphics classes are created — ScreenScaler, etc.)*

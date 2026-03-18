@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Content;
@@ -17,7 +18,6 @@ namespace RiverRats.Game.Screens;
 public sealed class GameplayScreen : IGameScreen
 {
     private const int PlayerFramePixels = 32;
-    private const int WorldTilePixels = 32;
     private const float PlayerMoveSpeedPixelsPerSecond = 96f;
     private const float PlayerAccelerationRate = 10f;
     private const int WalkFramesPerDirection = 4;
@@ -26,20 +26,9 @@ public sealed class GameplayScreen : IGameScreen
     private const float DayNightCycleStartProgress = 0.30f;
     private const int MaxRipples = 8;
     private const float RippleMaxAge = 2f;
+    private static readonly Color DebugTileGridColor = new(255, 255, 255, 40);
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
-
-    private static readonly Point[] BoulderTilePositions =
-    {
-        new(12, 10),
-        new(12, 9),
-        new(12, 11),
-        new(11, 10),
-        new(13, 10),
-        new(14, 9),
-        new(14, 10),
-        new(14, 11)
-    };
 
     private readonly GraphicsDevice _graphicsDevice;
     private readonly ContentManager _content;
@@ -68,7 +57,12 @@ public sealed class GameplayScreen : IGameScreen
     private SpriteAnimator _followerAnimator;
     private Texture2D _followerSpriteSheet;
     private Texture2D _boulderTexture;
+    private Texture2D _dockTexture;
+    private Texture2D _sunkenLogTexture;
     private Boulder[] _boulders;
+    private Boulder[] _sunkenLogs;
+    private Boulder[] _underwaterSunkenLogs;
+    private Dock[] _docks;
     private WorldCollisionMap _collisionMap;
     private DayNightCycle _dayNightCycle;
     private Texture2D _pixelTexture;
@@ -119,6 +113,8 @@ public sealed class GameplayScreen : IGameScreen
         _playerSpriteSheet = _content.Load<Texture2D>("Sprites/generic_character_sheet");
         _followerSpriteSheet = _content.Load<Texture2D>("Sprites/companion_character_sheet");
         _boulderTexture = _content.Load<Texture2D>("Sprites/boulder");
+        _dockTexture = _content.Load<Texture2D>("Sprites/wooden-dock");
+        _sunkenLogTexture = _content.Load<Texture2D>("Sprites/sunken-log");
         _playerAnimator = new SpriteAnimator(
             PlayerFramePixels, PlayerFramePixels,
             WalkFramesPerDirection, WalkFrameDuration);
@@ -144,8 +140,11 @@ public sealed class GameplayScreen : IGameScreen
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
             FollowerConfig);
 
-        _boulders = CreateBoulders(_boulderTexture);
-        _collisionMap = new WorldCollisionMap(_worldRenderer, GetBoulderBounds(_boulders));
+        _boulders = CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
+        _docks = CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
+        _sunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
+        _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
+        _collisionMap = new WorldCollisionMap(_worldRenderer, GetBoulderBounds(_boulders), GetDockBounds(_docks));
         _camera.LookAt(_player.Center);
 
         _dayNightCycle = new DayNightCycle(
@@ -166,13 +165,13 @@ public sealed class GameplayScreen : IGameScreen
             RenderTargetUsage.DiscardContents);
         _waterDistortionEffect = _content.Load<Effect>("Effects/WaterDistortion");
 
-        // Adjust these parameters to change the overall wave effect on water tiles.
-        _waterDistortionEffect.Parameters["Amplitude"].SetValue(0.002f); // How far pixels get displaced. Higher = more dramatic waves.
+        // Adjust these parameters to change the overall wave effect on composited water layers.
+        _waterDistortionEffect.Parameters["Amplitude"].SetValue(0.004f); // How far pixels get displaced. Higher = more dramatic waves.
         _waterDistortionEffect.Parameters["Frequency"].SetValue(25f); 	// Wave tightness. Higher = more ripples packed in. Lower = broad rolling waves.
         _waterDistortionEffect.Parameters["Speed"].SetValue(1f); //How fast waves animate.
 
         // water riples are additive on top of the base wave distortion, so they can be stronger without looking unnatural. Adjust these to change the click ripple effect.
-        _waterDistortionEffect.Parameters["RippleAmplitude"].SetValue(0.005f); // Additional displacement for click ripples. Higher = bigger splashes.
+        _waterDistortionEffect.Parameters["RippleAmplitude"].SetValue(0.020f); // Additional displacement for click ripples. Higher = bigger splashes.
         _waterDistortionEffect.Parameters["RippleFrequency"].SetValue(40f); // Ripple tightness. Higher = tighter, more circular ripples. Lower = looser, more wave-like ripples.
         _waterDistortionEffect.Parameters["RippleSpeed"].SetValue(15f); // How fast ripples expand and fade.
         
@@ -218,15 +217,26 @@ public sealed class GameplayScreen : IGameScreen
 
         _graphicsDevice.SetRenderTarget(_waterRenderTarget);
         _graphicsDevice.Clear(Color.Transparent);
-        _worldRenderer.DrawWater(worldMatrix);
+        _worldRenderer.DrawWaterBottom(worldMatrix);
+
+        // Draw underwater props between bottom and surface so the surface waves render over them.
+        _worldSpriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: worldMatrix);
+        for (var i = 0; i < _underwaterSunkenLogs.Length; i++)
+        {
+            _underwaterSunkenLogs[i].Draw(_worldSpriteBatch);
+        }
+        _worldSpriteBatch.End();
+
+        _worldRenderer.DrawWaterSurface(worldMatrix);
 
         // --- Switch back to the scene render target ---
         _graphicsDevice.SetRenderTarget(previousRenderTarget);
 
-        // --- Pass 2: Draw non-water terrain ---
-        _worldRenderer.DrawTerrain(worldMatrix);
-
-        // --- Pass 3: Composite water with distortion shader ---
+        // --- Pass 2: Composite water with distortion shader ---
         // LinearClamp smooths the UV displacement for natural-looking waves
         // instead of the pixel-snapping that PointClamp would produce.
         _waterDistortionEffect.Parameters["Time"].SetValue(_worldRenderer.WaterElapsedSeconds);
@@ -245,6 +255,9 @@ public sealed class GameplayScreen : IGameScreen
             Color.White);
         _worldSpriteBatch.End();
 
+        // --- Pass 3: Draw non-water terrain above the composited water ---
+        _worldRenderer.DrawTerrain(worldMatrix);
+
         // --- Pass 4: Entities ---
         _worldSpriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
@@ -254,6 +267,16 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _boulders.Length; i++)
         {
             _boulders[i].Draw(_worldSpriteBatch);
+        }
+
+        for (var i = 0; i < _docks.Length; i++)
+        {
+            _docks[i].Draw(_worldSpriteBatch);
+        }
+
+        for (var i = 0; i < _sunkenLogs.Length; i++)
+        {
+            _sunkenLogs[i].Draw(_worldSpriteBatch);
         }
 
         _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet);
@@ -286,6 +309,7 @@ public sealed class GameplayScreen : IGameScreen
 
     private void DrawCollisionBounds()
     {
+        DrawTileGrid();
         DrawRectangleOutline(_player.FootBounds, Color.Yellow);
         DrawRectangleOutline(_player.Bounds, Color.OrangeRed);
 
@@ -294,6 +318,35 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _boulders.Length; i++)
         {
             DrawRectangleOutline(_boulders[i].Bounds, Color.Red);
+        }
+    }
+
+    private void DrawTileGrid()
+    {
+        if (_worldSpriteBatch is null || _worldRenderer is null || _pixelTexture is null)
+        {
+            return;
+        }
+
+        var mapWidth = _worldRenderer.MapPixelWidth;
+        var mapHeight = _worldRenderer.MapPixelHeight;
+        var tileWidth = _worldRenderer.TileWidthPixels;
+        var tileHeight = _worldRenderer.TileHeightPixels;
+
+        for (var x = 0; x <= mapWidth; x += tileWidth)
+        {
+            _worldSpriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(x, 0, 1, mapHeight),
+                DebugTileGridColor);
+        }
+
+        for (var y = 0; y <= mapHeight; y += tileHeight)
+        {
+            _worldSpriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(0, y, mapWidth, 1),
+                DebugTileGridColor);
         }
     }
 
@@ -316,6 +369,17 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < boulders.Length; i++)
         {
             bounds[i] = boulders[i].Bounds;
+        }
+
+        return bounds;
+    }
+
+    private static Rectangle[] GetDockBounds(Dock[] docks)
+    {
+        var bounds = new Rectangle[docks.Length];
+        for (var i = 0; i < docks.Length; i++)
+        {
+            bounds[i] = docks[i].Bounds;
         }
 
         return bounds;
@@ -384,19 +448,64 @@ public sealed class GameplayScreen : IGameScreen
         return !_collisionMap.IsWorldRectangleBlocked(candidateBounds);
     }
 
-    private static Boulder[] CreateBoulders(Texture2D boulderTexture)
+    private static Boulder[] CreateBoulders(Texture2D boulderTexture, IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
     {
-        var boulders = new Boulder[BoulderTilePositions.Length];
-        for (var i = 0; i < BoulderTilePositions.Length; i++)
+        var boulders = new List<Boulder>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
         {
-            var tilePosition = BoulderTilePositions[i];
-            var worldPosition = new Vector2(
-                tilePosition.X * WorldTilePixels,
-                tilePosition.Y * WorldTilePixels);
-            boulders[i] = new Boulder(worldPosition, boulderTexture);
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "boulder", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            boulders.Add(new Boulder(placement.Position, boulderTexture));
         }
 
-        return boulders;
+        return boulders.ToArray();
+    }
+
+    private static Dock[] CreateDocks(Texture2D dockTexture, IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var docks = new List<Dock>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "dock", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            docks.Add(new Dock(placement.Position, dockTexture));
+        }
+
+        return docks.ToArray();
+    }
+
+    private static Boulder[] CreatePropsByType(
+        Texture2D texture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
+        string propType,
+        bool isUnderwater)
+    {
+        var props = new List<Boulder>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, propType, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (placement.IsUnderwater != isUnderwater)
+            {
+                continue;
+            }
+
+            props.Add(new Boulder(placement.Position, texture));
+        }
+
+        return props.ToArray();
     }
 
     private void UpdateRipples(GameTime gameTime, IInputManager input)

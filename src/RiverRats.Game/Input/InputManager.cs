@@ -146,7 +146,8 @@ public sealed class InputManager : IInputManager
             [InputAction.Confirm] = new[] { Keys.Space, Keys.Enter },
             [InputAction.Cancel] = new[] { Keys.Escape, Keys.Back },
             [InputAction.Exit] = new[] { Keys.Escape },
-            [InputAction.ToggleCollisionDebug] = new[] { Keys.U }
+            [InputAction.ToggleCollisionDebug] = new[] { Keys.U },
+            [InputAction.CopyScreenshotToClipboard] = new[] { Keys.P }
         };
     }
 }
