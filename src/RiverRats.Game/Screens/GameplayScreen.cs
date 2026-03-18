@@ -58,11 +58,13 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _followerSpriteSheet;
     private Texture2D _boulderTexture;
     private Texture2D _dockTexture;
+    private Texture2D _dockLegLeftTexture;
     private Texture2D _sunkenLogTexture;
     private Boulder[] _boulders;
     private Boulder[] _sunkenLogs;
     private Boulder[] _underwaterSunkenLogs;
     private Dock[] _docks;
+    private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
     private DayNightCycle _dayNightCycle;
     private Texture2D _pixelTexture;
@@ -114,6 +116,7 @@ public sealed class GameplayScreen : IGameScreen
         _followerSpriteSheet = _content.Load<Texture2D>("Sprites/companion_character_sheet");
         _boulderTexture = _content.Load<Texture2D>("Sprites/boulder");
         _dockTexture = _content.Load<Texture2D>("Sprites/wooden-dock");
+        _dockLegLeftTexture = _content.Load<Texture2D>("Tilesets/wooden-dock-leg-left");
         _sunkenLogTexture = _content.Load<Texture2D>("Sprites/sunken-log");
         _playerAnimator = new SpriteAnimator(
             PlayerFramePixels, PlayerFramePixels,
@@ -142,6 +145,7 @@ public sealed class GameplayScreen : IGameScreen
 
         _boulders = CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
         _docks = CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
+        _dockLegsLeft = CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true);
         _sunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
         _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
         _collisionMap = new WorldCollisionMap(_worldRenderer, MergeObstacleBounds(GetBoulderBounds(_boulders), _worldRenderer.ColliderBounds), GetDockBounds(_docks));
@@ -173,7 +177,7 @@ public sealed class GameplayScreen : IGameScreen
         // water riples are additive on top of the base wave distortion, so they can be stronger without looking unnatural. Adjust these to change the click ripple effect.
         _waterDistortionEffect.Parameters["RippleAmplitude"].SetValue(0.020f); // Additional displacement for click ripples. Higher = bigger splashes.
         _waterDistortionEffect.Parameters["RippleFrequency"].SetValue(40f); // Ripple tightness. Higher = tighter, more circular ripples. Lower = looser, more wave-like ripples.
-        _waterDistortionEffect.Parameters["RippleSpeed"].SetValue(15f); // How fast ripples expand and fade.
+        _waterDistortionEffect.Parameters["RippleSpeed"].SetValue(18f); // How fast ripples expand and fade.
         
         _waterDistortionEffect.Parameters["AspectRatio"].SetValue((float)_virtualWidth / _virtualHeight);
     }
@@ -228,6 +232,10 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _underwaterSunkenLogs.Length; i++)
         {
             _underwaterSunkenLogs[i].Draw(_worldSpriteBatch);
+        }
+        for (var i = 0; i < _dockLegsLeft.Length; i++)
+        {
+            _dockLegsLeft[i].Draw(_worldSpriteBatch);
         }
         _worldSpriteBatch.End();
 

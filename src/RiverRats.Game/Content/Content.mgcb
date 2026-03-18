@@ -75,6 +75,18 @@
 /processorParam:TextureFormat=Color
 /build:Sprites/wooden-dock.png
 
+#begin Tilesets/wooden-dock-leg-left.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Tilesets/wooden-dock-leg-left.png
+
 #begin Effects/WaterDistortion.fx
 /importer:EffectImporter
 /processor:EffectProcessor
