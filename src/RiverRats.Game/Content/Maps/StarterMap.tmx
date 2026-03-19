@@ -81,10 +81,10 @@
   <object id="4" gid="50" x="352" y="352" width="32" height="32"/>
   <object id="5" gid="50" x="416" y="352" width="32" height="32"/>
   <object id="8" gid="50" x="448" y="384" width="32" height="32"/>
-  <object id="12" gid="51" x="609.333" y="578.333" width="64" height="64"/>
+  <object id="12" gid="51" x="609" y="578" width="64" height="64"/>
   <object id="19" gid="52" x="737" y="609.5" width="96" height="32"/>
-  <object id="38" gid="53" x="608.273" y="601.273" width="32" height="32"/>
-  <object id="40" gid="53" x="661.25" y="599.75" width="32" height="32"/>
+  <object id="38" gid="53" x="608" y="608" width="32" height="32"/>
+  <object id="40" gid="53" x="661" y="609" width="32" height="32"/>
  </objectgroup>
  <objectgroup id="6" name="Colliders" locked="1">
   <object id="33" x="1" y="527" width="613" height="112"/>

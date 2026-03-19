@@ -26,6 +26,7 @@ public sealed class GameplayScreen : IGameScreen
     private const float DayNightCycleStartProgress = 0.30f;
     private const int MaxRipples = 8;
     private const float RippleMaxAge = 2f;
+    private const int GradientStripCount = 32;
     private static readonly Color DebugTileGridColor = new(255, 255, 255, 40);
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
@@ -69,7 +70,10 @@ public sealed class GameplayScreen : IGameScreen
     private DayNightCycle _dayNightCycle;
     private Texture2D _pixelTexture;
     private RenderTarget2D _waterRenderTarget;
+    private RenderTarget2D _surfaceReachRenderTarget;
+    private RenderTarget2D _surfaceReachGradientTarget;
     private Effect _waterDistortionEffect;
+    private Boulder[] _surfaceReachDockLegsLeft;
     private bool _showCollisionBounds;
     private readonly Vector2[] _rippleWorldPositions = new Vector2[MaxRipples];
     private readonly float[] _rippleAges = new float[MaxRipples];
@@ -145,7 +149,8 @@ public sealed class GameplayScreen : IGameScreen
 
         _boulders = CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
         _docks = CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
-        _dockLegsLeft = CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true);
+        _dockLegsLeft = CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: false);
+        _surfaceReachDockLegsLeft = CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
         _sunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
         _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
         _collisionMap = new WorldCollisionMap(_worldRenderer, MergeObstacleBounds(GetBoulderBounds(_boulders), _worldRenderer.ColliderBounds), GetDockBounds(_docks));
@@ -159,6 +164,24 @@ public sealed class GameplayScreen : IGameScreen
         _pixelTexture.SetData(new[] { Color.White });
 
         _waterRenderTarget = new RenderTarget2D(
+            _graphicsDevice,
+            _virtualWidth,
+            _virtualHeight,
+            false,
+            SurfaceFormat.Color,
+            DepthFormat.None,
+            0,
+            RenderTargetUsage.DiscardContents);
+        _surfaceReachRenderTarget = new RenderTarget2D(
+            _graphicsDevice,
+            _virtualWidth,
+            _virtualHeight,
+            false,
+            SurfaceFormat.Color,
+            DepthFormat.None,
+            0,
+            RenderTargetUsage.DiscardContents);
+        _surfaceReachGradientTarget = new RenderTarget2D(
             _graphicsDevice,
             _virtualWidth,
             _virtualHeight,
@@ -241,6 +264,37 @@ public sealed class GameplayScreen : IGameScreen
 
         _worldRenderer.DrawWaterSurface(worldMatrix);
 
+        // --- Pass 1b: Render surface-reaching underwater props to separate render target ---
+        // Draw props normally (full color, full alpha) — no gradient encoding here.
+        _graphicsDevice.SetRenderTarget(_surfaceReachRenderTarget);
+        _graphicsDevice.Clear(Color.Transparent);
+        _worldSpriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: worldMatrix);
+        for (var i = 0; i < _surfaceReachDockLegsLeft.Length; i++)
+        {
+            _surfaceReachDockLegsLeft[i].Draw(_worldSpriteBatch);
+        }
+        _worldSpriteBatch.End();
+
+        // --- Pass 1c: Render gradient masks for surface-reaching props ---
+        // Solid white rectangles with vertical alpha gradient (0 at top, 1 at bottom).
+        // The SurfaceReachDistortion shader reads this mask to scale distortion per-pixel.
+        _graphicsDevice.SetRenderTarget(_surfaceReachGradientTarget);
+        _graphicsDevice.Clear(Color.Transparent);
+        _worldSpriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: worldMatrix);
+        for (var i = 0; i < _surfaceReachDockLegsLeft.Length; i++)
+        {
+            DrawGradientMask(_surfaceReachDockLegsLeft[i]);
+        }
+        _worldSpriteBatch.End();
+
         // --- Switch back to the scene render target ---
         _graphicsDevice.SetRenderTarget(previousRenderTarget);
 
@@ -262,6 +316,23 @@ public sealed class GameplayScreen : IGameScreen
             new Rectangle(0, 0, _virtualWidth, _virtualHeight),
             Color.White);
         _worldSpriteBatch.End();
+
+        // --- Pass 2b: Composite surface-reach props with per-prop vertical gradient distortion ---
+        // SurfaceReachDistortion technique reads the gradient mask to scale amplitude per-pixel.
+        _waterDistortionEffect.CurrentTechnique = _waterDistortionEffect.Techniques["SurfaceReachDistortion"];
+        _waterDistortionEffect.Parameters["GradientMaskTexture"].SetValue(_surfaceReachGradientTarget);
+        _worldSpriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.LinearClamp,
+            effect: _waterDistortionEffect);
+        _worldSpriteBatch.Draw(
+            _surfaceReachRenderTarget,
+            new Rectangle(0, 0, _virtualWidth, _virtualHeight),
+            Color.White);
+        _worldSpriteBatch.End();
+        // Restore the default technique for the next frame's water pass.
+        _waterDistortionEffect.CurrentTechnique = _waterDistortionEffect.Techniques["WaterDistortion"];
 
         // --- Pass 3: Draw non-water terrain above the composited water ---
         _worldRenderer.DrawTerrain(worldMatrix);
@@ -313,6 +384,8 @@ public sealed class GameplayScreen : IGameScreen
         _worldSpriteBatch?.Dispose();
         _pixelTexture?.Dispose();
         _waterRenderTarget?.Dispose();
+        _surfaceReachRenderTarget?.Dispose();
+        _surfaceReachGradientTarget?.Dispose();
     }
 
     private void DrawCollisionBounds()
@@ -369,6 +442,30 @@ public sealed class GameplayScreen : IGameScreen
         _worldSpriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Left, rectangle.Top, thickness, rectangle.Height), color);
         _worldSpriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Right - thickness, rectangle.Top, thickness, rectangle.Height), color);
         _worldSpriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Left, rectangle.Bottom - thickness, rectangle.Width, thickness), color);
+    }
+
+    /// <summary>
+    /// Draws a gradient mask rectangle at the prop's position using the 1×1 white pixel texture.
+    /// Alpha interpolates from 0 (top strip) to 255 (bottom strip), encoding the distortion
+    /// scale factor for the SurfaceReachDistortion shader technique.
+    /// </summary>
+    private void DrawGradientMask(Boulder prop)
+    {
+        var bounds = prop.Bounds;
+        var stripHeight = Math.Max(1, bounds.Height / GradientStripCount);
+        var actualStripCount = (bounds.Height + stripHeight - 1) / stripHeight;
+
+        for (var strip = 0; strip < actualStripCount; strip++)
+        {
+            var y = bounds.Y + (strip * stripHeight);
+            var height = Math.Min(stripHeight, bounds.Bottom - y);
+
+            // Alpha ramps from 0 at top strip to 255 at bottom strip.
+            var alpha = (byte)(strip * 255 / Math.Max(1, actualStripCount - 1));
+
+            var destRect = new Rectangle(bounds.X, y, bounds.Width, height);
+            _worldSpriteBatch.Draw(_pixelTexture, destRect, new Color(alpha, alpha, alpha, alpha));
+        }
     }
 
     private static Rectangle[] GetBoulderBounds(Boulder[] boulders)
@@ -494,7 +591,8 @@ public sealed class GameplayScreen : IGameScreen
         Texture2D texture,
         IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
         string propType,
-        bool isUnderwater)
+        bool isUnderwater,
+        bool reachesSurface = false)
     {
         var props = new List<Boulder>(placements.Count);
         for (var i = 0; i < placements.Count; i++)
@@ -506,6 +604,11 @@ public sealed class GameplayScreen : IGameScreen
             }
 
             if (placement.IsUnderwater != isUnderwater)
+            {
+                continue;
+            }
+
+            if (placement.ReachesSurface != reachesSurface)
             {
                 continue;
             }
@@ -549,7 +652,7 @@ public sealed class GameplayScreen : IGameScreen
             }
         }
 
-        if (input.IsMouseLeftReleased() && _rippleCount < MaxRipples)
+        if (input.IsMouseLeftPressed() && _rippleCount < MaxRipples)
         {
             var virtualPos = PhysicalToVirtualMousePosition(input.GetMousePosition());
             var worldPos = _camera.ScreenToWorld(virtualPos);

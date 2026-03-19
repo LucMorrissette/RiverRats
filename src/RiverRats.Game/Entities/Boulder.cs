@@ -25,6 +25,9 @@ public sealed class Boulder
     /// <summary>Top-left world position in pixels.</summary>
     public Vector2 Position => _position;
 
+    /// <summary>Texture used for rendering and bounds calculation.</summary>
+    public Texture2D Texture => _texture;
+
     /// <summary>World-space blocking bounds for this boulder.</summary>
     public Rectangle Bounds => new(
         (int)_position.X,

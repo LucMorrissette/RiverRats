@@ -23,6 +23,7 @@
     <properties>
       <property name="propType" value="dock-leg-left"/>
       <property name="isUnderwater" type="bool" value="true"/>
+      <property name="reachesSurface" type="bool" value="true"/>
     </properties>
     <image source="wooden-dock-leg-left.png" width="32" height="32"/>
   </tile>

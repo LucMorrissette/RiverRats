@@ -9,6 +9,7 @@
 | **Scaling mode** | 2× integer scaling with letterbox | Pixel-perfect rendering; no sub-pixel blur. Fills 1080p exactly. |
 | **Map format** | Tiled `.tmx` with external `.tsx` tilesets | Editor-authored maps via MonoGame.Extended content pipeline. |
 | **Water post-process grouping** | Tile layers named `Water/*` render into a shared water render target before distortion | Lets water bottoms, props, and future surface overlays share one shader pass without tile-level coupling. |
+| **Surface-reach distortion** | Props with `reachesSurface` render into a dedicated render target with alpha-encoded vertical gradient (0 at top, 1 at bottom); the `SurfaceReachDistortion` shader technique reads this alpha to scale distortion per-pixel | Simulates props emerging from the water surface — no distortion at the top (air), full distortion at the bottom (submerged). Uses horizontal strip drawing to encode gradient into alpha channel. |
 | **Terrain variation** | Deterministic position-hash with weighted tile variants | Organic-looking grass, sand, and riverbed distribution without per-tile authoring or runtime flicker. |
 | **Camera** | Camera2D producing a `Matrix` transform | All world-space drawing uses camera matrix in SpriteBatch.Begin(). |
 | **UI rendering pass** | Separate SpriteBatch without camera transform | Screen-space UI stays fixed regardless of camera position. |

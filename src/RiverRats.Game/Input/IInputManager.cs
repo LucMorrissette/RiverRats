@@ -1,4 +1,3 @@
-using System;
 using Microsoft.Xna.Framework;
 
 namespace RiverRats.Game.Input;
@@ -21,21 +20,14 @@ public interface IInputManager
     bool IsReleased(InputAction action);
 
     /// <summary>
-    /// Returns true only on the frame the left mouse button transitions Released -> Pressed.
+    /// Returns true only on the frame the left mouse button is pressed down.
+    /// Uses SDL2 event buffering to reliably detect fast clicks on macOS.
     /// </summary>
-    /// <remarks>
-    /// Unreliable for fast (quick tap) clicks on macOS because the press+release can
-    /// both occur between two consecutive <c>Mouse.GetState()</c> polls, causing the
-    /// Pressed state to be missed entirely. Prefer <see cref="IsMouseLeftReleased"/> for
-    /// click detection.
-    /// </remarks>
-    [Obsolete("Unreliable for fast clicks on macOS. Use IsMouseLeftReleased() instead.")]
     bool IsMouseLeftPressed();
 
     /// <summary>
-    /// Returns true only on the frame the left mouse button transitions Pressed -> Released.
-    /// More reliable than <see cref="IsMouseLeftPressed"/> for detecting fast clicks on macOS,
-    /// because the release transition is captured after the button is held for at least one frame.
+    /// Returns true only on the frame the left mouse button is released.
+    /// Uses SDL2 event buffering to reliably detect fast clicks on macOS.
     /// </summary>
     bool IsMouseLeftReleased();
 

@@ -22,6 +22,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private const string WaterSurfaceLayerName = "Water/surface";
     private const string PropTypePropertyName = "propType";
     private const string IsUnderwaterPropertyName = "isUnderwater";
+    private const string ReachesSurfacePropertyName = "reachesSurface";
     private const string ColliderLayerName = "Colliders";
     private const uint TiledHorizontalFlipFlag = 0x80000000;
     private const uint TiledVerticalFlipFlag = 0x40000000;
@@ -448,8 +449,9 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                 }
 
                 var isUnderwater = bool.TryParse(GetTileProperty(tileElement, IsUnderwaterPropertyName), out var parsed) && parsed;
+                var reachesSurface = bool.TryParse(GetTileProperty(tileElement, ReachesSurfacePropertyName), out var parsedSurface) && parsedSurface;
                 var localIdentifier = GetRequiredIntAttribute(tileElement, "id");
-                metadataByGlobalIdentifier[firstGlobalIdentifier + localIdentifier] = new PropTileMetadata(propType, isUnderwater);
+                metadataByGlobalIdentifier[firstGlobalIdentifier + localIdentifier] = new PropTileMetadata(propType, isUnderwater, reachesSurface);
             }
         }
 
@@ -492,7 +494,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                     ? float.Parse(heightAttribute.Value, CultureInfo.InvariantCulture)
                     : 0f;
                 var topLeft = GetTileObjectTopLeft(x, y, height);
-                props.Add(new MapPropPlacement(metadata.PropType, topLeft, metadata.IsUnderwater));
+                props.Add(new MapPropPlacement(metadata.PropType, topLeft, metadata.IsUnderwater, metadata.ReachesSurface));
             }
         }
 
@@ -646,9 +648,9 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     /// <param name="PropType">Prop identifier from TSX tile property <c>propType</c>.</param>
     /// <param name="Position">World-space top-left position in pixels.</param>
     /// <param name="IsUnderwater">When true the prop is drawn into the water render target so the distortion shader affects it.</param>
-    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater);
+    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater, bool ReachesSurface);
 
-    private readonly record struct PropTileMetadata(string PropType, bool IsUnderwater);
+    private readonly record struct PropTileMetadata(string PropType, bool IsUnderwater, bool ReachesSurface);
 
     private readonly record struct TerrainTilesetData(
         Dictionary<int, TerrainTileInfo> ByLocalIdentifier,
