@@ -7,6 +7,7 @@ using RiverRats.Game.Components;
 using RiverRats.Game.Data;
 using RiverRats.Game.Entities;
 using RiverRats.Game.Graphics;
+using RiverRats.Game.Audio;
 using RiverRats.Game.Input;
 using RiverRats.Game.World;
 
@@ -79,6 +80,7 @@ public sealed class GameplayScreen : IGameScreen
     private readonly float[] _rippleAges = new float[MaxRipples];
     private readonly Vector3[] _rippleShaderData = new Vector3[MaxRipples];
     private int _rippleCount;
+    private readonly MusicManager _musicManager = new();
 
     /// <inheritdoc />
     public bool IsTransparent => false;
@@ -203,6 +205,9 @@ public sealed class GameplayScreen : IGameScreen
         _waterDistortionEffect.Parameters["RippleSpeed"].SetValue(18f); // How fast ripples expand and fade.
         
         _waterDistortionEffect.Parameters["AspectRatio"].SetValue((float)_virtualWidth / _virtualHeight);
+
+        _musicManager.LoadContent(_content);
+        _musicManager.PlaySong("GameplayTheme", loopDelaySeconds: 5f);
     }
 
     /// <inheritdoc />
@@ -229,6 +234,7 @@ public sealed class GameplayScreen : IGameScreen
         _camera.LookAt(_player.Center);
         _worldRenderer.Update(gameTime);
         _dayNightCycle.Update(gameTime);
+        _musicManager.Update(gameTime);
         UpdateRipples(gameTime, input);
     }
 

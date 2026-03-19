@@ -103,3 +103,9 @@
 /processor:TiledMapTilesetProcessor
 /build:Tilesets/Props.tsx
 
+#begin Audio/Music/river_rats_theme.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:Audio/Music/river_rats_theme.mp3
+
