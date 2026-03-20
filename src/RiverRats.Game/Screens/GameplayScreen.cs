@@ -88,6 +88,10 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _dockLegLeftTexture;
     private Texture2D _sunkenLogTexture;
     private Texture2D _sunkenChestTexture;
+    private Texture2D _seaweed1Texture;
+    private Texture2D _seaweed2Texture;
+    private Texture2D _seaweed3Texture;
+    private Texture2D _seaweed4Texture;
     private Texture2D _firepitTexture;
     private Firepit[] _firepits;
     private Texture2D _smallFireSpriteSheet;
@@ -96,6 +100,10 @@ public sealed class GameplayScreen : IGameScreen
     private Boulder[] _underwaterSunkenLogs;
     private SunkenChest[] _sunkenChests;
     private SunkenChest[] _underwaterSunkenChests;
+    private Boulder[] _underwaterSeaweed1;
+    private Boulder[] _underwaterSeaweed2;
+    private Boulder[] _underwaterSeaweed3;
+    private Boulder[] _underwaterSeaweed4;
     private Dock[] _docks;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
@@ -160,6 +168,10 @@ public sealed class GameplayScreen : IGameScreen
         _dockLegLeftTexture = _content.Load<Texture2D>("Tilesets/wooden-dock-leg-left");
         _sunkenLogTexture = _content.Load<Texture2D>("Sprites/sunken-log");
         _sunkenChestTexture = _content.Load<Texture2D>("Sprites/sunken-chest");
+        _seaweed1Texture = _content.Load<Texture2D>("Sprites/seaweed1");
+        _seaweed2Texture = _content.Load<Texture2D>("Sprites/seaweed2");
+        _seaweed3Texture = _content.Load<Texture2D>("Sprites/seaweed3");
+        _seaweed4Texture = _content.Load<Texture2D>("Sprites/seaweed4");
         _firepitTexture = _content.Load<Texture2D>("Sprites/basic-firepit");
         _smallFireSpriteSheet = _content.Load<Texture2D>("Sprites/small-fire");
         _playerAnimator = new SpriteAnimator(
@@ -195,6 +207,10 @@ public sealed class GameplayScreen : IGameScreen
         _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
         _sunkenChests = CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: false);
         _underwaterSunkenChests = CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: true);
+        _underwaterSeaweed1 = CreatePropsByType(_seaweed1Texture, _worldRenderer.PropPlacements, "seaweed1", isUnderwater: true);
+        _underwaterSeaweed2 = CreatePropsByType(_seaweed2Texture, _worldRenderer.PropPlacements, "seaweed2", isUnderwater: true);
+        _underwaterSeaweed3 = CreatePropsByType(_seaweed3Texture, _worldRenderer.PropPlacements, "seaweed3", isUnderwater: true);
+        _underwaterSeaweed4 = CreatePropsByType(_seaweed4Texture, _worldRenderer.PropPlacements, "seaweed4", isUnderwater: true);
         _firepits = CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(512);
@@ -341,6 +357,22 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _underwaterSunkenChests.Length; i++)
         {
             _underwaterSunkenChests[i].Draw(_worldSpriteBatch);
+        }
+        for (var i = 0; i < _underwaterSeaweed1.Length; i++)
+        {
+            _underwaterSeaweed1[i].Draw(_worldSpriteBatch);
+        }
+        for (var i = 0; i < _underwaterSeaweed2.Length; i++)
+        {
+            _underwaterSeaweed2[i].Draw(_worldSpriteBatch);
+        }
+        for (var i = 0; i < _underwaterSeaweed3.Length; i++)
+        {
+            _underwaterSeaweed3[i].Draw(_worldSpriteBatch);
+        }
+        for (var i = 0; i < _underwaterSeaweed4.Length; i++)
+        {
+            _underwaterSeaweed4[i].Draw(_worldSpriteBatch);
         }
         _worldSpriteBatch.End();
 

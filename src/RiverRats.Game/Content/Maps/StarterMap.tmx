@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="7" nextobjectid="55">
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="7" nextobjectid="68">
  <tileset firstgid="1" source="../Tilesets/Terrain.tsx"/>
  <tileset firstgid="50" source="../Tilesets/Props.tsx"/>
  <layer id="1" name="Water/Bottom" width="32" height="20" locked="1">
@@ -88,6 +88,18 @@
   <object id="47" gid="53" x="593" y="614.375" width="32" height="32"/>
   <object id="48" gid="53" x="646.125" y="614.5" width="32" height="32"/>
   <object id="54" gid="56" x="524.5" y="637" width="32" height="17"/>
+  <object id="55" gid="57" x="763" y="605.5" width="32" height="32"/>
+  <object id="56" gid="57" x="673.5" y="634" width="32" height="32"/>
+  <object id="57" gid="57" x="405.5" y="586.5" width="32" height="32"/>
+  <object id="58" gid="59" x="586.5" y="599.5" width="32" height="32"/>
+  <object id="59" gid="59" x="468" y="634.5" width="32" height="32"/>
+  <object id="60" gid="59" x="960.5" y="579.5" width="32" height="32"/>
+  <object id="61" gid="58" x="702.5" y="565" width="32" height="32"/>
+  <object id="62" gid="60" x="734" y="640" width="32" height="32"/>
+  <object id="63" gid="60" x="855.5" y="581.5" width="32" height="32"/>
+  <object id="64" gid="60" x="492" y="573.5" width="32" height="32"/>
+  <object id="65" gid="59" x="533" y="594.5" width="32" height="32"/>
+  <object id="67" gid="59" x="868" y="627.5" width="32" height="32"/>
  </objectgroup>
  <objectgroup id="6" name="Colliders" locked="1">
   <object id="33" x="1" y="527" width="613" height="112"/>

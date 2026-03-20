@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="96" tileheight="64" tilecount="7" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="96" tileheight="64" tilecount="11" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -45,5 +45,33 @@
       <property name="isUnderwater" type="bool" value="true"/>
     </properties>
     <image source="../Sprites/sunken-chest.png" width="32" height="17"/>
+  </tile>
+  <tile id="7">
+    <properties>
+      <property name="propType" value="seaweed1"/>
+      <property name="isUnderwater" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/seaweed1.png" width="32" height="32"/>
+  </tile>
+  <tile id="8">
+    <properties>
+      <property name="propType" value="seaweed2"/>
+      <property name="isUnderwater" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/seaweed2.png" width="32" height="32"/>
+  </tile>
+  <tile id="9">
+    <properties>
+      <property name="propType" value="seaweed3"/>
+      <property name="isUnderwater" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/seaweed3.png" width="32" height="32"/>
+  </tile>
+  <tile id="10">
+    <properties>
+      <property name="propType" value="seaweed4"/>
+      <property name="isUnderwater" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/seaweed4.png" width="32" height="32"/>
   </tile>
 </tileset>
