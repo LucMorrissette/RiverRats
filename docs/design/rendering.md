@@ -10,6 +10,7 @@
 | **Map format** | Tiled `.tmx` with external `.tsx` tilesets | Editor-authored maps via MonoGame.Extended content pipeline. |
 | **Water post-process grouping** | Tile layers named `Water/*` render into a shared water render target before distortion | Lets water bottoms, props, and future surface overlays share one shader pass without tile-level coupling. |
 | **Surface-reach distortion** | Props with `reachesSurface` render into a dedicated render target with alpha-encoded vertical gradient (0 at top, 1 at bottom); the `SurfaceReachDistortion` shader technique reads this alpha to scale distortion per-pixel | Simulates props emerging from the water surface — no distortion at the top (air), full distortion at the bottom (submerged). Uses horizontal strip drawing to encode gradient into alpha channel. |
+| **Night lighting pass** | Gameplay builds a low-resolution lightmap from ambient night color plus additive point lights, then composites it over the scene with multiply blend | Preserves the existing day/night darkening model while allowing local light sources like small fires to punch through with soft glows at low GPU cost. |
 | **Terrain variation** | Deterministic position-hash with weighted tile variants | Organic-looking grass, sand, and riverbed distribution without per-tile authoring or runtime flicker. |
 | **Camera** | Camera2D producing a `Matrix` transform | All world-space drawing uses camera matrix in SpriteBatch.Begin(). |
 | **UI rendering pass** | Separate SpriteBatch without camera transform | Screen-space UI stays fixed regardless of camera position. |
@@ -37,6 +38,7 @@
 | Decision | Value | Rationale |
 |---|---|---|
 | **CPU particle system** | Pre-allocated struct pool with free-index stack; each particle has position, velocity, rotation, scale, color lerp, gravity, and lifetime | Zero-allocation hot loop, proven pattern from Trashsquatch, individual particle sprites produce natural-looking effects. |
+| **Fire ambience effects** | Small fires can attach smoke and spark particle emitters while separately contributing a point light to the night lighting pass | Keeps atmospheric visual effects composable: particles stay in the particle system and lighting stays in the rendering pipeline. |
 
 *(Add entries as particle and visual effect systems are built.)*
 
@@ -45,7 +47,8 @@
 | Class | Description |
 |---|---|
 | `Camera2D` | Produces a world-space view `Matrix` for `SpriteBatch`. Clamps position to map pixel bounds. |
-| `DayNightCycle` | Looping time-of-day cycle that outputs a multiply-blend tint `Color`. Phases: Night → Dawn → Day → Dusk. Pure logic, no GPU dependency. |
+| `DayNightCycle` | Looping time-of-day cycle that outputs both a multiply-blend tint `Color` and a scalar `NightStrength`. Phases: Night → Dawn → Day → Dusk. Pure logic, no GPU dependency. |
+| `LightingRenderer` | Owns the low-resolution lightmap render target, draws additive point lights from `LightData` snapshots, and composites the lightmap over the scene with multiply blending. |
 | `TiledWorldRenderer` | Wraps TMX/TSX map loading, deterministic weighted tile-variant drawing, and `Water/*` layer grouping for the distortion pass. |
 
 *(Add entries as graphics classes are created — ScreenScaler, etc.)*

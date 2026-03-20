@@ -17,6 +17,7 @@
 | **Input abstraction** | `IInputManager` interface | All gameplay code uses the interface; never raw `Keyboard.GetState()`. |
 | **State tracking** | Previous + current state each frame | Enables press, release, and hold detection. |
 | **Action mapping** | `InputAction` enum | Rebindable named actions (e.g., `InputAction.Confirm`) rather than hardcoded keys. |
+| **Confirm interaction** | `InputAction.Confirm` is the gameplay interaction action and is bound to `Space` and `Enter` by default | World interactions like toggling a nearby firepit stay inside the same input abstraction as movement and debug actions. |
 | **Screenshot hotkey** | `InputAction.CopyScreenshotToClipboard` bound to `P` | Keeps screenshot capture inside the same action-based input layer as gameplay/debug actions. |
 | **Null-object pattern** | `EmptyInputManager` | For screens or states that don't process input. |
 | **Keyboard source abstraction** | `IKeyboardStateSource` | Decouples MonoGame hardware calls from input logic for deterministic unit testing. |

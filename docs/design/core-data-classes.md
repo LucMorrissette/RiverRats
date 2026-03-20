@@ -27,6 +27,7 @@
 | `InputAction` | `Input/` | Enum of logical gameplay actions that key bindings map to. |
 | `FacingDirection` | `Data/` | Cardinal facing enum shared by movement and sprite animation. |
 | `FollowerMovementConfig` | `Data/` | Breadcrumb follower tuning for trailing distance, trail sampling, and facing dead-zone behavior. |
+| `LightData` | `Graphics/` | Immutable frame snapshot of a world point light: position, radius, color, and intensity. Used to pass lighting data from entities to the renderer without coupling rendering code to entity references. |
 | `ParticleProfile` | `Data/` | Immutable `record` defining particle effect configuration: spawn rate, life range, speed range, scale range, start/end colors, spread angle, and gravity. Used by `ParticleEmitter` and `ParticleManager.Emit()`. |
 | `Particle` | `Systems/` | Value-type `struct` representing a single particle: position, velocity, rotation, angular velocity, scale, start/end colors, gravity, initial/remaining life, and active flag. Designed for cache-friendly iteration in `ParticleManager`. |
 

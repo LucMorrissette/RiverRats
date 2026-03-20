@@ -13,6 +13,7 @@
 | **Prototype actor bounds** | Player actor is clamped to world pixel bounds | Ensures camera follow and actor stay within authored map area. |
 | **Terrain collision source** | Tile properties (`blocked=true`) in TSX | Passability is authored once per terrain tile and reused wherever that tile appears. |
 | **Placed obstacle collision** | TMX object-layer prop AABBs are merged through `WorldCollisionMap` | Player/follower movement uses one collision contract for both terrain and map-authored solid props. |
+| **Nearby prop interaction** | `InputAction.Confirm` triggers the nearest prop whose expanded interaction bounds overlap the player's foot bounds | Keeps world interaction action-based and proximity-driven without requiring actors to overlap blocked props directly. |
 | **Walkable prop overrides** | Props like docks can contribute walkable bounds that suppress blocked terrain underneath | Lets bridges/docks sit over blocked water or collision layers without carving holes in the base map. |
 | **Object-layer colliders** | TMX `Colliders` object layer rectangles are loaded and merged into `WorldCollisionMap._staticObstacleBounds` | Supports sub-tile collision precision for barriers, railings, and architectural details without tile-grid constraints. |
 | **Party trail following** | Companion position is sampled from the player's recent path at a fixed lag distance | Prevents corner-cutting and keeps follower placement deterministic without separate collision steering. |

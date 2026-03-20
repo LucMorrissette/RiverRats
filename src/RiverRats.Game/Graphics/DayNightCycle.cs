@@ -38,7 +38,9 @@ public sealed class DayNightCycle
     {
         _cycleDurationSeconds = cycleDurationSeconds;
         _elapsedSeconds = MathHelper.Clamp(startProgress, 0f, 1f) * cycleDurationSeconds;
-        CurrentTint = ComputeTint(CycleProgress);
+        var progress = CycleProgress;
+        CurrentTint = ComputeTint(progress);
+        NightStrength = ComputeNightStrength(progress);
     }
 
     /// <summary>Current position in the cycle, normalized 0–1.</summary>
@@ -48,12 +50,44 @@ public sealed class DayNightCycle
     public Color CurrentTint { get; private set; }
 
     /// <summary>
+    /// How strongly night is in effect, 0–1 (0 = full day, 1 = full night).
+    /// Use this to scale the intensity of light sources that should only be
+    /// visible at night (e.g. fire glow illuminating surroundings).
+    /// </summary>
+    public float NightStrength { get; private set; }
+
+    /// <summary>
     /// Advances the cycle clock by the elapsed frame time.
     /// </summary>
     public void Update(GameTime gameTime)
     {
         _elapsedSeconds += (float)gameTime.ElapsedGameTime.TotalSeconds;
-        CurrentTint = ComputeTint(CycleProgress);
+        var progress = CycleProgress;
+        CurrentTint = ComputeTint(progress);
+        NightStrength = ComputeNightStrength(progress);
+    }
+
+    private static float ComputeNightStrength(float progress)
+    {
+        if (progress < NightEnd)
+            return 1f;
+
+        if (progress < DawnEnd)
+        {
+            var t = (progress - NightEnd) / (DawnEnd - NightEnd);
+            return 1f - t;
+        }
+
+        if (progress < DayEnd)
+            return 0f;
+
+        if (progress < DuskEnd)
+        {
+            var t = (progress - DayEnd) / (DuskEnd - DayEnd);
+            return t;
+        }
+
+        return 1f;
     }
 
     private static Color ComputeTint(float progress)

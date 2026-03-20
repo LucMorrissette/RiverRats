@@ -15,6 +15,7 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Target Platforms** | PC (windowed + fullscreen) | Guides resolution/input decisions from day one. |
 | **XNA-native first** | Always verify MonoGame/XNA default behaviors before building custom solutions | Prevents bugs from unverified assumptions about framework defaults. |
 | **Water rendering grouping** | TMX layers prefixed with `Water/` are composited into the water distortion pass | Decouples the shader from individual tile definitions and supports stacked underwater layers. |
+| **Night lighting** | Low-resolution lightmap composited with multiply blend and populated from frame snapshots of world lights | Keeps day/night darkening and localized fire glow decoupled from gameplay entities while preserving a soft pixel-art look. |
 | **Prototype actor control** | `PlayerBlock` uses action input + delta-time movement in world space | Establishes first controllable gameplay actor without sprite/animation complexity. |
 | **Party follow prototype** | `FollowerBlock` samples the player path and renders one companion at a fixed breadcrumb lag | Keeps follower motion deterministic, corner-safe, and aligned to the leader's real route. |
 | **Static world obstacles** | TMX object-layer prop placements spawn screen-owned entities that feed `WorldCollisionMap` | Keeps terrain collision and placed solid props under one movement query contract. |
