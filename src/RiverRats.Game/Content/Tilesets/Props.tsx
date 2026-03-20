@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="96" tileheight="64" tilecount="4" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="96" tileheight="64" tilecount="6" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -26,5 +26,17 @@
       <property name="reachesSurface" type="bool" value="true"/>
     </properties>
     <image source="wooden-dock-leg-left.png" width="32" height="32"/>
+  </tile>
+  <tile id="4">
+    <properties>
+      <property name="propType" value="firepit"/>
+    </properties>
+    <image source="../Sprites/basic-firepit.png" width="32" height="24"/>
+  </tile>
+  <tile id="5">
+    <properties>
+      <property name="propType" value="small-fire"/>
+    </properties>
+    <image source="small-fire-preview.png" width="16" height="16"/>
   </tile>
 </tileset>

@@ -9,6 +9,7 @@ using RiverRats.Game.Entities;
 using RiverRats.Game.Graphics;
 using RiverRats.Game.Audio;
 using RiverRats.Game.Input;
+using RiverRats.Game.Systems;
 using RiverRats.Game.World;
 
 namespace RiverRats.Game.Screens;
@@ -28,9 +29,27 @@ public sealed class GameplayScreen : IGameScreen
     private const int MaxRipples = 8;
     private const float RippleMaxAge = 2f;
     private const int GradientStripCount = 32;
+    private const int SmallFireFramePixels = 16;
+    private const int SmallFireFrameCount = 8;
+    private const float SmallFireFrameDuration = 0.1f;
     private static readonly Color DebugTileGridColor = new(255, 255, 255, 40);
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
+
+    private static readonly ParticleProfile FireSmokeProfile = new()
+    {
+        SpawnRate = 3f,
+        MinLife = 2.0f,
+        MaxLife = 3.5f,
+        MinSpeed = 8f,
+        MaxSpeed = 18f,
+        MinScale = 0.8f,
+        MaxScale = 2.2f,
+        StartColor = new Color(160, 160, 160, 60),
+        EndColor = new Color(100, 100, 100, 0),
+        SpreadRadians = MathHelper.ToRadians(20),
+        Gravity = -12f
+    };
 
     private readonly GraphicsDevice _graphicsDevice;
     private readonly ContentManager _content;
@@ -62,6 +81,10 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _dockTexture;
     private Texture2D _dockLegLeftTexture;
     private Texture2D _sunkenLogTexture;
+    private Texture2D _firepitTexture;
+    private Firepit[] _firepits;
+    private Texture2D _smallFireSpriteSheet;
+    private SmallFire[] _smallFires;
     private Boulder[] _boulders;
     private Boulder[] _sunkenLogs;
     private Boulder[] _underwaterSunkenLogs;
@@ -74,6 +97,8 @@ public sealed class GameplayScreen : IGameScreen
     private RenderTarget2D _surfaceReachRenderTarget;
     private RenderTarget2D _surfaceReachGradientTarget;
     private Effect _waterDistortionEffect;
+    private ParticleManager _particleManager;
+    private Texture2D _smokeTexture;
     private Boulder[] _surfaceReachDockLegsLeft;
     private bool _showCollisionBounds;
     private readonly Vector2[] _rippleWorldPositions = new Vector2[MaxRipples];
@@ -124,6 +149,8 @@ public sealed class GameplayScreen : IGameScreen
         _dockTexture = _content.Load<Texture2D>("Sprites/wooden-dock");
         _dockLegLeftTexture = _content.Load<Texture2D>("Tilesets/wooden-dock-leg-left");
         _sunkenLogTexture = _content.Load<Texture2D>("Sprites/sunken-log");
+        _firepitTexture = _content.Load<Texture2D>("Sprites/basic-firepit");
+        _smallFireSpriteSheet = _content.Load<Texture2D>("Sprites/small-fire");
         _playerAnimator = new SpriteAnimator(
             PlayerFramePixels, PlayerFramePixels,
             WalkFramesPerDirection, WalkFrameDuration);
@@ -155,7 +182,16 @@ public sealed class GameplayScreen : IGameScreen
         _surfaceReachDockLegsLeft = CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
         _sunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
         _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
-        _collisionMap = new WorldCollisionMap(_worldRenderer, MergeObstacleBounds(GetBoulderBounds(_boulders), _worldRenderer.ColliderBounds), GetDockBounds(_docks));
+        _firepits = CreateFirepits(_firepitTexture, _worldRenderer.PropPlacements);
+        _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
+        _particleManager = new ParticleManager(512);
+        _smallFires = CreateSmallFires(_smallFireSpriteSheet, _worldRenderer.PropPlacements);
+        for (var i = 0; i < _smallFires.Length; i++)
+        {
+            _smallFires[i].AttachSmokeEmitter(new ParticleEmitter(_particleManager, FireSmokeProfile));
+        }
+        var propObstacleBounds = MergeRectangleArrays(GetBoulderBounds(_boulders), GetFirepitBounds(_firepits));
+        _collisionMap = new WorldCollisionMap(_worldRenderer, MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds), GetDockBounds(_docks));
         _camera.LookAt(_player.Center);
 
         _dayNightCycle = new DayNightCycle(
@@ -234,6 +270,11 @@ public sealed class GameplayScreen : IGameScreen
         _camera.LookAt(_player.Center);
         _worldRenderer.Update(gameTime);
         _dayNightCycle.Update(gameTime);
+        for (var i = 0; i < _smallFires.Length; i++)
+        {
+            _smallFires[i].Update(gameTime);
+        }
+        _particleManager.Update(gameTime);
         _musicManager.Update(gameTime);
         UpdateRipples(gameTime, input);
     }
@@ -364,12 +405,31 @@ public sealed class GameplayScreen : IGameScreen
             _sunkenLogs[i].Draw(_worldSpriteBatch);
         }
 
+        for (var i = 0; i < _firepits.Length; i++)
+        {
+            _firepits[i].Draw(_worldSpriteBatch);
+        }
+
+        for (var i = 0; i < _smallFires.Length; i++)
+        {
+            _smallFires[i].Draw(_worldSpriteBatch);
+        }
+
         _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet);
         _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet);
         if (_showCollisionBounds)
         {
             DrawCollisionBounds();
         }
+        _worldSpriteBatch.End();
+
+        // --- Pass 4b: Smoke particles ---
+        _worldSpriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: worldMatrix);
+        _particleManager.Draw(_worldSpriteBatch, _smokeTexture);
         _worldSpriteBatch.End();
 
         // Day/night overlay — multiply blend darkens + tints the scene.
@@ -405,6 +465,11 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _boulders.Length; i++)
         {
             DrawRectangleOutline(_boulders[i].Bounds, Color.Red);
+        }
+
+        for (var i = 0; i < _firepits.Length; i++)
+        {
+            DrawRectangleOutline(_firepits[i].Bounds, Color.Red);
         }
     }
 
@@ -491,6 +556,17 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < docks.Length; i++)
         {
             bounds[i] = docks[i].Bounds;
+        }
+
+        return bounds;
+    }
+
+    private static Rectangle[] GetFirepitBounds(Firepit[] firepits)
+    {
+        var bounds = new Rectangle[firepits.Length];
+        for (var i = 0; i < firepits.Length; i++)
+        {
+            bounds[i] = firepits[i].Bounds;
         }
 
         return bounds;
@@ -593,6 +669,41 @@ public sealed class GameplayScreen : IGameScreen
         return docks.ToArray();
     }
 
+    private static Firepit[] CreateFirepits(Texture2D firepitTexture, IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var firepits = new List<Firepit>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "firepit", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            firepits.Add(new Firepit(placement.Position, firepitTexture));
+        }
+
+        return firepits.ToArray();
+    }
+
+    private static SmallFire[] CreateSmallFires(Texture2D spriteSheet, IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var fires = new List<SmallFire>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "small-fire", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var animator = new LoopAnimator(SmallFireFramePixels, SmallFireFramePixels, SmallFireFrameCount, SmallFireFrameDuration);
+            fires.Add(new SmallFire(placement.Position, spriteSheet, animator));
+        }
+
+        return fires.ToArray();
+    }
+
     private static Boulder[] CreatePropsByType(
         Texture2D texture,
         IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
@@ -639,6 +750,24 @@ public sealed class GameplayScreen : IGameScreen
             merged[boulderBounds.Length + i] = colliderBounds[i];
         }
 
+        return merged;
+    }
+
+    private static Rectangle[] MergeRectangleArrays(Rectangle[] first, Rectangle[] second)
+    {
+        if (second.Length == 0)
+        {
+            return first;
+        }
+
+        if (first.Length == 0)
+        {
+            return second;
+        }
+
+        var merged = new Rectangle[first.Length + second.Length];
+        first.CopyTo(merged, 0);
+        second.CopyTo(merged, first.Length);
         return merged;
     }
 

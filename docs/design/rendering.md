@@ -36,6 +36,7 @@
 
 | Decision | Value | Rationale |
 |---|---|---|
+| **CPU particle system** | Pre-allocated struct pool with free-index stack; each particle has position, velocity, rotation, scale, color lerp, gravity, and lifetime | Zero-allocation hot loop, proven pattern from Trashsquatch, individual particle sprites produce natural-looking effects. |
 
 *(Add entries as particle and visual effect systems are built.)*
 
