@@ -20,6 +20,7 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Party follow prototype** | `FollowerBlock` samples the player path and renders one companion at a fixed breadcrumb lag | Keeps follower motion deterministic, corner-safe, and aligned to the leader's real route. |
 | **Static world obstacles** | TMX object-layer prop placements spawn screen-owned entities that feed `WorldCollisionMap` | Keeps terrain collision and placed solid props under one movement query contract. |
 | **Static prop rendering** | TMX object-layer placements support both collidable and decorative prop sprites | Keeps world decoration editor-driven without coupling visuals to collision rules. |
+| **Typed prop entities** | TMX `propType` metadata maps to focused entity classes (`Boulder`, `Dock`, `SunkenChest`, `Firepit`) in gameplay composition | Preserves single-purpose prop behavior and keeps renderer/collision wiring explicit. |
 | **Walkable prop surfaces** | Prop bounds can override blocked terrain beneath them | Supports authored surfaces like docks or bridges without hand-editing collision mask tiles. |
 | **Object-layer colliders** | TMX `Colliders` object layer provides sub-tile collision rectangles merged into `WorldCollisionMap` | Enables precise collision geometry for props and barriers without being constrained to tile-grid granularity. |
 

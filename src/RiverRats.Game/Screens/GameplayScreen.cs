@@ -87,12 +87,15 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _dockTexture;
     private Texture2D _dockLegLeftTexture;
     private Texture2D _sunkenLogTexture;
+    private Texture2D _sunkenChestTexture;
     private Texture2D _firepitTexture;
     private Firepit[] _firepits;
     private Texture2D _smallFireSpriteSheet;
     private Boulder[] _boulders;
     private Boulder[] _sunkenLogs;
     private Boulder[] _underwaterSunkenLogs;
+    private SunkenChest[] _sunkenChests;
+    private SunkenChest[] _underwaterSunkenChests;
     private Dock[] _docks;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
@@ -156,6 +159,7 @@ public sealed class GameplayScreen : IGameScreen
         _dockTexture = _content.Load<Texture2D>("Sprites/wooden-dock");
         _dockLegLeftTexture = _content.Load<Texture2D>("Tilesets/wooden-dock-leg-left");
         _sunkenLogTexture = _content.Load<Texture2D>("Sprites/sunken-log");
+        _sunkenChestTexture = _content.Load<Texture2D>("Sprites/sunken-chest");
         _firepitTexture = _content.Load<Texture2D>("Sprites/basic-firepit");
         _smallFireSpriteSheet = _content.Load<Texture2D>("Sprites/small-fire");
         _playerAnimator = new SpriteAnimator(
@@ -189,6 +193,8 @@ public sealed class GameplayScreen : IGameScreen
         _surfaceReachDockLegsLeft = CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
         _sunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
         _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
+        _sunkenChests = CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: false);
+        _underwaterSunkenChests = CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: true);
         _firepits = CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(512);
@@ -332,6 +338,10 @@ public sealed class GameplayScreen : IGameScreen
         {
             _dockLegsLeft[i].Draw(_worldSpriteBatch);
         }
+        for (var i = 0; i < _underwaterSunkenChests.Length; i++)
+        {
+            _underwaterSunkenChests[i].Draw(_worldSpriteBatch);
+        }
         _worldSpriteBatch.End();
 
         _worldRenderer.DrawWaterSurface(worldMatrix);
@@ -428,6 +438,11 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _sunkenLogs.Length; i++)
         {
             _sunkenLogs[i].Draw(_worldSpriteBatch);
+        }
+
+        for (var i = 0; i < _sunkenChests.Length; i++)
+        {
+            _sunkenChests[i].Draw(_worldSpriteBatch);
         }
 
         for (var i = 0; i < _firepits.Length; i++)
@@ -823,6 +838,31 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         return props.ToArray();
+    }
+
+    private static SunkenChest[] CreateSunkenChests(
+        Texture2D texture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
+        bool isUnderwater)
+    {
+        var chests = new List<SunkenChest>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "sunken-chest", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (placement.IsUnderwater != isUnderwater)
+            {
+                continue;
+            }
+
+            chests.Add(new SunkenChest(placement.Position, texture));
+        }
+
+        return chests.ToArray();
     }
 
     private static Rectangle[] MergeObstacleBounds(Rectangle[] boulderBounds, IReadOnlyList<Rectangle> colliderBounds)
