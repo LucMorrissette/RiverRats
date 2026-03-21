@@ -39,8 +39,9 @@ public sealed class Boulder
     /// Draws the boulder in world space.
     /// </summary>
     /// <param name="spriteBatch">Sprite batch for the world pass.</param>
-    public void Draw(SpriteBatch spriteBatch)
+    /// <param name="layerDepth">Depth value for Y-sorting (0 = back, 1 = front).</param>
+    public void Draw(SpriteBatch spriteBatch, float layerDepth = 0f)
     {
-        spriteBatch.Draw(_texture, _position, Color.White);
+        spriteBatch.Draw(_texture, _position, null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, layerDepth);
     }
 }

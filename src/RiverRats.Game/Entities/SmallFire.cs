@@ -134,13 +134,18 @@ public sealed class SmallFire
         }
     }
 
-    public void Draw(SpriteBatch spriteBatch)
+    /// <summary>
+    /// Draws the fire effect in world space.
+    /// </summary>
+    /// <param name="spriteBatch">Sprite batch for the world pass.</param>
+    /// <param name="layerDepth">Depth value for Y-sorting (0 = back, 1 = front).</param>
+    public void Draw(SpriteBatch spriteBatch, float layerDepth = 0f)
     {
         if (_spriteSheet is null)
         {
             throw new InvalidOperationException("A sprite sheet is required to draw SmallFire.");
         }
 
-        _animator.Draw(spriteBatch, _spriteSheet, _position);
+        _animator.Draw(spriteBatch, _spriteSheet, _position, layerDepth);
     }
 }

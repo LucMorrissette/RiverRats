@@ -23,6 +23,7 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Typed prop entities** | TMX `propType` metadata maps to focused entity classes (`Boulder`, `Dock`, `SunkenChest`, `Firepit`) in gameplay composition | Preserves single-purpose prop behavior and keeps renderer/collision wiring explicit. |
 | **Walkable prop surfaces** | Prop bounds can override blocked terrain beneath them | Supports authored surfaces like docks or bridges without hand-editing collision mask tiles. |
 | **Object-layer colliders** | TMX `Colliders` object layer provides sub-tile collision rectangles merged into `WorldCollisionMap` | Enables precise collision geometry for props and barriers without being constrained to tile-grid granularity. |
+| **Entity Y-sorting** | `SpriteSortMode.FrontToBack` with `layerDepth = Bounds.Bottom / mapPixelHeight` per entity | Correct depth overlap (e.g., player behind house) using XNA's built-in sprite sorting — no custom sort or interface needed. |
 
 ---
 

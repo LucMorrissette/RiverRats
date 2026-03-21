@@ -17,10 +17,12 @@
 
 | Component | Description |
 |---|---|
-| `LoopAnimator` | Animates a single-row horizontal sprite sheet in a continuous loop. Computes source rectangles without direction rows or movement gating—frames advance every frame update. Used for looping visual effects like fire, sparkles, or environmental animations. |
+| `LoopAnimator` | Animates a single-row horizontal sprite sheet in a continuous loop. Computes source rectangles without direction rows or movement gating—frames advance every frame update. Used for looping visual effects like fire, sparkles, or environmental animations. `Draw()` accepts an optional `layerDepth` for Y-sorting. |
 | `ParticleEmitter` | Accumulates delta time and spawns particles at a configured rate (particles/sec) from a `ParticleProfile`. Attached to entities; supports enable/disable toggling. Delegates actual particle creation to a shared `ParticleManager`. |
 
-*(Add entries as components are created — SpriteAnimator, Health, ParticleEmitter, etc.)*
+| `SpriteAnimator` | Animates a multi-row sprite sheet organized as directions × walk frames. Handles idle/walk frame cycling based on movement state. `Draw()` accepts an optional `layerDepth` for Y-sorting. |
+
+*(Add entries as components are created — Health, etc.)*
 
 <!-- Example format:
 | `SpriteAnimator` | Manages sprite animation state, frame advancement, DidLoop flag. |

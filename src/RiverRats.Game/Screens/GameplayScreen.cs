@@ -34,6 +34,8 @@ public sealed class GameplayScreen : IGameScreen
     private const float SmallFireFrameDuration = 0.1f;
     private const float FirepitAttachDistancePixels = 24f;
     private const float FirepitAttachDistanceSquared = FirepitAttachDistancePixels * FirepitAttachDistancePixels;
+    private const float CabinSortAnchorOffsetPixels = 20f;
+    private const float PineTreeSortAnchorOffsetPixels = 10f;
     private static readonly Color DebugTileGridColor = new(255, 255, 255, 40);
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
@@ -91,6 +93,8 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _firepitTexture;
     private Firepit[] _firepits;
     private Texture2D _smallFireSpriteSheet;
+    private Texture2D _cozyLakeCabinTexture;
+    private Boulder[] _cozyLakeCabins;
     private Boulder[] _boulders;
     private Boulder[] _sunkenLogs;
     private Boulder[] _underwaterSunkenLogs;
@@ -98,6 +102,7 @@ public sealed class GameplayScreen : IGameScreen
     private SunkenChest[] _underwaterSunkenChests;
     private FlatShoreDepthSimulator[] _flatShoreDepthSimulators;
     private Boulder[] _seaweeds;
+    private Boulder[] _pineTrees;
     private Dock[] _docks;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
@@ -111,6 +116,7 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _smokeTexture;
     private Boulder[] _surfaceReachDockLegsLeft;
     private LightingRenderer _lightingRenderer;
+    private CloudShadowRenderer _cloudShadowRenderer;
     private LightData[] _fireLightData = Array.Empty<LightData>();
     private LightData[] _combinedLightData = Array.Empty<LightData>();
     private FireflyManager _fireflyManager;
@@ -174,6 +180,8 @@ public sealed class GameplayScreen : IGameScreen
         };
         _firepitTexture = _content.Load<Texture2D>("Sprites/basic-firepit");
         _smallFireSpriteSheet = _content.Load<Texture2D>("Sprites/small-fire");
+        _cozyLakeCabinTexture = _content.Load<Texture2D>("Sprites/cozy_lake_cabin");
+        var pineTreeTexture = _content.Load<Texture2D>("Sprites/pine-tree");
         _playerAnimator = new SpriteAnimator(
             PlayerFramePixels, PlayerFramePixels,
             WalkFramesPerDirection, WalkFrameDuration);
@@ -210,6 +218,8 @@ public sealed class GameplayScreen : IGameScreen
         _flatShoreDepthSimulators = CreateFlatShoreDepthSimulators(flatShoreDepthSimulatorTexture, _worldRenderer.PropPlacements);
         _seaweeds = CreateSeaweeds(seaweedTextures, _worldRenderer.PropPlacements);
         _firepits = CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
+        _cozyLakeCabins = CreatePropsByType(_cozyLakeCabinTexture, _worldRenderer.PropPlacements, "cozy-lake-cabin", isUnderwater: false);
+        _pineTrees = CreatePropsByType(pineTreeTexture, _worldRenderer.PropPlacements, "pine-tree", isUnderwater: false);
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(512);
         for (var i = 0; i < _firepits.Length; i++)
@@ -275,6 +285,9 @@ public sealed class GameplayScreen : IGameScreen
         _lightingRenderer = new LightingRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
         var radialGradient = _content.Load<Texture2D>("Sprites/RadialGradient");
         _lightingRenderer.LoadContent(radialGradient);
+
+        _cloudShadowRenderer = new CloudShadowRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
+        _cloudShadowRenderer.LoadContent();
         _fireLightData = new LightData[_firepits.Length];
         _fireflyManager = new FireflyManager();
         _combinedLightData = new LightData[_firepits.Length + 32];
@@ -335,6 +348,7 @@ public sealed class GameplayScreen : IGameScreen
         var fireflyLightCount = _fireflyManager.WriteLightData(_combinedLightData, activeFireLightCount);
         _lightingRenderer.SetLights(_combinedLightData, activeFireLightCount + fireflyLightCount);
         _particleManager.Update(gameTime);
+        _cloudShadowRenderer.Update(gameTime);
         _musicManager.Update(gameTime);
         UpdateRipples(gameTime, input);
     }
@@ -456,15 +470,18 @@ public sealed class GameplayScreen : IGameScreen
         // --- Pass 3: Draw non-water terrain above the composited water ---
         _worldRenderer.DrawTerrain(worldMatrix);
 
-        // --- Pass 4: Entities ---
+        // --- Pass 4: Entities (Y-sorted by bottom edge) ---
+        // FrontToBack: layerDepth 0 = drawn first (behind), 1 = drawn last (in front).
+        // Each entity's depth is its bottom Y / map height so lower-on-screen = in front.
+        var mapHeight = (float)_worldRenderer.MapPixelHeight;
         _worldSpriteBatch.Begin(
-            sortMode: SpriteSortMode.Deferred,
+            sortMode: SpriteSortMode.FrontToBack,
             blendState: BlendState.AlphaBlend,
             samplerState: SamplerState.PointClamp,
             transformMatrix: worldMatrix);
         for (var i = 0; i < _boulders.Length; i++)
         {
-            _boulders[i].Draw(_worldSpriteBatch);
+            _boulders[i].Draw(_worldSpriteBatch, _boulders[i].Bounds.Bottom / mapHeight);
         }
 
         for (var i = 0; i < _docks.Length; i++)
@@ -474,21 +491,33 @@ public sealed class GameplayScreen : IGameScreen
 
         for (var i = 0; i < _sunkenLogs.Length; i++)
         {
-            _sunkenLogs[i].Draw(_worldSpriteBatch);
+            _sunkenLogs[i].Draw(_worldSpriteBatch, _sunkenLogs[i].Bounds.Bottom / mapHeight);
         }
 
         for (var i = 0; i < _sunkenChests.Length; i++)
         {
-            _sunkenChests[i].Draw(_worldSpriteBatch);
+            _sunkenChests[i].Draw(_worldSpriteBatch, _sunkenChests[i].Bounds.Bottom / mapHeight);
         }
 
         for (var i = 0; i < _firepits.Length; i++)
         {
-            _firepits[i].Draw(_worldSpriteBatch);
+            _firepits[i].Draw(_worldSpriteBatch, _firepits[i].Bounds.Bottom / mapHeight);
         }
 
-        _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet);
-        _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet);
+        for (var i = 0; i < _cozyLakeCabins.Length; i++)
+        {
+            var cabinBounds = _cozyLakeCabins[i].Bounds;
+            _cozyLakeCabins[i].Draw(_worldSpriteBatch, (cabinBounds.Bottom - CabinSortAnchorOffsetPixels) / mapHeight);
+        }
+
+        for (var i = 0; i < _pineTrees.Length; i++)
+        {
+            var treeBounds = _pineTrees[i].Bounds;
+            _pineTrees[i].Draw(_worldSpriteBatch, (treeBounds.Bottom - PineTreeSortAnchorOffsetPixels) / mapHeight);
+        }
+
+        _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, _follower.Bounds.Bottom / mapHeight);
+        _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, _player.Bounds.Bottom / mapHeight);
         if (_showCollisionBounds)
         {
             DrawCollisionBounds();
@@ -513,6 +542,13 @@ public sealed class GameplayScreen : IGameScreen
         _fireflyManager.Draw(_worldSpriteBatch, _smokeTexture);
         _worldSpriteBatch.End();
 
+        // --- Pass 5: Cloud shadows (multiply blend, half-res for soft edges) ---
+        _cloudShadowRenderer.Draw(
+            _worldSpriteBatch,
+            _camera.Position,
+            _dayNightCycle.NightStrength,
+            previousRenderTarget);
+
         // Lighting pass: fills a low-res lightmap with ambient darkness, draws fire glows
         // additively, then composites it over the scene with multiply blend.
         // The LightingRenderer also handles the day/night darkening, replacing the old
@@ -527,6 +563,7 @@ public sealed class GameplayScreen : IGameScreen
     /// <inheritdoc />
     public void UnloadContent()
     {
+        _cloudShadowRenderer?.UnloadContent();
         _lightingRenderer?.UnloadContent();
         _worldSpriteBatch?.Dispose();
         _pixelTexture?.Dispose();
@@ -551,6 +588,12 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _firepits.Length; i++)
         {
             DrawRectangleOutline(_firepits[i].Bounds, Color.Red);
+        }
+
+        var colliderBounds = _worldRenderer.ColliderBounds;
+        for (var i = 0; i < colliderBounds.Count; i++)
+        {
+            DrawRectangleOutline(colliderBounds[i], Color.Magenta);
         }
     }
 

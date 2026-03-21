@@ -41,5 +41,6 @@
 
 | Class | Description |
 |---|---|
+| `PerlinNoise` | Static 2D Perlin noise generator with tileable output. Provides single-sample and multi-octave fBm noise-map generation for procedural textures. |
 
 *(Add entries as utility classes are created — MathUtils, TextHelper, etc.)*

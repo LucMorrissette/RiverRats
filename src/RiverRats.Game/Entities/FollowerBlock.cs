@@ -165,9 +165,10 @@ public sealed class FollowerBlock
     /// <param name="spriteBatch">Sprite batch for world pass.</param>
     /// <param name="animator">Sprite animator component.</param>
     /// <param name="spriteSheet">Character sprite sheet texture.</param>
-    public void Draw(SpriteBatch spriteBatch, SpriteAnimator animator, Texture2D spriteSheet)
+    /// <param name="layerDepth">Depth value for Y-sorting (0 = back, 1 = front).</param>
+    public void Draw(SpriteBatch spriteBatch, SpriteAnimator animator, Texture2D spriteSheet, float layerDepth = 0f)
     {
-        animator.Draw(spriteBatch, spriteSheet, _position);
+        animator.Draw(spriteBatch, spriteSheet, _position, layerDepth);
     }
 
     private void ClampToBounds()

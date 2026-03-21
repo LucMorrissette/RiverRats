@@ -142,18 +142,19 @@ public sealed class Firepit
     /// Draws the firepit in world space.
     /// </summary>
     /// <param name="spriteBatch">Sprite batch for the world pass.</param>
-    public void Draw(SpriteBatch spriteBatch)
+    /// <param name="layerDepth">Depth value for Y-sorting (0 = back, 1 = front).</param>
+    public void Draw(SpriteBatch spriteBatch, float layerDepth = 0f)
     {
         if (_texture is null)
         {
             throw new InvalidOperationException("A texture is required to draw Firepit.");
         }
 
-        spriteBatch.Draw(_texture, _position, Color.White);
+        spriteBatch.Draw(_texture, _position, null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, layerDepth);
 
         if (IsLit)
         {
-            _smallFire?.Draw(spriteBatch);
+            _smallFire?.Draw(spriteBatch, layerDepth);
         }
     }
 }

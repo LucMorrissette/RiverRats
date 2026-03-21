@@ -67,12 +67,18 @@ public sealed class LoopAnimator
     /// <param name="spriteBatch">Active sprite batch.</param>
     /// <param name="texture">The sprite sheet texture.</param>
     /// <param name="position">World-space top-left position.</param>
-    public void Draw(SpriteBatch spriteBatch, Texture2D texture, Vector2 position)
+    /// <param name="layerDepth">Depth value for Y-sorting (0 = back, 1 = front).</param>
+    public void Draw(SpriteBatch spriteBatch, Texture2D texture, Vector2 position, float layerDepth = 0f)
     {
         spriteBatch.Draw(
             texture,
             position,
             SourceRectangle,
-            Color.White);
+            Color.White,
+            0f,
+            Vector2.Zero,
+            1f,
+            SpriteEffects.None,
+            layerDepth);
     }
 }
