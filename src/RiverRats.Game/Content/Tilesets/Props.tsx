@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="96" tileheight="64" tilecount="11" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="96" tileheight="96" tilecount="12" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -73,5 +73,12 @@
       <property name="isUnderwater" type="bool" value="true"/>
     </properties>
     <image source="../Sprites/seaweed4.png" width="32" height="32"/>
+  </tile>
+  <tile id="11">
+    <properties>
+      <property name="propType" value="flat-shore-depth-simulator"/>
+      <property name="isUnderwater" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/flat-shore-depth-simulator.png" width="32" height="96"/>
   </tile>
 </tileset>

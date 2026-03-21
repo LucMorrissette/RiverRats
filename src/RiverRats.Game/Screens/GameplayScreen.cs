@@ -88,10 +88,6 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _dockLegLeftTexture;
     private Texture2D _sunkenLogTexture;
     private Texture2D _sunkenChestTexture;
-    private Texture2D _seaweed1Texture;
-    private Texture2D _seaweed2Texture;
-    private Texture2D _seaweed3Texture;
-    private Texture2D _seaweed4Texture;
     private Texture2D _firepitTexture;
     private Firepit[] _firepits;
     private Texture2D _smallFireSpriteSheet;
@@ -100,10 +96,8 @@ public sealed class GameplayScreen : IGameScreen
     private Boulder[] _underwaterSunkenLogs;
     private SunkenChest[] _sunkenChests;
     private SunkenChest[] _underwaterSunkenChests;
-    private Boulder[] _underwaterSeaweed1;
-    private Boulder[] _underwaterSeaweed2;
-    private Boulder[] _underwaterSeaweed3;
-    private Boulder[] _underwaterSeaweed4;
+    private FlatShoreDepthSimulator[] _flatShoreDepthSimulators;
+    private Boulder[] _seaweeds;
     private Dock[] _docks;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
@@ -168,10 +162,14 @@ public sealed class GameplayScreen : IGameScreen
         _dockLegLeftTexture = _content.Load<Texture2D>("Tilesets/wooden-dock-leg-left");
         _sunkenLogTexture = _content.Load<Texture2D>("Sprites/sunken-log");
         _sunkenChestTexture = _content.Load<Texture2D>("Sprites/sunken-chest");
-        _seaweed1Texture = _content.Load<Texture2D>("Sprites/seaweed1");
-        _seaweed2Texture = _content.Load<Texture2D>("Sprites/seaweed2");
-        _seaweed3Texture = _content.Load<Texture2D>("Sprites/seaweed3");
-        _seaweed4Texture = _content.Load<Texture2D>("Sprites/seaweed4");
+        var flatShoreDepthSimulatorTexture = _content.Load<Texture2D>("Sprites/flat-shore-depth-simulator");
+        var seaweedTextures = new[]
+        {
+            _content.Load<Texture2D>("Sprites/seaweed1"),
+            _content.Load<Texture2D>("Sprites/seaweed2"),
+            _content.Load<Texture2D>("Sprites/seaweed3"),
+            _content.Load<Texture2D>("Sprites/seaweed4"),
+        };
         _firepitTexture = _content.Load<Texture2D>("Sprites/basic-firepit");
         _smallFireSpriteSheet = _content.Load<Texture2D>("Sprites/small-fire");
         _playerAnimator = new SpriteAnimator(
@@ -207,10 +205,8 @@ public sealed class GameplayScreen : IGameScreen
         _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
         _sunkenChests = CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: false);
         _underwaterSunkenChests = CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: true);
-        _underwaterSeaweed1 = CreatePropsByType(_seaweed1Texture, _worldRenderer.PropPlacements, "seaweed1", isUnderwater: true);
-        _underwaterSeaweed2 = CreatePropsByType(_seaweed2Texture, _worldRenderer.PropPlacements, "seaweed2", isUnderwater: true);
-        _underwaterSeaweed3 = CreatePropsByType(_seaweed3Texture, _worldRenderer.PropPlacements, "seaweed3", isUnderwater: true);
-        _underwaterSeaweed4 = CreatePropsByType(_seaweed4Texture, _worldRenderer.PropPlacements, "seaweed4", isUnderwater: true);
+        _flatShoreDepthSimulators = CreateFlatShoreDepthSimulators(flatShoreDepthSimulatorTexture, _worldRenderer.PropPlacements);
+        _seaweeds = CreateSeaweeds(seaweedTextures, _worldRenderer.PropPlacements);
         _firepits = CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(512);
@@ -270,6 +266,9 @@ public sealed class GameplayScreen : IGameScreen
         _waterDistortionEffect.Parameters["RippleSpeed"].SetValue(18f); // How fast ripples expand and fade.
         
         _waterDistortionEffect.Parameters["AspectRatio"].SetValue((float)_virtualWidth / _virtualHeight);
+
+        // Tint applied to surface-reach props (dock legs) — blends from white at surface to this colour at full depth.
+        _waterDistortionEffect.Parameters["WaterTintColor"].SetValue(new Vector3(0.55f, 0.65f, 0.85f));
 
         _lightingRenderer = new LightingRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
         var radialGradient = _content.Load<Texture2D>("Sprites/RadialGradient");
@@ -358,21 +357,13 @@ public sealed class GameplayScreen : IGameScreen
         {
             _underwaterSunkenChests[i].Draw(_worldSpriteBatch);
         }
-        for (var i = 0; i < _underwaterSeaweed1.Length; i++)
+        for (var i = 0; i < _flatShoreDepthSimulators.Length; i++)
         {
-            _underwaterSeaweed1[i].Draw(_worldSpriteBatch);
+            _flatShoreDepthSimulators[i].Draw(_worldSpriteBatch);
         }
-        for (var i = 0; i < _underwaterSeaweed2.Length; i++)
+        for (var i = 0; i < _seaweeds.Length; i++)
         {
-            _underwaterSeaweed2[i].Draw(_worldSpriteBatch);
-        }
-        for (var i = 0; i < _underwaterSeaweed3.Length; i++)
-        {
-            _underwaterSeaweed3[i].Draw(_worldSpriteBatch);
-        }
-        for (var i = 0; i < _underwaterSeaweed4.Length; i++)
-        {
-            _underwaterSeaweed4[i].Draw(_worldSpriteBatch);
+            _seaweeds[i].Draw(_worldSpriteBatch);
         }
         _worldSpriteBatch.End();
 
@@ -895,6 +886,52 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         return chests.ToArray();
+    }
+
+    private static FlatShoreDepthSimulator[] CreateFlatShoreDepthSimulators(
+        Texture2D texture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var props = new List<FlatShoreDepthSimulator>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "flat-shore-depth-simulator", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            props.Add(new FlatShoreDepthSimulator(placement.Position, texture));
+        }
+
+        return props.ToArray();
+    }
+
+    private static Boulder[] CreateSeaweeds(
+        Texture2D[] variantTextures,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var seaweeds = new List<Boulder>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!placement.PropType.StartsWith("seaweed", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Parse variant index from prop type (seaweed1 → 0, seaweed2 → 1, etc.)
+            var lastChar = placement.PropType[^1];
+            var variantIndex = lastChar - '1';
+            if (variantIndex < 0 || variantIndex >= variantTextures.Length)
+            {
+                continue;
+            }
+
+            seaweeds.Add(new Boulder(placement.Position, variantTextures[variantIndex]));
+        }
+
+        return seaweeds.ToArray();
     }
 
     private static Rectangle[] MergeObstacleBounds(Rectangle[] boulderBounds, IReadOnlyList<Rectangle> colliderBounds)

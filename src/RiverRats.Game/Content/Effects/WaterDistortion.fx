@@ -44,6 +44,10 @@ float RippleFrequency;  // Tightness of concentric rings (~40).
 float RippleSpeed;      // How fast rings expand outward (~15).
 float AspectRatio;      // VirtualWidth / VirtualHeight, keeps rings circular.
 
+// Tint colour applied to surface-reach props at full submersion depth.
+// lerp(white, this, gradientFactor) so the top stays untinted.
+float3 WaterTintColor;
+
 // Accumulate displacement from a single ripple (no branching).
 float2 RippleOffset(float3 ripple, float2 texCoord)
 {
@@ -152,7 +156,10 @@ float4 SurfaceReachPS(float2 texCoord : TEXCOORD0, float4 color : COLOR0) : COLO
 
     float2 distortedCoord = texCoord + offset;
 
-    return tex2D(TextureSampler, distortedCoord) * color;
+    float4 texColor = tex2D(TextureSampler, distortedCoord) * color;
+    // Depth-based tint: surface pixels stay original colour, submerged pixels shift toward water tint.
+    texColor.rgb *= lerp(float3(1, 1, 1), WaterTintColor, gradientFactor);
+    return texColor;
 }
 
 technique SurfaceReachDistortion
