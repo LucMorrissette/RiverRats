@@ -112,6 +112,8 @@ public sealed class GameplayScreen : IGameScreen
     private Boulder[] _surfaceReachDockLegsLeft;
     private LightingRenderer _lightingRenderer;
     private LightData[] _fireLightData = Array.Empty<LightData>();
+    private LightData[] _combinedLightData = Array.Empty<LightData>();
+    private FireflyManager _fireflyManager;
     private bool _showCollisionBounds;
     private readonly Vector2[] _rippleWorldPositions = new Vector2[MaxRipples];
     private readonly float[] _rippleAges = new float[MaxRipples];
@@ -274,6 +276,8 @@ public sealed class GameplayScreen : IGameScreen
         var radialGradient = _content.Load<Texture2D>("Sprites/RadialGradient");
         _lightingRenderer.LoadContent(radialGradient);
         _fireLightData = new LightData[_firepits.Length];
+        _fireflyManager = new FireflyManager();
+        _combinedLightData = new LightData[_firepits.Length + 32];
 
         _musicManager.LoadContent(_content);
         _musicManager.PlaySong("GameplayTheme", loopDelaySeconds: 5f);
@@ -319,7 +323,17 @@ public sealed class GameplayScreen : IGameScreen
                 activeFireLightCount++;
             }
         }
-        _lightingRenderer.SetLights(_fireLightData, activeFireLightCount);
+        var cameraWorldBounds = new Rectangle(
+            (int)(_camera.Position.X - _virtualWidth / 2f),
+            (int)(_camera.Position.Y - _virtualHeight / 2f),
+            _virtualWidth,
+            _virtualHeight);
+        _fireflyManager.Update(gameTime, _dayNightCycle.NightStrength, cameraWorldBounds);
+
+        // Combine fire + firefly lights into one array for the lighting renderer.
+        Array.Copy(_fireLightData, 0, _combinedLightData, 0, activeFireLightCount);
+        var fireflyLightCount = _fireflyManager.WriteLightData(_combinedLightData, activeFireLightCount);
+        _lightingRenderer.SetLights(_combinedLightData, activeFireLightCount + fireflyLightCount);
         _particleManager.Update(gameTime);
         _musicManager.Update(gameTime);
         UpdateRipples(gameTime, input);
@@ -488,6 +502,15 @@ public sealed class GameplayScreen : IGameScreen
             samplerState: SamplerState.PointClamp,
             transformMatrix: worldMatrix);
         _particleManager.Draw(_worldSpriteBatch, _smokeTexture);
+        _worldSpriteBatch.End();
+
+        // --- Pass 4c: Fireflies (additive blend for a soft glow look) ---
+        _worldSpriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.Additive,
+            samplerState: SamplerState.LinearClamp,
+            transformMatrix: worldMatrix);
+        _fireflyManager.Draw(_worldSpriteBatch, _smokeTexture);
         _worldSpriteBatch.End();
 
         // Lighting pass: fills a low-res lightmap with ambient darkness, draws fire glows
