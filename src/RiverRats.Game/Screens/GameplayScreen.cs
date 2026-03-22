@@ -26,17 +26,10 @@ public sealed class GameplayScreen : IGameScreen
     private const float WalkFrameDuration = 0.15f;
     private const float DayNightCycleDurationSeconds = 120f;
     private const float DayNightCycleStartProgress = 0.30f;
-    private const int MaxRipples = 8;
-    private const float RippleMaxAge = 2f;
     private const int GradientStripCount = 32;
-    private const int SmallFireFramePixels = 16;
-    private const int SmallFireFrameCount = 8;
-    private const float SmallFireFrameDuration = 0.1f;
-    private const float FirepitAttachDistancePixels = 24f;
-    private const float FirepitAttachDistanceSquared = FirepitAttachDistancePixels * FirepitAttachDistancePixels;
     private const float CabinSortAnchorOffsetPixels = 20f;
     private const float PineTreeSortAnchorOffsetPixels = 10f;
-    private static readonly Color DebugTileGridColor = new(255, 255, 255, 40);
+    private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
 
@@ -121,13 +114,11 @@ public sealed class GameplayScreen : IGameScreen
     private LightData[] _combinedLightData = Array.Empty<LightData>();
     private FireflyManager _fireflyManager;
     private OcclusionRevealRenderer _occlusionRevealRenderer;
+    private DebugRenderer _debugRenderer;
     private bool _isPlayerOccluded;
     private RenderTarget2D _previousRenderTarget;
     private bool _showCollisionBounds;
-    private readonly Vector2[] _rippleWorldPositions = new Vector2[MaxRipples];
-    private readonly float[] _rippleAges = new float[MaxRipples];
-    private readonly Vector3[] _rippleShaderData = new Vector3[MaxRipples];
-    private int _rippleCount;
+    private RippleSystem _rippleSystem;
     private readonly MusicManager _musicManager = new();
 
     /// <inheritdoc />
@@ -210,19 +201,19 @@ public sealed class GameplayScreen : IGameScreen
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
             FollowerConfig);
 
-        _boulders = CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
-        _docks = CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
-        _dockLegsLeft = CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: false);
-        _surfaceReachDockLegsLeft = CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
-        _sunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
-        _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
-        _sunkenChests = CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: false);
-        _underwaterSunkenChests = CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: true);
-        _flatShoreDepthSimulators = CreateFlatShoreDepthSimulators(flatShoreDepthSimulatorTexture, _worldRenderer.PropPlacements);
-        _seaweeds = CreateSeaweeds(seaweedTextures, _worldRenderer.PropPlacements);
-        _firepits = CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
-        _cozyLakeCabins = CreatePropsByType(_cozyLakeCabinTexture, _worldRenderer.PropPlacements, "cozy-lake-cabin", isUnderwater: false);
-        _pineTrees = CreatePropsByType(pineTreeTexture, _worldRenderer.PropPlacements, "pine-tree", isUnderwater: false);
+        _boulders = PropFactory.CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
+        _docks = PropFactory.CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
+        _dockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: false);
+        _surfaceReachDockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
+        _sunkenLogs = PropFactory.CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
+        _underwaterSunkenLogs = PropFactory.CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
+        _sunkenChests = PropFactory.CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: false);
+        _underwaterSunkenChests = PropFactory.CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: true);
+        _flatShoreDepthSimulators = PropFactory.CreateFlatShoreDepthSimulators(flatShoreDepthSimulatorTexture, _worldRenderer.PropPlacements);
+        _seaweeds = PropFactory.CreateSeaweeds(seaweedTextures, _worldRenderer.PropPlacements);
+        _firepits = PropFactory.CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
+        _cozyLakeCabins = PropFactory.CreatePropsByType(_cozyLakeCabinTexture, _worldRenderer.PropPlacements, "cozy-lake-cabin", isUnderwater: false);
+        _pineTrees = PropFactory.CreatePropsByType(pineTreeTexture, _worldRenderer.PropPlacements, "pine-tree", isUnderwater: false);
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(512);
         for (var i = 0; i < _firepits.Length; i++)
@@ -230,8 +221,8 @@ public sealed class GameplayScreen : IGameScreen
             _firepits[i].AttachSmokeEmitter(new ParticleEmitter(_particleManager, FireSmokeProfile));
             _firepits[i].AttachSparkEmitter(new ParticleEmitter(_particleManager, FireSparkProfile));
         }
-        var propObstacleBounds = MergeRectangleArrays(GetBoulderBounds(_boulders), GetFirepitBounds(_firepits));
-        _collisionMap = new WorldCollisionMap(_worldRenderer, MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds), GetDockBounds(_docks));
+        var propObstacleBounds = PropFactory.MergeRectangleArrays(PropFactory.GetBoulderBounds(_boulders), PropFactory.GetFirepitBounds(_firepits));
+        _collisionMap = new WorldCollisionMap(_worldRenderer, PropFactory.MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds), PropFactory.GetDockBounds(_docks));
         _camera.LookAt(_player.Center);
 
         _dayNightCycle = new DayNightCycle(
@@ -240,6 +231,7 @@ public sealed class GameplayScreen : IGameScreen
 
         _pixelTexture = new Texture2D(_graphicsDevice, 1, 1);
         _pixelTexture.SetData(new[] { Color.White });
+        _debugRenderer = new DebugRenderer(_pixelTexture);
 
         _waterRenderTarget = new RenderTarget2D(
             _graphicsDevice,
@@ -269,21 +261,16 @@ public sealed class GameplayScreen : IGameScreen
             0,
             RenderTargetUsage.DiscardContents);
         _waterDistortionEffect = _content.Load<Effect>("Effects/WaterDistortion");
+        _rippleSystem = new RippleSystem();
 
-        // Adjust these parameters to change the overall wave effect on composited water layers.
-        _waterDistortionEffect.Parameters["Amplitude"].SetValue(0.004f); // How far pixels get displaced. Higher = more dramatic waves.
-        _waterDistortionEffect.Parameters["Frequency"].SetValue(25f); 	// Wave tightness. Higher = more ripples packed in. Lower = broad rolling waves.
-        _waterDistortionEffect.Parameters["Speed"].SetValue(1f); //How fast waves animate.
-
-        // water riples are additive on top of the base wave distortion, so they can be stronger without looking unnatural. Adjust these to change the click ripple effect.
-        _waterDistortionEffect.Parameters["RippleAmplitude"].SetValue(0.020f); // Additional displacement for click ripples. Higher = bigger splashes.
-        _waterDistortionEffect.Parameters["RippleFrequency"].SetValue(40f); // Ripple tightness. Higher = tighter, more circular ripples. Lower = looser, more wave-like ripples.
-        _waterDistortionEffect.Parameters["RippleSpeed"].SetValue(18f); // How fast ripples expand and fade.
-        
+        _waterDistortionEffect.Parameters["Amplitude"].SetValue(WaterShader.Amplitude);
+        _waterDistortionEffect.Parameters["Frequency"].SetValue(WaterShader.Frequency);
+        _waterDistortionEffect.Parameters["Speed"].SetValue(WaterShader.Speed);
+        _waterDistortionEffect.Parameters["RippleAmplitude"].SetValue(WaterShader.RippleAmplitude);
+        _waterDistortionEffect.Parameters["RippleFrequency"].SetValue(WaterShader.RippleFrequency);
+        _waterDistortionEffect.Parameters["RippleSpeed"].SetValue(WaterShader.RippleSpeed);
         _waterDistortionEffect.Parameters["AspectRatio"].SetValue((float)_virtualWidth / _virtualHeight);
-
-        // Tint applied to surface-reach props (dock legs) — blends from white at surface to this colour at full depth.
-        _waterDistortionEffect.Parameters["WaterTintColor"].SetValue(new Vector3(0.55f, 0.65f, 0.85f));
+        _waterDistortionEffect.Parameters["WaterTintColor"].SetValue(WaterShader.WaterTintColor);
 
         _lightingRenderer = new LightingRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
         var radialGradient = _content.Load<Texture2D>("Sprites/RadialGradient");
@@ -357,7 +344,7 @@ public sealed class GameplayScreen : IGameScreen
         _particleManager.Update(gameTime);
         _cloudShadowRenderer.Update(gameTime);
         _musicManager.Update(gameTime);
-        UpdateRipples(gameTime, input);
+        _rippleSystem.Update(gameTime, input, _camera, _graphicsDevice, _virtualWidth, _virtualHeight);
     }
 
     /// <inheritdoc />
@@ -449,7 +436,7 @@ public sealed class GameplayScreen : IGameScreen
         // Anchor waves to world space so they don't slide when the camera pans.
         _waterDistortionEffect.Parameters["CameraOffset"].SetValue(
             new Vector2(_camera.Position.X / _virtualWidth, _camera.Position.Y / _virtualHeight));
-        SetRippleShaderParameters();
+        _rippleSystem.SetShaderParameters(_waterDistortionEffect, _camera, _virtualWidth, _virtualHeight);
         _worldSpriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
             blendState: BlendState.AlphaBlend,
@@ -589,69 +576,31 @@ public sealed class GameplayScreen : IGameScreen
 
     private void DrawCollisionBounds()
     {
-        DrawTileGrid();
-        DrawRectangleOutline(_player.FootBounds, Color.Yellow);
-        DrawRectangleOutline(_player.Bounds, Color.OrangeRed);
-
-        DrawRectangleOutline(_follower.Bounds, Color.Cyan);
+        _debugRenderer.DrawTileGrid(
+            _worldSpriteBatch,
+            _worldRenderer.MapPixelWidth,
+            _worldRenderer.MapPixelHeight,
+            _worldRenderer.TileWidthPixels,
+            _worldRenderer.TileHeightPixels);
+        _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _player.FootBounds, Color.Yellow);
+        _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _player.Bounds, Color.OrangeRed);
+        _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _follower.Bounds, Color.Cyan);
 
         for (var i = 0; i < _boulders.Length; i++)
         {
-            DrawRectangleOutline(_boulders[i].Bounds, Color.Red);
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _boulders[i].Bounds, Color.Red);
         }
 
         for (var i = 0; i < _firepits.Length; i++)
         {
-            DrawRectangleOutline(_firepits[i].Bounds, Color.Red);
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _firepits[i].Bounds, Color.Red);
         }
 
         var colliderBounds = _worldRenderer.ColliderBounds;
         for (var i = 0; i < colliderBounds.Count; i++)
         {
-            DrawRectangleOutline(colliderBounds[i], Color.Magenta);
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, colliderBounds[i], Color.Magenta);
         }
-    }
-
-    private void DrawTileGrid()
-    {
-        if (_worldSpriteBatch is null || _worldRenderer is null || _pixelTexture is null)
-        {
-            return;
-        }
-
-        var mapWidth = _worldRenderer.MapPixelWidth;
-        var mapHeight = _worldRenderer.MapPixelHeight;
-        var tileWidth = _worldRenderer.TileWidthPixels;
-        var tileHeight = _worldRenderer.TileHeightPixels;
-
-        for (var x = 0; x <= mapWidth; x += tileWidth)
-        {
-            _worldSpriteBatch.Draw(
-                _pixelTexture,
-                new Rectangle(x, 0, 1, mapHeight),
-                DebugTileGridColor);
-        }
-
-        for (var y = 0; y <= mapHeight; y += tileHeight)
-        {
-            _worldSpriteBatch.Draw(
-                _pixelTexture,
-                new Rectangle(0, y, mapWidth, 1),
-                DebugTileGridColor);
-        }
-    }
-
-    private void DrawRectangleOutline(Rectangle rectangle, Color color, int thickness = 1)
-    {
-        if (_worldSpriteBatch is null || rectangle.Width <= 0 || rectangle.Height <= 0)
-        {
-            return;
-        }
-
-        _worldSpriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Left, rectangle.Top, rectangle.Width, thickness), color);
-        _worldSpriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Left, rectangle.Top, thickness, rectangle.Height), color);
-        _worldSpriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Right - thickness, rectangle.Top, thickness, rectangle.Height), color);
-        _worldSpriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Left, rectangle.Bottom - thickness, rectangle.Width, thickness), color);
     }
 
     /// <summary>
@@ -676,39 +625,6 @@ public sealed class GameplayScreen : IGameScreen
             var destRect = new Rectangle(bounds.X, y, bounds.Width, height);
             _worldSpriteBatch.Draw(_pixelTexture, destRect, new Color(alpha, alpha, alpha, alpha));
         }
-    }
-
-    private static Rectangle[] GetBoulderBounds(Boulder[] boulders)
-    {
-        var bounds = new Rectangle[boulders.Length];
-        for (var i = 0; i < boulders.Length; i++)
-        {
-            bounds[i] = boulders[i].Bounds;
-        }
-
-        return bounds;
-    }
-
-    private static Rectangle[] GetDockBounds(Dock[] docks)
-    {
-        var bounds = new Rectangle[docks.Length];
-        for (var i = 0; i < docks.Length; i++)
-        {
-            bounds[i] = docks[i].Bounds;
-        }
-
-        return bounds;
-    }
-
-    private static Rectangle[] GetFirepitBounds(Firepit[] firepits)
-    {
-        var bounds = new Rectangle[firepits.Length];
-        for (var i = 0; i < firepits.Length; i++)
-        {
-            bounds[i] = firepits[i].Bounds;
-        }
-
-        return bounds;
     }
 
     private Vector2? GetFollowerRestPosition()
@@ -802,323 +718,6 @@ public sealed class GameplayScreen : IGameScreen
         {
             _firepits[nearestIndex].ToggleLit();
         }
-    }
-
-    private static Boulder[] CreateBoulders(Texture2D boulderTexture, IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
-    {
-        var boulders = new List<Boulder>(placements.Count);
-        for (var i = 0; i < placements.Count; i++)
-        {
-            var placement = placements[i];
-            if (!string.Equals(placement.PropType, "boulder", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            boulders.Add(new Boulder(placement.Position, boulderTexture));
-        }
-
-        return boulders.ToArray();
-    }
-
-    private static Dock[] CreateDocks(Texture2D dockTexture, IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
-    {
-        var docks = new List<Dock>(placements.Count);
-        for (var i = 0; i < placements.Count; i++)
-        {
-            var placement = placements[i];
-            if (!string.Equals(placement.PropType, "dock", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            docks.Add(new Dock(placement.Position, dockTexture));
-        }
-
-        return docks.ToArray();
-    }
-
-    private static Firepit[] CreateFirepits(
-        Texture2D firepitTexture,
-        Texture2D smallFireSpriteSheet,
-        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
-    {
-        var firepitPlacements = new List<TiledWorldRenderer.MapPropPlacement>(placements.Count);
-        var smallFirePlacements = new List<TiledWorldRenderer.MapPropPlacement>(placements.Count);
-        for (var i = 0; i < placements.Count; i++)
-        {
-            var placement = placements[i];
-            if (string.Equals(placement.PropType, "firepit", StringComparison.OrdinalIgnoreCase))
-            {
-                firepitPlacements.Add(placement);
-                continue;
-            }
-
-            if (string.Equals(placement.PropType, "small-fire", StringComparison.OrdinalIgnoreCase))
-            {
-                smallFirePlacements.Add(placement);
-            }
-        }
-
-        var firepits = new List<Firepit>(firepitPlacements.Count);
-        var assignedSmallFires = new bool[smallFirePlacements.Count];
-        for (var i = 0; i < firepitPlacements.Count; i++)
-        {
-            var firepitPlacement = firepitPlacements[i];
-            SmallFire attachedFire = null!;
-            var nearestSmallFireIndex = FindNearestSmallFireIndex(firepitPlacement.Position, smallFirePlacements, assignedSmallFires);
-            if (nearestSmallFireIndex >= 0)
-            {
-                assignedSmallFires[nearestSmallFireIndex] = true;
-                attachedFire = CreateSmallFire(smallFireSpriteSheet, smallFirePlacements[nearestSmallFireIndex].Position);
-            }
-
-            firepits.Add(new Firepit(firepitPlacement.Position, firepitTexture, attachedFire));
-        }
-
-        return firepits.ToArray();
-    }
-
-    private static int FindNearestSmallFireIndex(
-        Vector2 firepitPosition,
-        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> smallFirePlacements,
-        bool[] assignedSmallFires)
-    {
-        var nearestIndex = -1;
-        var nearestDistanceSquared = FirepitAttachDistanceSquared;
-        for (var i = 0; i < smallFirePlacements.Count; i++)
-        {
-            if (assignedSmallFires[i])
-            {
-                continue;
-            }
-
-            var distanceSquared = Vector2.DistanceSquared(firepitPosition, smallFirePlacements[i].Position);
-            if (distanceSquared > nearestDistanceSquared)
-            {
-                continue;
-            }
-
-            nearestDistanceSquared = distanceSquared;
-            nearestIndex = i;
-        }
-
-        return nearestIndex;
-    }
-
-    private static SmallFire CreateSmallFire(Texture2D spriteSheet, Vector2 position)
-    {
-        var animator = new LoopAnimator(SmallFireFramePixels, SmallFireFramePixels, SmallFireFrameCount, SmallFireFrameDuration);
-        return new SmallFire(position, spriteSheet, animator);
-    }
-
-    private static Boulder[] CreatePropsByType(
-        Texture2D texture,
-        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
-        string propType,
-        bool isUnderwater,
-        bool reachesSurface = false)
-    {
-        var props = new List<Boulder>(placements.Count);
-        for (var i = 0; i < placements.Count; i++)
-        {
-            var placement = placements[i];
-            if (!string.Equals(placement.PropType, propType, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (placement.IsUnderwater != isUnderwater)
-            {
-                continue;
-            }
-
-            if (placement.ReachesSurface != reachesSurface)
-            {
-                continue;
-            }
-
-            props.Add(new Boulder(placement.Position, texture));
-        }
-
-        return props.ToArray();
-    }
-
-    private static SunkenChest[] CreateSunkenChests(
-        Texture2D texture,
-        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
-        bool isUnderwater)
-    {
-        var chests = new List<SunkenChest>(placements.Count);
-        for (var i = 0; i < placements.Count; i++)
-        {
-            var placement = placements[i];
-            if (!string.Equals(placement.PropType, "sunken-chest", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (placement.IsUnderwater != isUnderwater)
-            {
-                continue;
-            }
-
-            chests.Add(new SunkenChest(placement.Position, texture));
-        }
-
-        return chests.ToArray();
-    }
-
-    private static FlatShoreDepthSimulator[] CreateFlatShoreDepthSimulators(
-        Texture2D texture,
-        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
-    {
-        var props = new List<FlatShoreDepthSimulator>(placements.Count);
-        for (var i = 0; i < placements.Count; i++)
-        {
-            var placement = placements[i];
-            if (!string.Equals(placement.PropType, "flat-shore-depth-simulator", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            props.Add(new FlatShoreDepthSimulator(placement.Position, texture));
-        }
-
-        return props.ToArray();
-    }
-
-    private static Boulder[] CreateSeaweeds(
-        Texture2D[] variantTextures,
-        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
-    {
-        var seaweeds = new List<Boulder>(placements.Count);
-        for (var i = 0; i < placements.Count; i++)
-        {
-            var placement = placements[i];
-            if (!placement.PropType.StartsWith("seaweed", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            // Parse variant index from prop type (seaweed1 → 0, seaweed2 → 1, etc.)
-            var lastChar = placement.PropType[^1];
-            var variantIndex = lastChar - '1';
-            if (variantIndex < 0 || variantIndex >= variantTextures.Length)
-            {
-                continue;
-            }
-
-            seaweeds.Add(new Boulder(placement.Position, variantTextures[variantIndex]));
-        }
-
-        return seaweeds.ToArray();
-    }
-
-    private static Rectangle[] MergeObstacleBounds(Rectangle[] boulderBounds, IReadOnlyList<Rectangle> colliderBounds)
-    {
-        if (colliderBounds.Count == 0)
-        {
-            return boulderBounds;
-        }
-
-        var merged = new Rectangle[boulderBounds.Length + colliderBounds.Count];
-        boulderBounds.CopyTo(merged, 0);
-        for (var i = 0; i < colliderBounds.Count; i++)
-        {
-            merged[boulderBounds.Length + i] = colliderBounds[i];
-        }
-
-        return merged;
-    }
-
-    private static Rectangle[] MergeRectangleArrays(Rectangle[] first, Rectangle[] second)
-    {
-        if (second.Length == 0)
-        {
-            return first;
-        }
-
-        if (first.Length == 0)
-        {
-            return second;
-        }
-
-        var merged = new Rectangle[first.Length + second.Length];
-        first.CopyTo(merged, 0);
-        second.CopyTo(merged, first.Length);
-        return merged;
-    }
-
-    private void UpdateRipples(GameTime gameTime, IInputManager input)
-    {
-        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        // Age existing ripples; remove expired ones by swapping with the last.
-        for (var i = _rippleCount - 1; i >= 0; i--)
-        {
-            _rippleAges[i] += dt;
-            if (_rippleAges[i] >= RippleMaxAge)
-            {
-                _rippleCount--;
-                _rippleWorldPositions[i] = _rippleWorldPositions[_rippleCount];
-                _rippleAges[i] = _rippleAges[_rippleCount];
-            }
-        }
-
-        if (input.IsMouseLeftPressed() && _rippleCount < MaxRipples)
-        {
-            var virtualPos = PhysicalToVirtualMousePosition(input.GetMousePosition());
-            var worldPos = _camera.ScreenToWorld(virtualPos);
-            _rippleWorldPositions[_rippleCount] = worldPos;
-            _rippleAges[_rippleCount] = 0f;
-            _rippleCount++;
-        }
-    }
-
-    private void SetRippleShaderParameters()
-    {
-        // Build per-slot shader data: active ripples get their real age, inactive
-        // slots get age = -1 so the shader's step(0, age) masks them out.
-        for (var i = 0; i < MaxRipples; i++)
-        {
-            if (i < _rippleCount)
-            {
-                var screenX = (_rippleWorldPositions[i].X - _camera.Position.X) / _virtualWidth + 0.5f;
-                var screenY = (_rippleWorldPositions[i].Y - _camera.Position.Y) / _virtualHeight + 0.5f;
-                _rippleShaderData[i] = new Vector3(screenX, screenY, _rippleAges[i]);
-            }
-            else
-            {
-                _rippleShaderData[i] = new Vector3(0f, 0f, -1f); // inactive
-            }
-        }
-
-        // MojoShader (DesktopGL) does not support float3 arrays; use individual params.
-        _waterDistortionEffect.Parameters["Ripple0"].SetValue(_rippleShaderData[0]);
-        _waterDistortionEffect.Parameters["Ripple1"].SetValue(_rippleShaderData[1]);
-        _waterDistortionEffect.Parameters["Ripple2"].SetValue(_rippleShaderData[2]);
-        _waterDistortionEffect.Parameters["Ripple3"].SetValue(_rippleShaderData[3]);
-        _waterDistortionEffect.Parameters["Ripple4"].SetValue(_rippleShaderData[4]);
-        _waterDistortionEffect.Parameters["Ripple5"].SetValue(_rippleShaderData[5]);
-        _waterDistortionEffect.Parameters["Ripple6"].SetValue(_rippleShaderData[6]);
-        _waterDistortionEffect.Parameters["Ripple7"].SetValue(_rippleShaderData[7]);
-    }
-
-    private Vector2 PhysicalToVirtualMousePosition(Point physicalPosition)
-    {
-        var viewport = _graphicsDevice.Viewport;
-        var scaleX = viewport.Width / _virtualWidth;
-        var scaleY = viewport.Height / _virtualHeight;
-        var scale = Math.Max(1, Math.Min(scaleX, scaleY));
-        var scaledW = _virtualWidth * scale;
-        var scaledH = _virtualHeight * scale;
-        var offsetX = (viewport.Width - scaledW) / 2;
-        var offsetY = (viewport.Height - scaledH) / 2;
-
-        return new Vector2(
-            (physicalPosition.X - offsetX) / (float)scale,
-            (physicalPosition.Y - offsetY) / (float)scale);
     }
 
     /// <summary>Depth filter mode for <see cref="DrawWorldEntities"/>.</summary>
