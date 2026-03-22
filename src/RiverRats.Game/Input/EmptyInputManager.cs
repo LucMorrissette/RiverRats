@@ -42,4 +42,9 @@ public sealed class EmptyInputManager : IInputManager
 
     /// <inheritdoc />
     public Point GetMousePosition() => Point.Zero;
+
+    /// <inheritdoc />
+    public void EndFrame()
+    {
+    }
 }

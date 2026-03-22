@@ -67,7 +67,7 @@ public class WorldCollisionMapTests
     }
 
     [Fact]
-    public void IsWorldRectangleBlocked__PartiallyOutsideWalkableOverride__KeepsTerrainBlocked()
+    public void IsWorldRectangleBlocked__PartiallyOverlappingWalkableOverride__IgnoresTerrainCollision()
     {
         var collisionMap = new WorldCollisionMap(
             new AlwaysBlockedCollisionData(),
@@ -75,6 +75,20 @@ public class WorldCollisionMapTests
             [new Rectangle(100, 100, 64, 64)]);
 
         var blocked = collisionMap.IsWorldRectangleBlocked(new Rectangle(140, 112, 32, 32));
+
+        Assert.False(blocked);
+    }
+
+    [Fact]
+    public void IsWorldRectangleBlocked__CompletelyOutsideWalkableOverride__KeepsTerrainBlocked()
+    {
+        var collisionMap = new WorldCollisionMap(
+            new AlwaysBlockedCollisionData(),
+            [],
+            [new Rectangle(100, 100, 64, 64)]);
+
+        // Rectangle at (200,200) is completely outside the walkable override at (100,100)-(164,164)
+        var blocked = collisionMap.IsWorldRectangleBlocked(new Rectangle(200, 200, 32, 32));
 
         Assert.True(blocked);
     }

@@ -81,4 +81,9 @@ public sealed class FakeInputManager : IInputManager
     {
         return _released.Contains(action);
     }
+
+    /// <inheritdoc />
+    public void EndFrame()
+    {
+    }
 }

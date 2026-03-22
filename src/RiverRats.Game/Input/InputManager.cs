@@ -12,7 +12,7 @@ namespace RiverRats.Game.Input;
 /// where <c>Mouse.GetState()</c> polling misses press+release cycles that
 /// complete between two consecutive polls.
 /// </summary>
-public sealed class InputManager : IInputManager
+public sealed class InputManager : IInputManager, IDisposable
 {
     private readonly Dictionary<InputAction, Keys[]> _bindings;
     private readonly IKeyboardStateSource _keyboardStateSource;
@@ -187,5 +187,13 @@ public sealed class InputManager : IInputManager
             [InputAction.ToggleCollisionDebug] = new[] { Keys.U },
             [InputAction.CopyScreenshotToClipboard] = new[] { Keys.P }
         };
+    }
+
+    /// <summary>
+    /// Releases native resources owned by the SDL2 mouse listener.
+    /// </summary>
+    public void Dispose()
+    {
+        _sdl2Mouse.Dispose();
     }
 }

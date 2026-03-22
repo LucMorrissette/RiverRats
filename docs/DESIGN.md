@@ -10,8 +10,8 @@ Living source of truth for the RiverRats project's architecture, design decision
 
 | Decision | Value | Rationale |
 |---|---|---|
-| **Framework** | MonoGame 3.8 (WindowsDX) | Windows-native DirectX backend, mature, good community. |
-| **Target Runtime** | .NET 9 (net9.0-windows) | Current LTS-adjacent; aligns with MonoGame 3.8 support. |
+| **Framework** | MonoGame 3.8 (DesktopGL) | Cross-platform desktop backend for macOS, Linux, and Windows. |
+| **Target Runtime** | .NET 10 (net10.0) | Matches the DesktopGL build and supports cross-platform local development. |
 | **Target Platforms** | PC (windowed + fullscreen) | Guides resolution/input decisions from day one. |
 | **XNA-native first** | Always verify MonoGame/XNA default behaviors before building custom solutions | Prevents bugs from unverified assumptions about framework defaults. |
 | **Water rendering grouping** | TMX layers prefixed with `Water/` are composited into the water distortion pass | Decouples the shader from individual tile definitions and supports stacked underwater layers. |

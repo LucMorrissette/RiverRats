@@ -14,7 +14,7 @@ namespace RiverRats.Game.Graphics;
 /// texture, then composites the lightmap over the scene with multiply blending.
 /// The low resolution + LinearClamp upscaling produces a naturally soft glow.
 /// </summary>
-public sealed class LightingRenderer
+public sealed class LightingRenderer : IDisposable
 {
     /// <summary>
     /// Divisor applied to the virtual resolution to produce the lightmap size.
@@ -93,6 +93,12 @@ public sealed class LightingRenderer
     {
         _lightmap?.Dispose();
         _lightmap = null!;
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        UnloadContent();
     }
 
     /// <summary>

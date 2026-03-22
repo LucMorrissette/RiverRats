@@ -57,7 +57,7 @@ public sealed class WorldCollisionMap : IMapCollisionData
     {
         for (var i = 0; i < _walkableOverrideBounds.Length; i++)
         {
-            if (_walkableOverrideBounds[i].Contains(worldBounds))
+            if (_walkableOverrideBounds[i].Intersects(worldBounds))
             {
                 return true;
             }

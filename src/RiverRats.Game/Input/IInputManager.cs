@@ -33,4 +33,10 @@ public interface IInputManager
 
     /// <summary>Gets the current mouse cursor position in physical window client coordinates.</summary>
     Point GetMousePosition();
+
+    /// <summary>
+    /// Signals the end of the current frame's input processing.
+    /// Clears any buffered one-shot events so they don't carry over to the next frame.
+    /// </summary>
+    void EndFrame();
 }

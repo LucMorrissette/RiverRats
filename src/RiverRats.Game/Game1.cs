@@ -92,11 +92,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
 
         _screenManager.Update(gameTime, _inputManager);
 
-        // Clear buffered SDL2 mouse events so they don't carry over to the next frame.
-        if (_inputManager is InputManager concreteInput)
-        {
-            concreteInput.EndFrame();
-        }
+        _inputManager.EndFrame();
 
         base.Update(gameTime);
     }
@@ -180,5 +176,15 @@ public class Game1 : Microsoft.Xna.Framework.Game
         {
             RecalculateSceneDestination();
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            (_inputManager as IDisposable)?.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 }

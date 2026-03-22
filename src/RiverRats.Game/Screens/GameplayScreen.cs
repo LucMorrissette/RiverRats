@@ -122,6 +122,7 @@ public sealed class GameplayScreen : IGameScreen
     private FireflyManager _fireflyManager;
     private OcclusionRevealRenderer _occlusionRevealRenderer;
     private bool _isPlayerOccluded;
+    private RenderTarget2D _previousRenderTarget;
     private bool _showCollisionBounds;
     private readonly Vector2[] _rippleWorldPositions = new Vector2[MaxRipples];
     private readonly float[] _rippleAges = new float[MaxRipples];
@@ -365,8 +366,12 @@ public sealed class GameplayScreen : IGameScreen
         var worldMatrix = _camera.GetViewMatrix();
 
         // --- Pass 1: Render water tiles to a separate render target ---
-        var previousRenderTarget = _graphicsDevice.GetRenderTargets().Length > 0
-            ? _graphicsDevice.GetRenderTargets()[0].RenderTarget as RenderTarget2D
+        // Cache the render target that was active when Draw() was called (set by Game1).
+        // GetRenderTargets() allocates a new array every call, so we only do this once
+        // and store the result for the duration of the frame.
+        var bindings = _graphicsDevice.GetRenderTargets();
+        _previousRenderTarget = bindings.Length > 0
+            ? bindings[0].RenderTarget as RenderTarget2D
             : null;
 
         _graphicsDevice.SetRenderTarget(_waterRenderTarget);
@@ -435,7 +440,7 @@ public sealed class GameplayScreen : IGameScreen
         _worldSpriteBatch.End();
 
         // --- Switch back to the scene render target ---
-        _graphicsDevice.SetRenderTarget(previousRenderTarget);
+        _graphicsDevice.SetRenderTarget(_previousRenderTarget);
 
         // --- Pass 2: Composite water with distortion shader ---
         // LinearClamp smooths the UV displacement for natural-looking waves
@@ -514,7 +519,7 @@ public sealed class GameplayScreen : IGameScreen
                 _worldSpriteBatch,
                 _player.Center,
                 worldMatrix,
-                previousRenderTarget);
+                _previousRenderTarget);
         }
         else
         {
@@ -556,7 +561,7 @@ public sealed class GameplayScreen : IGameScreen
             _worldSpriteBatch,
             _camera.Position,
             _dayNightCycle.NightStrength,
-            previousRenderTarget);
+            _previousRenderTarget);
 
         // Lighting pass: fills a low-res lightmap with ambient darkness, draws fire glows
         // additively, then composites it over the scene with multiply blend.
@@ -566,7 +571,7 @@ public sealed class GameplayScreen : IGameScreen
             _worldSpriteBatch,
             _dayNightCycle.NightStrength,
             worldMatrix,
-            previousRenderTarget);
+            _previousRenderTarget);
     }
 
     /// <inheritdoc />

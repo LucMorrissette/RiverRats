@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -12,7 +13,7 @@ namespace RiverRats.Game.Graphics;
 /// separate render target, then composited back over the scene through the
 /// <c>OcclusionReveal</c> shader which reduces alpha in a circle around the player.
 /// </summary>
-public sealed class OcclusionRevealRenderer
+public sealed class OcclusionRevealRenderer : IDisposable
 {
     /// <summary>Radius of the reveal circle in UV space (fraction of screen height).</summary>
     private const float DefaultRevealRadius = 0.12f;
@@ -125,5 +126,11 @@ public sealed class OcclusionRevealRenderer
     public void UnloadContent()
     {
         _occluderTarget?.Dispose();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        UnloadContent();
     }
 }
