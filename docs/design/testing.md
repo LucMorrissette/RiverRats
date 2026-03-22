@@ -16,6 +16,7 @@
 |---|---|
 | `FakeGameTime` | Static factory for `GameTime` instances (`OneFrame()`, `FromSeconds(n)`). No real clock needed. |
 | `FakeInputManager` | Scriptable `IInputManager` fake for integration tests (press/release/hold simulation). |
+| `FakeMusicManager` | Implements `IMusicManager`. Records `SetVolume` calls and other method invocations for assertions. |
 
 *(Add entries as test helpers are created.)*
 
@@ -37,3 +38,4 @@
 | `Integration/PlayerBlockMovementTests.cs` | Multi-frame held input movement accumulation and release-to-stop behavior with scripted input. |
 | `Integration/PlayerBlockObstacleCollisionTests.cs` | Multi-axis separation and sliding behavior against placed static obstacles in the world. |
 | `Unit/ScreenManagerTests.cs` | Push/pop/replace lifecycle, update routing (topmost only), draw ordering/transparency, deferred mutation during update, empty-stack safety. |
+| `Unit/PauseScreenTests.cs` | `IsTransparent` is `true`, dims music volume on `LoadContent`, restores music volume on `UnloadContent`, pops itself from `ScreenManager` on `InputAction.Pause` press, no-ops when `Pause` is not pressed. |

@@ -78,6 +78,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
             Content,
             VirtualWidth,
             VirtualHeight,
+            _screenManager,
             Exit);
         _screenManager.Push(gameplayScreen);
     }

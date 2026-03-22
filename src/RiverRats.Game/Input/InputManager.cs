@@ -182,10 +182,11 @@ public sealed class InputManager : IInputManager, IDisposable
             [InputAction.MoveLeft] = new[] { Keys.A, Keys.Left },
             [InputAction.MoveRight] = new[] { Keys.D, Keys.Right },
             [InputAction.Confirm] = new[] { Keys.Space, Keys.Enter },
-            [InputAction.Cancel] = new[] { Keys.Escape, Keys.Back },
+            [InputAction.Cancel] = new[] { Keys.Back },
             [InputAction.Exit] = new[] { Keys.F12 },
             [InputAction.ToggleCollisionDebug] = new[] { Keys.U },
-            [InputAction.CopyScreenshotToClipboard] = new[] { Keys.P }
+            [InputAction.CopyScreenshotToClipboard] = new[] { Keys.P },
+            [InputAction.Pause] = new[] { Keys.Escape }
         };
     }
 

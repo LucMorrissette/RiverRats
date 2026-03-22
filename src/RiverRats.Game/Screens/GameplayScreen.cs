@@ -126,12 +126,16 @@ public sealed class GameplayScreen : IGameScreen
     private RenderTarget2D _previousRenderTarget;
     private bool _showCollisionBounds;
     private RippleSystem _rippleSystem;
-    private readonly MusicManager _musicManager = new();
+    private readonly IMusicManager _musicManager = new MusicManager();
     private HudRenderer _hudRenderer;
     private FontSystem _fontSystem;
+    private readonly ScreenManager _screenManager;
 
     /// <inheritdoc />
     public bool IsTransparent => false;
+
+    /// <summary>Music manager for this screen's audio, exposed for overlay screens (e.g., pause).</summary>
+    public IMusicManager MusicManager => _musicManager;
 
     /// <summary>
     /// Creates a gameplay screen.
@@ -140,18 +144,21 @@ public sealed class GameplayScreen : IGameScreen
     /// <param name="content">Content manager for loading assets.</param>
     /// <param name="virtualWidth">Virtual resolution width.</param>
     /// <param name="virtualHeight">Virtual resolution height.</param>
+    /// <param name="screenManager">Screen manager used to push overlay screens.</param>
     /// <param name="requestExit">Callback to request the game exit.</param>
     public GameplayScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
         int virtualWidth,
         int virtualHeight,
+        ScreenManager screenManager,
         Action requestExit)
     {
         _graphicsDevice = graphicsDevice;
         _content = content;
         _virtualWidth = virtualWidth;
         _virtualHeight = virtualHeight;
+        _screenManager = screenManager;
         _requestExit = requestExit;
     }
 
@@ -316,6 +323,18 @@ public sealed class GameplayScreen : IGameScreen
         if (input.IsPressed(InputAction.Exit))
         {
             _requestExit();
+            return;
+        }
+
+        if (input.IsPressed(InputAction.Pause))
+        {
+            _screenManager.Push(new PauseScreen(
+                _screenManager,
+                _musicManager,
+                _graphicsDevice,
+                _content,
+                _virtualWidth,
+                _virtualHeight));
             return;
         }
 
