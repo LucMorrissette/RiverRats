@@ -46,6 +46,9 @@ public sealed class DayNightCycle
     /// <summary>Current position in the cycle, normalized 0–1.</summary>
     public float CycleProgress => (_elapsedSeconds % _cycleDurationSeconds) / _cycleDurationSeconds;
 
+    /// <summary>Current time of day as a 0–24 hour float derived from cycle progress.</summary>
+    public float GameHour => CycleProgress * 24f;
+
     /// <summary>Current tint color to apply to the scene via multiply blend.</summary>
     public Color CurrentTint { get; private set; }
 

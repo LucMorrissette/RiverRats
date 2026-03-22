@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using FontStashSharp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Content;
@@ -10,6 +12,7 @@ using RiverRats.Game.Graphics;
 using RiverRats.Game.Audio;
 using RiverRats.Game.Input;
 using RiverRats.Game.Systems;
+using RiverRats.Game.UI;
 using RiverRats.Game.World;
 
 namespace RiverRats.Game.Screens;
@@ -24,6 +27,7 @@ public sealed class GameplayScreen : IGameScreen
     private const float PlayerAccelerationRate = 10f;
     private const int WalkFramesPerDirection = 4;
     private const float WalkFrameDuration = 0.15f;
+    private const float HudFontSize = 14f;
     private const float DayNightCycleDurationSeconds = 120f;
     private const float DayNightCycleStartProgress = 0.30f;
     private const int GradientStripCount = 32;
@@ -123,6 +127,8 @@ public sealed class GameplayScreen : IGameScreen
     private bool _showCollisionBounds;
     private RippleSystem _rippleSystem;
     private readonly MusicManager _musicManager = new();
+    private HudRenderer _hudRenderer;
+    private FontSystem _fontSystem;
 
     /// <inheritdoc />
     public bool IsTransparent => false;
@@ -290,6 +296,18 @@ public sealed class GameplayScreen : IGameScreen
 
         _musicManager.LoadContent(_content);
         _musicManager.PlaySong("GameplayTheme", loopDelaySeconds: 5f);
+
+        _fontSystem = new FontSystem(new FontSystemSettings
+        {
+            // Higher resolution factor rasterizes glyphs at 2× then downscales,
+            // producing sharper text at the small 480×270 virtual resolution.
+            FontResolutionFactor = 2f,
+            KernelWidth = 0,
+            KernelHeight = 0,
+        });
+        _fontSystem.AddFont(File.ReadAllBytes(
+            Path.Combine(_content.RootDirectory, "Fonts", "Nunito.ttf")));
+        _hudRenderer = new HudRenderer();
     }
 
     /// <inheritdoc />
@@ -574,6 +592,22 @@ public sealed class GameplayScreen : IGameScreen
             _dayNightCycle.NightStrength,
             worldMatrix,
             _previousRenderTarget);
+
+    }
+
+    /// <inheritdoc />
+    public void DrawOverlay(GameTime gameTime, SpriteBatch spriteBatch, int sceneScale)
+    {
+        // Get the font at a size scaled for the actual window resolution.
+        // sceneScale converts virtual pixels to window pixels.
+        var scaledFont = _fontSystem.GetFont(HudFontSize * sceneScale);
+
+        spriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.LinearClamp);
+        _hudRenderer.Draw(spriteBatch, scaledFont, _pixelTexture, _dayNightCycle.GameHour, sceneScale);
+        spriteBatch.End();
     }
 
     /// <inheritdoc />
@@ -587,6 +621,7 @@ public sealed class GameplayScreen : IGameScreen
         _waterRenderTarget?.Dispose();
         _surfaceReachRenderTarget?.Dispose();
         _surfaceReachGradientTarget?.Dispose();
+        _fontSystem?.Dispose();
     }
 
     private void DrawCollisionBounds()

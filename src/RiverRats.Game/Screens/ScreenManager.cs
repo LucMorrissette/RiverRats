@@ -136,6 +136,19 @@ public sealed class ScreenManager
         }
     }
 
+    /// <summary>
+    /// Draws overlays for all visible screens at native window resolution.
+    /// Called by Game1 after the scene render target has been composited.
+    /// </summary>
+    public void DrawOverlay(GameTime gameTime, SpriteBatch spriteBatch, int sceneScale)
+    {
+        // Overlays only for the topmost screen (same as Update)
+        if (_screens.Count > 0)
+        {
+            _screens[^1].DrawOverlay(gameTime, spriteBatch, sceneScale);
+        }
+    }
+
     private void ApplyPendingChanges()
     {
         foreach (var screen in _pendingRemoves)

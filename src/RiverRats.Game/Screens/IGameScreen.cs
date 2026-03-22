@@ -32,6 +32,19 @@ public interface IGameScreen
     void Draw(GameTime gameTime, SpriteBatch spriteBatch);
 
     /// <summary>
+    /// Called every frame after the scene render target is composited to the backbuffer.
+    /// Used for UI that should render at native window resolution (e.g., HUD text).
+    /// Default implementation is a no-op.
+    /// </summary>
+    /// <param name="gameTime">Current game time.</param>
+    /// <param name="spriteBatch">The sprite batch to use for drawing.</param>
+    /// <param name="sceneScale">Integer scale factor from virtual to window resolution.</param>
+    void DrawOverlay(GameTime gameTime, SpriteBatch spriteBatch, int sceneScale)
+    {
+        // Default: no overlay rendering needed.
+    }
+
+    /// <summary>
     /// Called when the screen is removed from the stack. Dispose resources here.
     /// </summary>
     void UnloadContent();

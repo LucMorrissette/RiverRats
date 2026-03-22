@@ -111,6 +111,13 @@ public class Game1 : Microsoft.Xna.Framework.Game
         _spriteBatch.Draw(_sceneRenderTarget, _sceneDestination, Color.White);
         _spriteBatch.End();
 
+        // --- Overlay pass: HUD at native window resolution for crisp font rendering ---
+        var viewport = GraphicsDevice.Viewport;
+        var scaleX = viewport.Width / VirtualWidth;
+        var scaleY = viewport.Height / VirtualHeight;
+        var sceneScale = Math.Max(1, Math.Min(scaleX, scaleY));
+        _screenManager.DrawOverlay(gameTime, _spriteBatch, sceneScale);
+
         if (_copyScreenshotRequested)
         {
             CopySceneRenderTargetToClipboard();

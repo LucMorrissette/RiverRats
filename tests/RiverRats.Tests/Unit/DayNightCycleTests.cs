@@ -256,4 +256,50 @@ public sealed class DayNightCycleTests
 
         Assert.Equal(0f, cycle.NightStrength, precision: 3);
     }
+
+    // ── GameHour ─────────────────────────────────────────────
+
+    [Fact]
+    public void GameHour__AtMidnight__ReturnsZero()
+    {
+        var cycle = new DayNightCycle(120f, startProgress: 0f);
+
+        Assert.Equal(0f, cycle.GameHour, precision: 2);
+    }
+
+    [Fact]
+    public void GameHour__AtNoon__ReturnsTwelve()
+    {
+        var cycle = new DayNightCycle(120f, startProgress: 0.50f);
+
+        Assert.Equal(12f, cycle.GameHour, precision: 2);
+    }
+
+    [Fact]
+    public void GameHour__AtDayStart__ReturnsSevenTwoZero()
+    {
+        // Progress 0.30 = start of day = 7.2 hours
+        var cycle = new DayNightCycle(120f, startProgress: 0.30f);
+
+        Assert.Equal(7.2f, cycle.GameHour, precision: 2);
+    }
+
+    [Fact]
+    public void GameHour__AfterUpdate__ReflectsNewProgress()
+    {
+        var cycle = new DayNightCycle(120f, startProgress: 0f);
+        // Advance 60 seconds = halfway through 120s cycle = progress 0.5 = noon
+        cycle.Update(FakeGameTime.FromSeconds(60f));
+
+        Assert.Equal(12f, cycle.GameHour, precision: 2);
+    }
+
+    [Fact]
+    public void GameHour__AfterFullCycle__WrapsToZero()
+    {
+        var cycle = new DayNightCycle(120f, startProgress: 0f);
+        cycle.Update(FakeGameTime.FromSeconds(120f));
+
+        Assert.Equal(0f, cycle.GameHour, precision: 2);
+    }
 }

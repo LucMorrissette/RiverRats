@@ -4,11 +4,22 @@
 
 | Screen | Type | Description |
 |---|---|---|
-| `IGameScreen` | Interface | Screen lifecycle contract: `LoadContent`, `Update`, `Draw`, `UnloadContent`, `IsTransparent`. |
+| `IGameScreen` | Interface | Screen lifecycle contract: `LoadContent`, `Update`, `Draw`, `DrawOverlay`, `UnloadContent`, `IsTransparent`. |
 | `ScreenManager` | Manager | Stack-based screen host. Push/pop/replace screens. Topmost receives input; visible stack is drawn bottom-to-top. |
 | `GameplayScreen` | Screen | Primary gameplay screen owning player, camera, and world renderer. |
 
 *(Add entries as screens are created — TitleScreen, PauseScreen, etc.)*
+
+## IGameScreen API
+
+| Member | Signature | Description |
+|---|---|---|
+| `IsTransparent` | `bool` (property) | When `true`, screens below this one in the stack are still drawn. Use `true` for overlay screens (pause), `false` for opaque screens (gameplay, title). |
+| `LoadContent()` | `void` | Called once when the screen is first pushed onto the stack. Load assets and initialize state here. |
+| `Update(gameTime, input)` | `void` | Called every frame for the topmost screen only. |
+| `Draw(gameTime, spriteBatch)` | `void` | Called every frame for all visible screens, drawn bottom-to-top. Renders into the scene render target at virtual resolution. |
+| `DrawOverlay(gameTime, spriteBatch, sceneScale)` | `void` (default no-op) | Called by `Game1` after the scene render target is composited to the backbuffer. Renders UI at native window resolution. `sceneScale` is the integer scale factor from virtual resolution (e.g., 480×270) to the current window size. Screens that do not need a native-resolution overlay do not need to implement this method. |
+| `UnloadContent()` | `void` | Called when the screen is removed from the stack. Dispose resources here. |
 
 ## Input
 

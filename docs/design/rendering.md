@@ -15,6 +15,7 @@
 | **Cloud shadow pass** | Two layers of procedurally generated tileable Perlin noise scrolling at different speeds, composited via multiply blend on a half-resolution render target | Soft, drifting cloud shadows over the scene. Low-res target + bilinear upscaling produces inherently diffuse edges. Intensity fades at night. |
 | **Camera** | Camera2D producing a `Matrix` transform | All world-space drawing uses camera matrix in SpriteBatch.Begin(). |
 | **UI rendering pass** | Separate SpriteBatch without camera transform | Screen-space UI stays fixed regardless of camera position. |
+| **UI overlay pass** | `DrawOverlay()` renders UI to the backbuffer at native window resolution, after the scene render target is integer-scaled | Font text rasterized by FontStashSharp must draw at actual display pixels to avoid PointClamp blockiness. Pixel dimensions (padding, indicator size) are multiplied by `sceneScale` to match the virtual-to-window ratio. |
 | **Screenshot capture source** | Final virtual scene render target | Copies the post-processed gameplay frame to the clipboard without depending on window size or letterboxing. |
 | **Y-sorting** | `SpriteSortMode.FrontToBack` in entity pass; `layerDepth = Bounds.Bottom / mapPixelHeight` | Entities with a lower screen-bottom Y draw behind those with a higher Y. Uses XNA's native sprite depth sorting — no custom interface required. Entities that should not participate (e.g., docks) pass `layerDepth = 0` to pin them behind all sorted entities. |
 | **Occlusion reveal** | Entities in front of player drawn to separate RT, composited with `OcclusionReveal` shader creating a circular alpha-fade lens | Player remains visible behind tall props. Zero cost when no occlusion is detected (original single-pass used). |
@@ -25,8 +26,9 @@
 
 | Decision | Value | Rationale |
 |---|---|---|
-
-*(No fonts selected yet. Add entries as font rendering decisions are made.)*
+| **Font library** | FontStashSharp (runtime TTF rasterization via `FontStashSharp.MonoGame` NuGet) | Renders crisp text at any resolution from a single `.ttf` file. Avoids the MGCB SpriteFont pipeline which requires pre-baked sizes and produces blurry results when scaled. |
+| **Font file** | Nunito TTF loaded from `Content/Fonts/Nunito.ttf` via `File.ReadAllBytes` (not MGCB pipeline) | Clean, readable sans-serif with multiple weights; same font proven in the Trashsquatch project. |
+| **Font sizes** | Rasterized on demand at pixel sizes (e.g., 12pt tiny, 16pt HUD) via `FontSystem.GetFont(size)` | FontStashSharp caches glyphs per size so there's no per-frame allocation. |
 
 ## Art Style
 
@@ -90,7 +92,7 @@ When the player walks behind a tall prop (tree, cabin, boulder), a circular alph
 | Class | Description |
 |---|---|
 | `Camera2D` | Produces a world-space view `Matrix` for `SpriteBatch`. Clamps position to map pixel bounds. |
-| `DayNightCycle` | Looping time-of-day cycle that outputs both a multiply-blend tint `Color` and a scalar `NightStrength`. Phases: Night → Dawn → Day → Dusk. Pure logic, no GPU dependency. |
+| `DayNightCycle` | Looping time-of-day cycle that outputs a multiply-blend tint `Color`, a scalar `NightStrength`, and a `GameHour` float (0–24) derived from cycle progress. Phases: Night → Dawn → Day → Dusk. Pure logic, no GPU dependency. |
 | `LightingRenderer` | Owns the low-resolution lightmap render target, draws additive point lights from `LightData` snapshots, and composites the lightmap over the scene with multiply blending. |
 | `CloudShadowRenderer` | Generates tileable Perlin-noise cloud textures at load time, draws two independently scrolling layers onto a half-resolution shadow map each frame, and composites with multiply blending for soft drifting cloud shadows. |
 | `TiledWorldRenderer` | Wraps TMX/TSX map loading, deterministic weighted tile-variant drawing, and `Water/*` layer grouping for the distortion pass. |
