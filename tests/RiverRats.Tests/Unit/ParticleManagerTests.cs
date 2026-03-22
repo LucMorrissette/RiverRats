@@ -109,7 +109,14 @@ public class ParticleManagerTests
         var manager = new ParticleManager(100);
         manager.Emit(gravityProfile, new Vector2(100f, 100f), 1);
 
-        // After 1 second with gravity = -10, particle should have moved upward
+        // After 1 second with gravity = -10, particle should have moved upward.
+        // NOTE: ParticleManager exposes no public API to read individual particle
+        // positions or velocities — the internal Particle struct and _particles array
+        // are both private. We can only verify the side-effect that the particle is
+        // still alive (it would expire early only if gravity somehow consumed life,
+        // which it doesn't). A stronger assertion would require exposing a
+        // GetParticle(int index) or similar API, which is intentionally avoided to
+        // keep the hot-path allocation-free.
         manager.Update(FakeGameTime.FromSeconds(1.0f));
         // Active count stays at 1 (life = 5s)
         Assert.Equal(1, manager.ActiveCount);

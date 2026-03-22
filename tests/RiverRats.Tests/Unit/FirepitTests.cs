@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using RiverRats.Game.Components;
 using RiverRats.Game.Entities;
+using RiverRats.Tests.Helpers;
 
 namespace RiverRats.Tests.Unit;
 
@@ -73,6 +74,45 @@ public sealed class FirepitTests
         Assert.True(hasLight);
         Assert.Equal(116f, lightData.Position.X, precision: 3);
         Assert.Equal(194f, lightData.Position.Y, precision: 3);
+    }
+
+    [Fact]
+    public void ToggleLit__WithoutAttachedFire__DoesNotThrow()
+    {
+        var firepit = new Firepit(new Vector2(100f, 200f), new Point(32, 24));
+
+        // Should be a no-op, not crash
+        firepit.ToggleLit();
+
+        Assert.False(firepit.IsLit);
+    }
+
+    [Fact]
+    public void Update__WhenUnlit__DoesNotThrow()
+    {
+        var firepit = new Firepit(new Vector2(100f, 200f), new Point(32, 24), MakeFire(new Vector2(108f, 190f)));
+        firepit.ToggleLit(); // Now unlit
+
+        // Update while unlit should not throw
+        firepit.Update(FakeGameTime.FromSeconds(0.016f));
+
+        Assert.False(firepit.IsLit);
+    }
+
+    [Fact]
+    public void Update__WhenLit__AdvancesFireAnimation()
+    {
+        var firepit = new Firepit(new Vector2(100f, 200f), new Point(32, 24), MakeFire(new Vector2(108f, 190f)));
+
+        // Get initial light data — radius starts at SmallFire.BaseLightRadius (110f), flicker at 0
+        firepit.TryGetLightData(out var before);
+
+        // Advance enough to see flicker change (0.5s → flickerTime = 5.0 → sin(5.0) ≈ -0.959)
+        firepit.Update(FakeGameTime.FromSeconds(0.5f));
+        firepit.TryGetLightData(out var after);
+
+        // Light radius should change due to flicker
+        Assert.NotEqual(before.Radius, after.Radius);
     }
 
     private static SmallFire MakeFire(Vector2 position)

@@ -218,4 +218,42 @@ public sealed class DayNightCycleTests
 
         Assert.InRange(cycle.NightStrength, 0f, 1f);
     }
+
+    // ── Edge cases ───────────────────────────────────────────────
+
+    [Fact]
+    public void Constructor__VerySmallDuration__DoesNotThrow()
+    {
+        // Extremely small but non-zero duration should not crash.
+        var cycle = new DayNightCycle(0.001f, startProgress: 0f);
+        Assert.Equal(0f, cycle.CycleProgress, precision: 1);
+    }
+
+    [Fact]
+    public void Update__VerySmallDuration__WrapsCorrectly()
+    {
+        var cycle = new DayNightCycle(0.01f, startProgress: 0f);
+
+        // Advance well past one full cycle.
+        cycle.Update(FakeGameTime.FromSeconds(1.0f));
+
+        // Should wrap, progress should be between 0 and 1.
+        Assert.InRange(cycle.CycleProgress, 0f, 1f);
+    }
+
+    [Fact]
+    public void NightStrength__AtFullNight__ReturnsOne_120sCycle()
+    {
+        var cycle = new DayNightCycle(120f, startProgress: 0.10f);
+
+        Assert.Equal(1f, cycle.NightStrength, precision: 3);
+    }
+
+    [Fact]
+    public void NightStrength__AtFullDay__ReturnsZero_120sCycle()
+    {
+        var cycle = new DayNightCycle(120f, startProgress: 0.50f);
+
+        Assert.Equal(0f, cycle.NightStrength, precision: 3);
+    }
 }
