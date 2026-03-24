@@ -13,6 +13,7 @@ public enum InputAction
     Cancel,
     Exit,
     ToggleCollisionDebug,
+    ToggleCrtFilter,
     CopyScreenshotToClipboard,
     Pause
 }

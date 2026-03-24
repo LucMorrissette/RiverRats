@@ -33,14 +33,18 @@ public sealed class GameplayScreen : IGameScreen
     private const int GradientStripCount = 32;
     private const int MaxFireflyLights = 32;
     private const int MaxParticleCount = 512;
-    private const float CabinSortAnchorOffsetPixels = 20f;
+    private const float CabinSortAnchorOffsetPixels = 52f;
     private const float PineTreeSortAnchorOffsetPixels = 10f;
     private const float BirchTreeSortAnchorOffsetPixels = 10f;
     private const float DeadTreeSortAnchorOffsetPixels = 10f;
     private const float DeciduousTreeSortAnchorOffsetPixels = 10f;
+    private const float ZoneTransitionFadeDurationSeconds = 0.4f;
+    private const float ZoneTransitionBlackHoldSeconds = 0.15f;
+    private const float GameplayMusicVolume = 1f;
     private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
+    private static readonly EmptyInputManager EmptyInput = new();
 
     private static readonly ParticleProfile FireSmokeProfile = new()
     {
@@ -77,6 +81,10 @@ public sealed class GameplayScreen : IGameScreen
     private readonly int _virtualWidth;
     private readonly int _virtualHeight;
     private readonly Action _requestExit;
+    private readonly string _mapAssetName;
+    private readonly string _spawnPointId;
+    private readonly bool _fadeInFromBlack;
+    private readonly string _songName;
 
     private SpriteBatch _worldSpriteBatch;
     private TiledWorldRenderer _worldRenderer;
@@ -133,10 +141,17 @@ public sealed class GameplayScreen : IGameScreen
     private RenderTarget2D _previousRenderTarget;
     private int _debugOverlayMode;
     private RippleSystem _rippleSystem;
+    private GnomeSpawner _gnomeSpawner;
+    private Texture2D _gnomeEnemyTexture;
+    private ProjectileSystem _projectileSystem;
     private readonly IMusicManager _musicManager = new MusicManager();
     private HudRenderer _hudRenderer;
     private FontSystem _fontSystem;
     private readonly ScreenManager _screenManager;
+    private FadeState _fadeState;
+    private float _fadeAlpha;
+    private float _fadeHoldTimer;
+    private ZoneTransitionRequest? _pendingZoneTransition;
 
     /// <inheritdoc />
     public bool IsTransparent => false;
@@ -153,13 +168,19 @@ public sealed class GameplayScreen : IGameScreen
     /// <param name="virtualHeight">Virtual resolution height.</param>
     /// <param name="screenManager">Screen manager used to push overlay screens.</param>
     /// <param name="requestExit">Callback to request the game exit.</param>
+    /// <param name="mapAssetName">Content asset name for the TMX map to load.</param>
+    /// <param name="spawnPointId">Name of the spawn point to place the player at, or null for map center.</param>
+    /// <param name="fadeInFromBlack">When true, the screen starts fully black and fades in.</param>
     public GameplayScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
         int virtualWidth,
         int virtualHeight,
         ScreenManager screenManager,
-        Action requestExit)
+        Action requestExit,
+        string mapAssetName = "Maps/StarterMap",
+        string spawnPointId = null,
+        bool fadeInFromBlack = false)
     {
         _graphicsDevice = graphicsDevice;
         _content = content;
@@ -167,13 +188,22 @@ public sealed class GameplayScreen : IGameScreen
         _virtualHeight = virtualHeight;
         _screenManager = screenManager;
         _requestExit = requestExit;
+        _mapAssetName = mapAssetName;
+        _spawnPointId = spawnPointId;
+        _fadeInFromBlack = fadeInFromBlack;
+        _songName = GetSongForMap(mapAssetName);
     }
 
     /// <inheritdoc />
     public void LoadContent()
     {
+        _fadeState = _fadeInFromBlack ? FadeState.FadingIn : FadeState.None;
+        _fadeAlpha = _fadeInFromBlack ? 1f : 0f;
+        _fadeHoldTimer = 0f;
+        _pendingZoneTransition = null;
+
         _worldSpriteBatch = new SpriteBatch(_graphicsDevice);
-        _worldRenderer = new TiledWorldRenderer(_graphicsDevice, _content, "Maps/StarterMap");
+        _worldRenderer = new TiledWorldRenderer(_graphicsDevice, _content, _mapAssetName);
         _camera = new Camera2D(
             _virtualWidth,
             _virtualHeight,
@@ -235,9 +265,10 @@ public sealed class GameplayScreen : IGameScreen
             PlayerFramePixels, PlayerFramePixels,
             WalkFramesPerDirection, WalkFrameDuration);
 
-        var initialPosition = new Vector2(
-            (_worldRenderer.MapPixelWidth / 2f) - (PlayerFramePixels / 2f),
-            (_worldRenderer.MapPixelHeight / 2f) - (PlayerFramePixels / 2f));
+        var initialPosition = FindSpawnPosition(_worldRenderer.SpawnPoints, _spawnPointId)
+            ?? new Vector2(
+                (_worldRenderer.MapPixelWidth / 2f) - (PlayerFramePixels / 2f),
+                (_worldRenderer.MapPixelHeight / 2f) - (PlayerFramePixels / 2f));
 
         _player = new PlayerBlock(
             initialPosition,
@@ -270,6 +301,13 @@ public sealed class GameplayScreen : IGameScreen
         _birchTrees = PropFactory.CreateTrees(birchTreeTexture, PropFactory.BirchTreeCollisionBoxes, _worldRenderer.PropPlacements, "birch-tree");
         _deadTrees = PropFactory.CreateVariantTrees(deadTreeTextures, deadTreeCollisionBoxes, _worldRenderer.PropPlacements, "dead-tree");
         _deciduousTrees = PropFactory.CreateVariantTrees(deciduousTreeTextures, deciduousTreeCollisionBoxes, _worldRenderer.PropPlacements, "deciduous-tree");
+        if (_mapAssetName == "Maps/WoodsBehindCabin")
+        {
+            _gnomeEnemyTexture = _content.Load<Texture2D>("Sprites/garden-gnome");
+            _gnomeSpawner = new GnomeSpawner(initialCount: 10, spawnIntervalSeconds: 2.5f, maxActive: 25);
+            _projectileSystem = new ProjectileSystem(maxProjectiles: 32, fireIntervalSeconds: 1.8f);
+        }
+
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(MaxParticleCount);
         for (var i = 0; i < _firepits.Length; i++)
@@ -347,7 +385,8 @@ public sealed class GameplayScreen : IGameScreen
         _occlusionRevealRenderer.LoadContent(_content);
 
         _musicManager.LoadContent(_content);
-        _musicManager.PlaySong("GameplayTheme", loopDelaySeconds: 5f);
+        _musicManager.SetVolume(_fadeInFromBlack ? 0f : GameplayMusicVolume);
+        _musicManager.PlaySong(_songName, loopDelaySeconds: 5f);
 
         _fontSystem = new FontSystem(new FontSystemSettings
         {
@@ -371,6 +410,13 @@ public sealed class GameplayScreen : IGameScreen
             return;
         }
 
+        if (_fadeState != FadeState.None)
+        {
+            UpdateFade(gameTime);
+            UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
+
         if (input.IsPressed(InputAction.Pause))
         {
             _screenManager.Push(new PauseScreen(
@@ -390,6 +436,17 @@ public sealed class GameplayScreen : IGameScreen
 
         _player.Update(gameTime, input, _collisionMap);
 
+        // Check zone transition triggers after player movement.
+        for (var i = 0; i < _worldRenderer.ZoneTriggers.Count; i++)
+        {
+            var trigger = _worldRenderer.ZoneTriggers[i];
+            if (_player.Bounds.Intersects(trigger.Bounds))
+            {
+                BeginZoneTransition(trigger);
+                return;
+            }
+        }
+
         if (input.IsPressed(InputAction.Confirm))
         {
             TryToggleNearbyFirepit();
@@ -397,13 +454,22 @@ public sealed class GameplayScreen : IGameScreen
 
         _follower.Update(gameTime, _player.Position, _player.Facing, GetFollowerRestPosition());
 
+        _gnomeSpawner?.Update(gameTime, _player.Center, _camera.WorldBounds);
+        if (_projectileSystem != null && _gnomeSpawner != null)
+            _projectileSystem.Update(gameTime, _player.Center, _follower.Center, _gnomeSpawner);
+
+        UpdateWorldPresentation(gameTime, input, animateCharacters: true);
+    }
+
+    private void UpdateWorldPresentation(GameTime gameTime, IInputManager input, bool animateCharacters)
+    {
         _playerAnimator.Direction = _player.Facing;
-        _playerAnimator.Update(gameTime, _player.IsMoving);
+        _playerAnimator.Update(gameTime, animateCharacters && _player.IsMoving);
         _followerAnimator.Direction = _follower.Facing;
-        _followerAnimator.Update(gameTime, _follower.IsMoving);
+        _followerAnimator.Update(gameTime, animateCharacters && _follower.IsMoving);
         _camera.LookAt(_player.Center);
-        _isPlayerOccluded = CheckOcclusion(_player.Bounds, _player.Bounds.Bottom / (float)_worldRenderer.MapPixelHeight);
-        _isFollowerOccluded = CheckOcclusion(_follower.Bounds, _follower.Bounds.Bottom / (float)_worldRenderer.MapPixelHeight);
+        _isPlayerOccluded = CheckOcclusion(_player.Bounds, SortDepth(_player.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
+        _isFollowerOccluded = CheckOcclusion(_follower.Bounds, SortDepth(_follower.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _worldRenderer.Update(gameTime);
         _dayNightCycle.Update(gameTime);
         var activeFireLightCount = 0;
@@ -558,9 +624,10 @@ public sealed class GameplayScreen : IGameScreen
         // FrontToBack: layerDepth 0 = drawn first (behind), 1 = drawn last (in front).
         // Each entity's depth is its bottom Y / map height so lower-on-screen = in front.
         var mapHeight = (float)_worldRenderer.MapPixelHeight;
-        var playerDepth = _player.Bounds.Bottom / mapHeight;
+        var mapWidth = (float)_worldRenderer.MapPixelWidth;
+        var playerDepth = SortDepth(_player.Bounds, mapHeight, mapWidth);
 
-        var followerDepth = _follower.Bounds.Bottom / mapHeight;
+        var followerDepth = SortDepth(_follower.Bounds, mapHeight, mapWidth);
         var anyOccluded = _isPlayerOccluded || _isFollowerOccluded;
 
         if (anyOccluded)
@@ -578,7 +645,7 @@ public sealed class GameplayScreen : IGameScreen
                 blendState: BlendState.AlphaBlend,
                 samplerState: SamplerState.PointClamp,
                 transformMatrix: worldMatrix);
-            DrawWorldEntities(mapHeight, behindCutoff, EntityDepthFilter.BehindOrAtPlayer);
+            DrawWorldEntities(mapHeight, mapWidth, behindCutoff, EntityDepthFilter.BehindOrAtPlayer);
             _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
             _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
             _worldSpriteBatch.End();
@@ -590,7 +657,7 @@ public sealed class GameplayScreen : IGameScreen
                 blendState: BlendState.AlphaBlend,
                 samplerState: SamplerState.PointClamp,
                 transformMatrix: worldMatrix);
-            DrawWorldEntities(mapHeight, behindCutoff, EntityDepthFilter.InFrontOfPlayer);
+            DrawWorldEntities(mapHeight, mapWidth, behindCutoff, EntityDepthFilter.InFrontOfPlayer);
             _worldSpriteBatch.End();
 
             // --- Pass 4c: Composite occluders with circular reveal lens(es) ---
@@ -608,7 +675,7 @@ public sealed class GameplayScreen : IGameScreen
                 blendState: BlendState.AlphaBlend,
                 samplerState: SamplerState.PointClamp,
                 transformMatrix: worldMatrix);
-            DrawWorldEntities(mapHeight, playerDepth, EntityDepthFilter.All);
+            DrawWorldEntities(mapHeight, mapWidth, playerDepth, EntityDepthFilter.All);
             _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
             _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
             _worldSpriteBatch.End();
@@ -689,6 +756,14 @@ public sealed class GameplayScreen : IGameScreen
             samplerState: SamplerState.LinearClamp);
         _hudRenderer.Draw(spriteBatch, scaledFont, _pixelTexture, _dayNightCycle.GameHour, sceneScale);
         spriteBatch.End();
+
+        if (_fadeAlpha <= 0f)
+        {
+            return;
+        }
+
+        var viewport = _graphicsDevice.Viewport;
+        DrawCrtPowerTransition(spriteBatch, viewport);
     }
 
     /// <inheritdoc />
@@ -866,6 +941,92 @@ public sealed class GameplayScreen : IGameScreen
         return !_collisionMap.IsWorldRectangleBlocked(candidateBounds);
     }
 
+    private void BeginZoneTransition(ZoneTriggerData trigger)
+    {
+        _pendingZoneTransition = new ZoneTransitionRequest(trigger.TargetMap, trigger.TargetSpawnId);
+        _fadeState = FadeState.FadingOut;
+        _fadeAlpha = 0f;
+    }
+
+    private void UpdateFade(GameTime gameTime)
+    {
+        var fadeStep = (float)(gameTime.ElapsedGameTime.TotalSeconds / ZoneTransitionFadeDurationSeconds);
+
+        if (_fadeState == FadeState.FadingOut)
+        {
+            _fadeAlpha = MathHelper.Clamp(_fadeAlpha + fadeStep, 0f, 1f);
+            _musicManager.SetVolume(GameplayMusicVolume * (1f - _fadeAlpha));
+            if (_fadeAlpha >= 1f)
+            {
+                _fadeState = FadeState.HoldingBlack;
+                _fadeHoldTimer = ZoneTransitionBlackHoldSeconds;
+            }
+
+            return;
+        }
+
+        if (_fadeState == FadeState.HoldingBlack)
+        {
+            _fadeAlpha = 1f;
+            _musicManager.SetVolume(0f);
+            _fadeHoldTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            if (_fadeHoldTimer <= 0f && _pendingZoneTransition is { } transition)
+            {
+                _screenManager.Replace(new GameplayScreen(
+                    _graphicsDevice,
+                    _content,
+                    _virtualWidth,
+                    _virtualHeight,
+                    _screenManager,
+                    _requestExit,
+                    transition.TargetMap,
+                    transition.TargetSpawnId,
+                    fadeInFromBlack: true));
+            }
+
+            return;
+        }
+
+        if (_fadeState == FadeState.FadingIn)
+        {
+            _fadeAlpha = MathHelper.Clamp(_fadeAlpha - fadeStep, 0f, 1f);
+            _musicManager.SetVolume(GameplayMusicVolume * (1f - _fadeAlpha));
+            if (_fadeAlpha <= 0f)
+            {
+                _fadeState = FadeState.None;
+                _musicManager.SetVolume(GameplayMusicVolume);
+            }
+        }
+    }
+
+    private static string GetSongForMap(string mapAssetName)
+    {
+        return mapAssetName switch
+        {
+            "Maps/WoodsBehindCabin" => "WoodsBehindCabinTheme",
+            _ => "GameplayTheme",
+        };
+    }
+
+    private static Vector2? FindSpawnPosition(IReadOnlyList<SpawnPointData> spawnPoints, string spawnPointId)
+    {
+        if (spawnPointId is null || spawnPoints.Count == 0)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < spawnPoints.Count; i++)
+        {
+            if (string.Equals(spawnPoints[i].Name, spawnPointId, StringComparison.Ordinal))
+            {
+                return spawnPoints[i].Position;
+            }
+        }
+
+        return null;
+    }
+
     private void TryToggleNearbyFirepit()
     {
         var nearestIndex = -1;
@@ -899,23 +1060,122 @@ public sealed class GameplayScreen : IGameScreen
     /// <summary>Depth filter mode for <see cref="DrawWorldEntities"/>.</summary>
     private enum EntityDepthFilter { All, BehindOrAtPlayer, InFrontOfPlayer }
 
+    private enum FadeState
+    {
+        None,
+        FadingOut,
+        HoldingBlack,
+        FadingIn,
+    }
+
+    /// <summary>
+    /// Draws a CRT power-off/on transition. During power-off the image squeezes
+    /// vertically into a bright horizontal line, then the line shrinks to a dot.
+    /// Power-on reverses the sequence.
+    /// </summary>
+    private void DrawCrtPowerTransition(SpriteBatch spriteBatch, Viewport viewport)
+    {
+        // Remap _fadeAlpha (0–1) into two phases:
+        //   Phase 1 (0.0–0.6): Vertical squeeze — bars close from top/bottom.
+        //   Phase 2 (0.6–1.0): Horizontal shrink — line contracts to a dot and fades.
+        const float phaseOneBoundary = 0.6f;
+        const int lineThickness = 3;
+        var crtDark = new Color(30, 30, 40);
+
+        var screenW = viewport.Width;
+        var screenH = viewport.Height;
+        var centerY = screenH / 2;
+        var centerX = screenW / 2;
+
+        if (_fadeAlpha < phaseOneBoundary)
+        {
+            // Phase 1: Black bars close from top and bottom.
+            var phaseProgress = _fadeAlpha / phaseOneBoundary; // 0→1
+            var halfGap = (int)((1f - phaseProgress) * centerY);
+            if (halfGap < lineThickness / 2)
+            {
+                halfGap = lineThickness / 2;
+            }
+
+            var topBarHeight = centerY - halfGap;
+            var bottomBarY = centerY + halfGap;
+
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+
+            // Top bar.
+            if (topBarHeight > 0)
+            {
+                spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, screenW, topBarHeight), crtDark);
+            }
+
+            // Bottom bar.
+            if (bottomBarY < screenH)
+            {
+                spriteBatch.Draw(_pixelTexture, new Rectangle(0, bottomBarY, screenW, screenH - bottomBarY), crtDark);
+            }
+
+            // Phosphor glow on the remaining strip — brighter as it gets thinner.
+            var glowAlpha = phaseProgress * 0.4f;
+            spriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(0, topBarHeight, screenW, bottomBarY - topBarHeight),
+                Color.White * glowAlpha);
+
+            spriteBatch.End();
+        }
+        else
+        {
+            // Phase 2: Full vertical squeeze done — now shrink the line horizontally.
+            var phaseProgress = (_fadeAlpha - phaseOneBoundary) / (1f - phaseOneBoundary); // 0→1
+            var halfWidth = (int)((1f - phaseProgress) * centerX);
+            var lineTop = centerY - lineThickness / 2;
+
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+
+            // Full dark background.
+            spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, screenW, screenH), crtDark);
+
+            // Bright shrinking line/dot.
+            if (halfWidth > 0)
+            {
+                var dotAlpha = 1f - phaseProgress * 0.5f;
+                var lineX = centerX - halfWidth;
+                var lineW = halfWidth * 2;
+                spriteBatch.Draw(
+                    _pixelTexture,
+                    new Rectangle(lineX, lineTop, lineW, lineThickness),
+                    Color.White * dotAlpha);
+            }
+
+            spriteBatch.End();
+        }
+    }
+
+    private readonly record struct ZoneTransitionRequest(string TargetMap, string TargetSpawnId);
+
     /// <summary>
     /// Draws all world prop entities (not the player or follower) that pass
     /// the depth filter relative to the player. Each entity's sort depth is
     /// computed identically to the original single-pass drawing code.
     /// </summary>
-    private void DrawWorldEntities(float mapHeight, float playerDepth, EntityDepthFilter filter)
+    private void DrawWorldEntities(float mapHeight, float mapWidth, float playerDepth, EntityDepthFilter filter)
     {
         for (var i = 0; i < _boulders.Length; i++)
         {
-            var depth = _boulders[i].Bounds.Bottom / mapHeight;
+            var depth = SortDepth(_boulders[i].Bounds, mapHeight, mapWidth);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _boulders[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _gardenGnomes.Length; i++)
         {
-            var depth = _gardenGnomes[i].Bounds.Bottom / mapHeight;
+            var depth = SortDepth(_gardenGnomes[i].Bounds, mapHeight, mapWidth);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _gardenGnomes[i].Draw(_worldSpriteBatch, depth);
         }
@@ -929,63 +1189,81 @@ public sealed class GameplayScreen : IGameScreen
 
         for (var i = 0; i < _sunkenLogs.Length; i++)
         {
-            var depth = _sunkenLogs[i].Bounds.Bottom / mapHeight;
+            var depth = SortDepth(_sunkenLogs[i].Bounds, mapHeight, mapWidth);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _sunkenLogs[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _sunkenChests.Length; i++)
         {
-            var depth = _sunkenChests[i].Bounds.Bottom / mapHeight;
+            var depth = SortDepth(_sunkenChests[i].Bounds, mapHeight, mapWidth);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _sunkenChests[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _firepits.Length; i++)
         {
-            var depth = _firepits[i].Bounds.Bottom / mapHeight;
+            var depth = SortDepth(_firepits[i].Bounds, mapHeight, mapWidth);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _firepits[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _cozyLakeCabins.Length; i++)
         {
-            var cabinBounds = _cozyLakeCabins[i].Bounds;
-            var depth = (cabinBounds.Bottom - CabinSortAnchorOffsetPixels) / mapHeight;
+            var depth = SortDepth(_cozyLakeCabins[i].Bounds, mapHeight, mapWidth, CabinSortAnchorOffsetPixels);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _cozyLakeCabins[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _pineTrees.Length; i++)
         {
-            var treeBounds = _pineTrees[i].Bounds;
-            var depth = (treeBounds.Bottom - PineTreeSortAnchorOffsetPixels) / mapHeight;
+            var depth = SortDepth(_pineTrees[i].Bounds, mapHeight, mapWidth, PineTreeSortAnchorOffsetPixels);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _pineTrees[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _birchTrees.Length; i++)
         {
-            var treeBounds = _birchTrees[i].Bounds;
-            var depth = (treeBounds.Bottom - BirchTreeSortAnchorOffsetPixels) / mapHeight;
+            var depth = SortDepth(_birchTrees[i].Bounds, mapHeight, mapWidth, BirchTreeSortAnchorOffsetPixels);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _birchTrees[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _deadTrees.Length; i++)
         {
-            var treeBounds = _deadTrees[i].Bounds;
-            var depth = (treeBounds.Bottom - DeadTreeSortAnchorOffsetPixels) / mapHeight;
+            var depth = SortDepth(_deadTrees[i].Bounds, mapHeight, mapWidth, DeadTreeSortAnchorOffsetPixels);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _deadTrees[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _deciduousTrees.Length; i++)
         {
-            var treeBounds = _deciduousTrees[i].Bounds;
-            var depth = (treeBounds.Bottom - DeciduousTreeSortAnchorOffsetPixels) / mapHeight;
+            var depth = SortDepth(_deciduousTrees[i].Bounds, mapHeight, mapWidth, DeciduousTreeSortAnchorOffsetPixels);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _deciduousTrees[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        if (_gnomeSpawner != null)
+        {
+            for (var i = 0; i < _gnomeSpawner.Gnomes.Count; i++)
+            {
+                var gnome = _gnomeSpawner.Gnomes[i];
+                var depth = SortDepth(gnome.Bounds, mapHeight, mapWidth);
+                if (PassesDepthFilter(depth, playerDepth, filter))
+                    gnome.Draw(_worldSpriteBatch, _gnomeEnemyTexture, depth);
+            }
+        }
+
+        if (_projectileSystem != null)
+        {
+            var projectiles = _projectileSystem.Projectiles;
+            for (var i = 0; i < projectiles.Length; i++)
+            {
+                if (!projectiles[i].IsAlive) continue;
+                var depth = SortDepth(projectiles[i].Bounds, mapHeight, mapWidth);
+                if (PassesDepthFilter(depth, playerDepth, filter))
+                    projectiles[i].Draw(_worldSpriteBatch, _pixelTexture, depth);
+            }
         }
     }
 
@@ -1000,6 +1278,18 @@ public sealed class GameplayScreen : IGameScreen
     }
 
     /// <summary>
+    /// Computes a stable sort depth for Y-sorting. Uses <c>Bounds.Bottom</c> as the
+    /// primary key and <c>Bounds.Left</c> as a tiebreaker so that props at the same Y
+    /// never flicker their draw order. The X contribution is always less than one pixel
+    /// of Y depth, so it cannot override the vertical ordering.
+    /// </summary>
+    private static float SortDepth(Rectangle bounds, float mapHeight, float mapWidth, float anchorOffset = 0f)
+    {
+        return (bounds.Bottom - anchorOffset) / mapHeight
+             + bounds.Left / (mapWidth * mapHeight);
+    }
+
+    /// <summary>
     /// Checks whether any world entity that sorts in front of <paramref name="characterBounds"/>
     /// fully conceals those bounds. Used to activate the reveal lens for the player or follower.
     /// </summary>
@@ -1008,52 +1298,60 @@ public sealed class GameplayScreen : IGameScreen
     private bool CheckOcclusion(Rectangle characterBounds, float characterDepth)
     {
         var mapHeight = (float)_worldRenderer.MapPixelHeight;
+        var mapWidth = (float)_worldRenderer.MapPixelWidth;
 
         for (var i = 0; i < _cozyLakeCabins.Length; i++)
         {
-            var depth = (_cozyLakeCabins[i].Bounds.Bottom - CabinSortAnchorOffsetPixels) / mapHeight;
+            if (_cozyLakeCabins[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_cozyLakeCabins[i].Bounds, mapHeight, mapWidth, CabinSortAnchorOffsetPixels);
             if (depth > characterDepth && _cozyLakeCabins[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _pineTrees.Length; i++)
         {
-            var depth = (_pineTrees[i].Bounds.Bottom - PineTreeSortAnchorOffsetPixels) / mapHeight;
+            if (_pineTrees[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_pineTrees[i].Bounds, mapHeight, mapWidth, PineTreeSortAnchorOffsetPixels);
             if (depth > characterDepth && _pineTrees[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _birchTrees.Length; i++)
         {
-            var depth = (_birchTrees[i].Bounds.Bottom - BirchTreeSortAnchorOffsetPixels) / mapHeight;
+            if (_birchTrees[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_birchTrees[i].Bounds, mapHeight, mapWidth, BirchTreeSortAnchorOffsetPixels);
             if (depth > characterDepth && _birchTrees[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _deadTrees.Length; i++)
         {
-            var depth = (_deadTrees[i].Bounds.Bottom - DeadTreeSortAnchorOffsetPixels) / mapHeight;
+            if (_deadTrees[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_deadTrees[i].Bounds, mapHeight, mapWidth, DeadTreeSortAnchorOffsetPixels);
             if (depth > characterDepth && _deadTrees[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _deciduousTrees.Length; i++)
         {
-            var depth = (_deciduousTrees[i].Bounds.Bottom - DeciduousTreeSortAnchorOffsetPixels) / mapHeight;
+            if (_deciduousTrees[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_deciduousTrees[i].Bounds, mapHeight, mapWidth, DeciduousTreeSortAnchorOffsetPixels);
             if (depth > characterDepth && _deciduousTrees[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _boulders.Length; i++)
         {
-            var depth = _boulders[i].Bounds.Bottom / mapHeight;
+            if (_boulders[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_boulders[i].Bounds, mapHeight, mapWidth);
             if (depth > characterDepth && _boulders[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _sunkenLogs.Length; i++)
         {
-            var depth = _sunkenLogs[i].Bounds.Bottom / mapHeight;
+            if (_sunkenLogs[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_sunkenLogs[i].Bounds, mapHeight, mapWidth);
             if (depth > characterDepth && _sunkenLogs[i].Bounds.Contains(characterBounds))
                 return true;
         }

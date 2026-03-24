@@ -29,6 +29,10 @@ public class Game1 : Microsoft.Xna.Framework.Game
     private RenderTarget2D _sceneRenderTarget;
     private Rectangle _sceneDestination;
     private bool _copyScreenshotRequested;
+    /// <summary>Dark slate colour used for the CRT bezel area and backbuffer clear.</summary>
+    private static readonly Color CrtBorderColor = new(30, 30, 40);
+    private Effect _crtEffect;
+    private bool _crtEnabled = true;
 #if WINDOWS
     private Color[] _screenshotBuffer;
 #endif
@@ -73,6 +77,8 @@ public class Game1 : Microsoft.Xna.Framework.Game
             // back to during multi-pass per-screen rendering.
             RenderTargetUsage.PreserveContents);
 
+        _crtEffect = Content.Load<Effect>("Effects/CrtEffect");
+
         var gameplayScreen = new GameplayScreen(
             GraphicsDevice,
             Content,
@@ -86,6 +92,11 @@ public class Game1 : Microsoft.Xna.Framework.Game
     protected override void Update(GameTime gameTime)
     {
         _inputManager.Update();
+        if (_inputManager.IsPressed(InputAction.ToggleCrtFilter))
+        {
+            _crtEnabled = !_crtEnabled;
+        }
+
         if (_inputManager.IsPressed(InputAction.CopyScreenshotToClipboard))
         {
             _copyScreenshotRequested = true;
@@ -106,9 +117,24 @@ public class Game1 : Microsoft.Xna.Framework.Game
         _screenManager.Draw(gameTime, _spriteBatch);
 
         GraphicsDevice.SetRenderTarget(null);
-        GraphicsDevice.Clear(Color.Black);
+        GraphicsDevice.Clear(CrtBorderColor);
 
-        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        if (_crtEnabled)
+        {
+            _crtEffect.Parameters["TextureSize"].SetValue(
+                new Vector2(_sceneRenderTarget.Width, _sceneRenderTarget.Height));
+            _crtEffect.Parameters["DistortionAmount"].SetValue(0.075f);
+            _crtEffect.Parameters["ScanlineIntensity"].SetValue(0.25f);
+            _crtEffect.Parameters["VignetteStrength"].SetValue(0.3f);
+            _crtEffect.Parameters["BorderColor"].SetValue(CrtBorderColor.ToVector3());
+
+            _spriteBatch.Begin(effect: _crtEffect, samplerState: SamplerState.PointClamp);
+        }
+        else
+        {
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        }
+
         _spriteBatch.Draw(_sceneRenderTarget, _sceneDestination, Color.White);
         _spriteBatch.End();
 

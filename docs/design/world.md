@@ -5,7 +5,7 @@
 | Class | Description |
 |---|---|
 | `IMapCollisionData` | World collision query contract for blocked-tile checks using world-space rectangles. |
-| `TiledWorldRenderer` | TMX/TSX-backed world renderer that draws ordered tile layers, routes `Water/*` layers through the water pass, aggregates tile-property collision across all layers, and exposes TMX object-layer prop placements. Exposes a `ColliderBounds` property and `LoadColliderBounds()` method to parse pure geometric rectangles (objects without a `gid`) from a `"Colliders"` object layer as world-space rectangles. |
+| `TiledWorldRenderer` | TMX/TSX-backed world renderer that draws ordered tile layers, routes `Water/*` layers through the water pass, aggregates tile-property collision across all layers, and exposes TMX object-layer prop placements. Also exposes `ColliderBounds`, `ZoneTriggers`, and `SpawnPoints` parsed from dedicated TMX object layers so gameplay can stay editor-driven. |
 | `WorldCollisionMap` | Collision aggregator that combines terrain blockers with additional placed obstacle bounds. |
 
 *(Add entries as world/tilemap classes are created — TileMap, TileMapRenderer, etc.)*
@@ -23,6 +23,26 @@ Collision boxes for world props are defined **in code** as part of the entity cl
 ### TMX Colliders layer
 
 The TMX `Colliders` object layer is reserved for **terrain and world-boundary colliders only** (e.g., ground/water borders). Do not add prop-specific collision rectangles to this layer.
+
+## Zone Transition Authoring
+
+Zone-to-zone travel is authored entirely in TMX object layers rather than terrain tile metadata.
+
+### `ZoneTriggers` layer
+
+- Use plain rectangle objects with no `gid`.
+- Required property: `targetMap` — destination TMX content asset name (for example `Maps/WoodsBehindCabin`).
+- Optional property: `targetSpawnId` — destination spawn point name. Defaults to `default` when omitted.
+
+When the player overlaps a trigger rectangle, `GameplayScreen` replaces itself with a fresh `GameplayScreen` for the destination map. This keeps map loading atomic and avoids carrying stale world state across zones.
+
+### `SpawnPoints` layer
+
+- Use named point objects with no `gid`.
+- The TMX object `name` is the spawn identifier.
+- `GameplayScreen` looks up the requested spawn id and falls back to map centre if no matching spawn exists.
+
+This pairing gives each exit its own per-instance destination data without encoding map links into shared tile definitions.
 
 ### Adding a new solid prop type
 

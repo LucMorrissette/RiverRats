@@ -5,6 +5,8 @@
 | System | Description |
 |---|---|
 | `ParticleManager` | Manages a pre-allocated pool of `Particle` structs with free-index stack. Zero-allocation update/draw loop. Handles lifecycle (aging, expiry, slot recycling), physics (velocity, gravity, angular velocity), and rendering (color lerp, scale, rotation). |
+| `GnomeSpawner` | Manages a dynamic pool of `GnomeEnemy` instances. Handles initial batch spawn, timed trickle spawn at a configurable interval, per-frame updates (passing a target position), and distance-based culling. Spawns off-screen around camera edges with staggered hop phases. |
+| `ProjectileSystem` | Manages a pre-allocated pool of `Projectile` instances with auto-fire logic for two shooters (player and follower) on alternating cooldowns. Handles firing at the nearest gnome, movement, and projectile-vs-gnome collision (kill projectile, remove gnome). |
 
 *(Add entries as systems are created — CollisionSystem, NpcManager, etc.)*
 

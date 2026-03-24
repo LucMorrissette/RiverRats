@@ -125,8 +125,6 @@ internal static class PropFactory
     internal static readonly Rectangle[] DeciduousTree4CollisionBoxes =
     [
         new(46, 112, 32, 16),  // Main trunk base
-        new(40, 108, 10, 8),   // Left bark edge
-        new(76, 110, 8, 6),    // Right bark edge
     ];
 
     /// <summary>
@@ -155,7 +153,7 @@ internal static class PropFactory
                 continue;
             }
 
-            boulders.Add(new Boulder(placement.Position, boulderTexture));
+            boulders.Add(new Boulder(placement.Position, boulderTexture, placement.SuppressOcclusion));
         }
 
         return boulders.ToArray();
@@ -443,7 +441,7 @@ internal static class PropFactory
                 continue;
             }
 
-            trees.Add(new Tree(placement.Position, texture, localCollisionBoxes));
+            trees.Add(new Tree(placement.Position, texture, localCollisionBoxes, placement.SuppressOcclusion));
         }
 
         return trees.ToArray();
@@ -482,7 +480,7 @@ internal static class PropFactory
                 continue;
             }
 
-            trees.Add(new Tree(placement.Position, variantTextures[variantIndex], variantCollisionBoxes[variantIndex]));
+            trees.Add(new Tree(placement.Position, variantTextures[variantIndex], variantCollisionBoxes[variantIndex], placement.SuppressOcclusion));
         }
 
         return trees.ToArray();
@@ -508,7 +506,7 @@ internal static class PropFactory
                 continue;
             }
 
-            cabins.Add(new Cabin(placement.Position, texture, localCollisionBoxes));
+            cabins.Add(new Cabin(placement.Position, texture, localCollisionBoxes, placement.SuppressOcclusion));
         }
 
         return cabins.ToArray();

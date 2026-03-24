@@ -28,6 +28,7 @@ public sealed class MusicManager : IMusicManager
     public void LoadContent(ContentManager content)
     {
         _songs["GameplayTheme"] = content.Load<Song>("Audio/Music/river_rats_theme");
+        _songs["WoodsBehindCabinTheme"] = content.Load<Song>("Audio/Music/CottageBehindWoods_theme");
     }
 
     /// <inheritdoc />

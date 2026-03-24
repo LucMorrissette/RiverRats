@@ -16,6 +16,11 @@ public interface IWorldProp
     Rectangle Bounds { get; }
 
     /// <summary>
+    /// When true, the reveal lens will not activate when a character walks behind this prop.
+    /// </summary>
+    bool SuppressOcclusion => false;
+
+    /// <summary>
     /// Draws the prop in world space at the given sort depth.
     /// </summary>
     /// <param name="spriteBatch">Active sprite batch for the current render pass.</param>

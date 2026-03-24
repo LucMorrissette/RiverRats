@@ -213,6 +213,12 @@
 /processorParam:DebugMode=Auto
 /build:Effects/OcclusionReveal.fx
 
+#begin Effects/CrtEffect.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Effects/CrtEffect.fx
+
 #begin Effects/WaterDistortion.fx
 /importer:EffectImporter
 /processor:EffectProcessor
@@ -234,6 +240,12 @@
 /processor:SongProcessor
 /processorParam:Quality=Best
 /build:Audio/Music/river_rats_theme.mp3
+
+#begin Audio/Music/CottageBehindWoods_theme.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:Audio/Music/CottageBehindWoods_theme.mp3
 
 #begin Sprites/cozy_lake_cabin.png
 /importer:TextureImporter

@@ -24,11 +24,12 @@ public sealed class Tree : IWorldProp
     /// One or more collision rectangles relative to the sprite origin (top-left).
     /// For a simple tree this is typically a single trunk-area box.
     /// </param>
-    public Tree(Vector2 position, Texture2D texture, Rectangle[] localCollisionBoxes)
+    public Tree(Vector2 position, Texture2D texture, Rectangle[] localCollisionBoxes, bool suppressOcclusion = false)
     {
         _position = position;
         _texture = texture;
         _localCollisionBoxes = localCollisionBoxes;
+        SuppressOcclusion = suppressOcclusion;
     }
 
     /// <summary>Top-left world position in pixels.</summary>
@@ -39,6 +40,9 @@ public sealed class Tree : IWorldProp
 
     /// <summary>Number of collision rectangles in this tree's collision shape.</summary>
     public int CollisionBoxCount => _localCollisionBoxes.Length;
+
+    /// <summary>When true, the reveal lens will not activate when a character walks behind this tree.</summary>
+    public bool SuppressOcclusion { get; }
 
     /// <summary>World-space bounding rectangle covering the entire sprite (used for Y-sorting and occlusion).</summary>
     public Rectangle Bounds => new(

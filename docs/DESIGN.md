@@ -23,8 +23,11 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Typed prop entities** | TMX `propType` metadata maps to focused entity classes (`Boulder`, `Dock`, `SunkenChest`, `Firepit`) in gameplay composition | Preserves single-purpose prop behavior and keeps renderer/collision wiring explicit. |
 | **Walkable prop surfaces** | Prop bounds can override blocked terrain beneath them | Supports authored surfaces like docks or bridges without hand-editing collision mask tiles. |
 | **Object-layer colliders** | TMX `Colliders` object layer provides sub-tile collision rectangles merged into `WorldCollisionMap` | Enables precise collision geometry for props and barriers without being constrained to tile-grid granularity. |
+| **Zone transitions** | TMX object-layer rectangles in `ZoneTriggers` request map replacement into another `GameplayScreen` using a destination map asset and spawn-point id | Keeps exits editor-authored, per-instance configurable, and decoupled from tile definitions. |
+| **Named spawn points** | TMX `SpawnPoints` object layer defines reusable arrival positions by name | Lets any trigger target a stable entry point in another map without hardcoded coordinates in gameplay code. |
 | **Entity Y-sorting** | `SpriteSortMode.FrontToBack` with `layerDepth = Bounds.Bottom / mapPixelHeight` per entity | Correct depth overlap (e.g., player behind house) using XNA's built-in sprite sorting — no custom sort or interface needed. |
 | **Occlusion reveal** | Entities in front of the player are drawn to a separate render target and composited with the `OcclusionReveal` shader, which creates a circular alpha-fade lens around the player centre | Lets the player remain visible behind tall props (trees, cabins) without breaking Y-sort or requiring per-entity transparency logic. |
+| **CRT post-process filter** | Optional full-screen shader (barrel distortion + scanlines + vignette) applied during the final scene blit, toggled at runtime via `InputAction.ToggleCrtFilter` (F9) | Adds retro CRT aesthetic without affecting the HUD overlay pass or gameplay logic. |
 
 ---
 

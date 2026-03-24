@@ -26,11 +26,12 @@ public sealed class Cabin : IWorldProp
     /// One or more collision rectangles relative to the sprite origin (top-left).
     /// Together they form the collision shape that blocks player movement.
     /// </param>
-    public Cabin(Vector2 position, Texture2D texture, Rectangle[] localCollisionBoxes)
+    public Cabin(Vector2 position, Texture2D texture, Rectangle[] localCollisionBoxes, bool suppressOcclusion = false)
     {
         _position = position;
         _texture = texture;
         _localCollisionBoxes = localCollisionBoxes;
+        SuppressOcclusion = suppressOcclusion;
     }
 
     /// <summary>Top-left world position in pixels.</summary>
@@ -41,6 +42,9 @@ public sealed class Cabin : IWorldProp
 
     /// <summary>Number of collision rectangles in this cabin's collision shape.</summary>
     public int CollisionBoxCount => _localCollisionBoxes.Length;
+
+    /// <summary>When true, the reveal lens will not activate when a character walks behind this cabin.</summary>
+    public bool SuppressOcclusion { get; }
 
     /// <summary>World-space bounding rectangle covering the entire sprite (used for Y-sorting and occlusion).</summary>
     public Rectangle Bounds => new(

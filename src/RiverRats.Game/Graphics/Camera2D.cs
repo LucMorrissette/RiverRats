@@ -72,6 +72,15 @@ public sealed class Camera2D
     public Vector2 Position => _position;
 
     /// <summary>
+    /// Returns the world-space rectangle currently visible through the viewport.
+    /// </summary>
+    public Rectangle WorldBounds => new(
+        (int)(_position.X - _halfWidth),
+        (int)(_position.Y - _halfHeight),
+        _viewportWidth,
+        _viewportHeight);
+
+    /// <summary>
     /// Moves the camera to look at <paramref name="target"/>, clamped to map bounds.
     /// </summary>
     /// <param name="target">World-space position to centre the viewport on.</param>

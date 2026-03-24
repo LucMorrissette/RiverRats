@@ -16,10 +16,11 @@ public sealed class Boulder : IWorldProp
     /// </summary>
     /// <param name="position">Top-left world position in pixels.</param>
     /// <param name="texture">Boulder texture used for drawing and bounds.</param>
-    public Boulder(Vector2 position, Texture2D texture)
+    public Boulder(Vector2 position, Texture2D texture, bool suppressOcclusion = false)
     {
         _position = position;
         _texture = texture;
+        SuppressOcclusion = suppressOcclusion;
     }
 
     /// <summary>Top-left world position in pixels.</summary>
@@ -27,6 +28,9 @@ public sealed class Boulder : IWorldProp
 
     /// <summary>Texture used for rendering and bounds calculation.</summary>
     public Texture2D Texture => _texture;
+
+    /// <summary>When true, the reveal lens will not activate when a character walks behind this boulder.</summary>
+    public bool SuppressOcclusion { get; }
 
     /// <summary>World-space blocking bounds for this boulder.</summary>
     public Rectangle Bounds => new(

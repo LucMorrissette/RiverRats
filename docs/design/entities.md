@@ -11,6 +11,8 @@
 | `SunkenChest` | `IWorldProp` | Static decorative prop entity drawn from a sprite and placed from TMX object-layer prop metadata, including underwater placement support. Y-sorted via `layerDepth`. |
 | `Firepit` | — | Interactive prop entity drawn from a sprite and used as a solid world obstacle, placed via TMX object-layer data. Can compose a `SmallFire`, expose nearby interaction bounds, and toggle its attached fire on/off. Y-sorted via `layerDepth`; passes depth to attached `SmallFire`. |
 | `SmallFire` | — | Animated visual effect entity drawn from a looping horizontal sprite sheet. Composes a `LoopAnimator` component for frame cycling, accepts externally attached smoke/spark particle emitters, and exposes a per-frame warm point-light snapshot for the lighting pass. Purely visual with no collision. Receives `layerDepth` from parent `Firepit`. |
+| `GnomeEnemy` | — | Lightweight enemy entity that hops toward a target position using a sine-wave vertical offset. Purely positional logic with no collision response. Drawn from a single sprite with flip-based facing. Y-sorted via `layerDepth`. |
+| `Projectile` | — | Pooled projectile entity that flies in a straight line at constant speed with a fixed lifetime. Deactivates on hit or expiry. Drawn as a small tinted rectangle from a 1×1 pixel texture. Y-sorted via `layerDepth`. |
 
 *(Add entries as entities are created. Each row should list the entity class, the interfaces it implements, and a brief description of its purpose and key behaviors.)*
 

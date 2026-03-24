@@ -6,6 +6,7 @@ using System.Xml.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using RiverRats.Game.Data;
 
 namespace RiverRats.Game.World;
 
@@ -23,7 +24,12 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private const string PropTypePropertyName = "propType";
     private const string IsUnderwaterPropertyName = "isUnderwater";
     private const string ReachesSurfacePropertyName = "reachesSurface";
+    private const string SuppressOcclusionPropertyName = "suppressOcclusion";
     private const string ColliderLayerName = "Colliders";
+    private const string ZoneTriggerLayerName = "ZoneTriggers";
+    private const string SpawnPointLayerName = "SpawnPoints";
+    private const string TargetMapPropertyName = "targetMap";
+    private const string TargetSpawnIdPropertyName = "targetSpawnId";
     private const uint TiledHorizontalFlipFlag = 0x80000000;
     private const uint TiledVerticalFlipFlag = 0x40000000;
     private const uint TiledDiagonalFlipFlag = 0x20000000;
@@ -48,6 +54,8 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private readonly Dictionary<int, TerrainTileInfo> _terrainTiles;
     private readonly MapPropPlacement[] _propPlacements;
     private readonly Rectangle[] _colliderBounds;
+    private readonly ZoneTriggerData[] _zoneTriggers;
+    private readonly SpawnPointData[] _spawnPoints;
     private float _waterElapsedSeconds;
 
     /// <summary>Total map width in pixels (tile columns × tile pixel width).</summary>
@@ -71,6 +79,16 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     /// World-space collision rectangles authored in the TMX Colliders object layer.
     /// </summary>
     public IReadOnlyList<Rectangle> ColliderBounds => _colliderBounds;
+
+    /// <summary>
+    /// Zone transition triggers authored in the TMX ZoneTriggers object layer.
+    /// </summary>
+    public IReadOnlyList<ZoneTriggerData> ZoneTriggers => _zoneTriggers;
+
+    /// <summary>
+    /// Named spawn points authored in the TMX SpawnPoints object layer.
+    /// </summary>
+    public IReadOnlyList<SpawnPointData> SpawnPoints => _spawnPoints;
 
     /// <summary>
     /// Initializes a world renderer from a tiled map asset in the content pipeline.
@@ -106,6 +124,8 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         var propMetadataByGlobalIdentifier = LoadPropMetadataByGlobalIdentifier(mapElement, mapDirectory);
         _propPlacements = LoadPropPlacements(mapElement, propMetadataByGlobalIdentifier);
         _colliderBounds = LoadColliderBounds(mapElement);
+        _zoneTriggers = LoadZoneTriggers(mapElement);
+        _spawnPoints = LoadSpawnPoints(mapElement);
 
         var layers = new List<MapLayer>();
         foreach (var layerElement in mapElement.Elements("layer"))
@@ -450,8 +470,9 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 
                 var isUnderwater = bool.TryParse(GetTileProperty(tileElement, IsUnderwaterPropertyName), out var parsed) && parsed;
                 var reachesSurface = bool.TryParse(GetTileProperty(tileElement, ReachesSurfacePropertyName), out var parsedSurface) && parsedSurface;
+                var suppressOcclusion = bool.TryParse(GetTileProperty(tileElement, SuppressOcclusionPropertyName), out var parsedSuppress) && parsedSuppress;
                 var localIdentifier = GetRequiredIntAttribute(tileElement, "id");
-                metadataByGlobalIdentifier[firstGlobalIdentifier + localIdentifier] = new PropTileMetadata(propType, isUnderwater, reachesSurface);
+                metadataByGlobalIdentifier[firstGlobalIdentifier + localIdentifier] = new PropTileMetadata(propType, isUnderwater, reachesSurface, suppressOcclusion);
             }
         }
 
@@ -494,7 +515,16 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                     ? float.Parse(heightAttribute.Value, CultureInfo.InvariantCulture)
                     : 0f;
                 var topLeft = GetTileObjectTopLeft(x, y, height);
-                props.Add(new MapPropPlacement(metadata.PropType, topLeft, metadata.IsUnderwater, metadata.ReachesSurface));
+
+                // Per-object properties in the TMX override tile-level defaults from the TSX.
+                var suppressOcclusion = metadata.SuppressOcclusion;
+                var objectSuppressValue = GetTileProperty(objectElement, SuppressOcclusionPropertyName);
+                if (objectSuppressValue is not null)
+                {
+                    suppressOcclusion = bool.TryParse(objectSuppressValue, out var parsedObjectSuppress) && parsedObjectSuppress;
+                }
+
+                props.Add(new MapPropPlacement(metadata.PropType, topLeft, metadata.IsUnderwater, metadata.ReachesSurface, suppressOcclusion));
             }
         }
 
@@ -535,6 +565,90 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         }
 
         return Array.Empty<Rectangle>();
+    }
+
+    private static ZoneTriggerData[] LoadZoneTriggers(XElement mapElement)
+    {
+        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
+        {
+            var groupName = objectGroupElement.Attribute("name")?.Value;
+            if (!string.Equals(groupName, ZoneTriggerLayerName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var triggers = new List<ZoneTriggerData>();
+            foreach (var objectElement in objectGroupElement.Elements("object"))
+            {
+                // Zone triggers are plain rectangles (no gid).
+                if (objectElement.Attribute("gid") is not null)
+                {
+                    continue;
+                }
+
+                var targetMap = GetTileProperty(objectElement, TargetMapPropertyName);
+                var targetSpawnId = GetTileProperty(objectElement, TargetSpawnIdPropertyName);
+                if (targetMap is null)
+                {
+                    continue;
+                }
+
+                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
+                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
+                var width = float.Parse(GetRequiredStringAttribute(objectElement, "width"), CultureInfo.InvariantCulture);
+                var height = float.Parse(GetRequiredStringAttribute(objectElement, "height"), CultureInfo.InvariantCulture);
+
+                triggers.Add(new ZoneTriggerData(
+                    new Rectangle(
+                        (int)MathF.Round(x),
+                        (int)MathF.Round(y),
+                        (int)MathF.Round(width),
+                        (int)MathF.Round(height)),
+                    targetMap,
+                    targetSpawnId ?? "default"));
+            }
+
+            return triggers.ToArray();
+        }
+
+        return Array.Empty<ZoneTriggerData>();
+    }
+
+    private static SpawnPointData[] LoadSpawnPoints(XElement mapElement)
+    {
+        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
+        {
+            var groupName = objectGroupElement.Attribute("name")?.Value;
+            if (!string.Equals(groupName, SpawnPointLayerName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var points = new List<SpawnPointData>();
+            foreach (var objectElement in objectGroupElement.Elements("object"))
+            {
+                // Spawn points are named points (no gid, no width/height required).
+                if (objectElement.Attribute("gid") is not null)
+                {
+                    continue;
+                }
+
+                var name = objectElement.Attribute("name")?.Value;
+                if (name is null)
+                {
+                    continue;
+                }
+
+                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
+                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
+
+                points.Add(new SpawnPointData(name, new Vector2(x, y)));
+            }
+
+            return points.ToArray();
+        }
+
+        return Array.Empty<SpawnPointData>();
     }
 
     private static TerrainTilesetData LoadTerrainTiles(string tilesetPath, ContentManager content)
@@ -648,9 +762,10 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     /// <param name="PropType">Prop identifier from TSX tile property <c>propType</c>.</param>
     /// <param name="Position">World-space top-left position in pixels.</param>
     /// <param name="IsUnderwater">When true the prop is drawn into the water render target so the distortion shader affects it.</param>
-    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater, bool ReachesSurface);
+    /// <param name="SuppressOcclusion">When true the reveal lens will not activate when a character walks behind this prop.</param>
+    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion);
 
-    private readonly record struct PropTileMetadata(string PropType, bool IsUnderwater, bool ReachesSurface);
+    private readonly record struct PropTileMetadata(string PropType, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion);
 
     private readonly record struct TerrainTilesetData(
         Dictionary<int, TerrainTileInfo> ByLocalIdentifier,

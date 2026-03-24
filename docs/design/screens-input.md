@@ -6,7 +6,7 @@
 |---|---|---|
 | `IGameScreen` | Interface | Screen lifecycle contract: `LoadContent`, `Update`, `Draw`, `DrawOverlay`, `UnloadContent`, `IsTransparent`. |
 | `ScreenManager` | Manager | Stack-based screen host. Push/pop/replace screens. Topmost receives input; visible stack is drawn bottom-to-top. |
-| `GameplayScreen` | Screen | Primary gameplay screen owning player, camera, and world renderer. Holds a `ScreenManager` reference to push overlay screens and exposes its `MusicManager` as `IMusicManager` for overlays. |
+| `GameplayScreen` | Screen | Primary gameplay screen owning player, camera, and world renderer. Holds a `ScreenManager` reference to push overlay screens, exposes its `MusicManager` as `IMusicManager` for overlays, supports loading a specific map asset plus optional spawn-point id for zone-to-zone replacement, and performs a CRT power-off/power-on transition (vertical squeeze → line → dot → black) around zone swaps. |
 | `PauseScreen` | Screen (overlay) | Transparent overlay (`IsTransparent = true`) pushed on top of `GameplayScreen`. Draws a semi-transparent dark overlay + centered "PAUSED" text via `DrawOverlay`. Dims music volume on enter, restores on exit. Pops itself from the stack on unpause. Constructor takes `ScreenManager`, `IMusicManager`, `GraphicsDevice`, `int virtualWidth`, `int virtualHeight`. |
 
 *(Add entries as screens are created — TitleScreen, etc.)*
@@ -32,6 +32,7 @@
 | **Confirm interaction** | `InputAction.Confirm` is the gameplay interaction action and is bound to `Space` and `Enter` by default | World interactions like toggling a nearby firepit stay inside the same input abstraction as movement and debug actions. |
 | **Screenshot hotkey** | `InputAction.CopyScreenshotToClipboard` bound to `P` | Keeps screenshot capture inside the same action-based input layer as gameplay/debug actions. |
 | **Pause action** | `InputAction.Pause` — new mapped action | Separates pause semantics from cancel semantics. `Cancel` no longer shares a binding with `Pause`. |
+| **CRT filter toggle** | `InputAction.ToggleCrtFilter` bound to `F9` | Toggles the CRT post-process shader (barrel distortion, scanlines, vignette) on/off at runtime. Developer/player preference toggle — no gameplay impact. |
 | **Cancel binding change** | `InputAction.Cancel` no longer includes `Escape` | `Cancel` retains `Back` only. `Escape` is now exclusively bound to `InputAction.Pause`. |
 | **Null-object pattern** | `EmptyInputManager` | For screens or states that don't process input. |
 | **Keyboard source abstraction** | `IKeyboardStateSource` | Decouples MonoGame hardware calls from input logic for deterministic unit testing. |

@@ -24,8 +24,8 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="Content\Maps\StarterMap.tmx">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <None Update="Content\Maps\**\*.tmx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Content\Fonts\Nunito.ttf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

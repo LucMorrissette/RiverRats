@@ -185,6 +185,7 @@ public sealed class InputManager : IInputManager, IDisposable
             [InputAction.Cancel] = new[] { Keys.Back },
             [InputAction.Exit] = new[] { Keys.F12 },
             [InputAction.ToggleCollisionDebug] = new[] { Keys.U },
+            [InputAction.ToggleCrtFilter] = new[] { Keys.F9 },
             [InputAction.CopyScreenshotToClipboard] = new[] { Keys.P },
             [InputAction.Pause] = new[] { Keys.Escape }
         };

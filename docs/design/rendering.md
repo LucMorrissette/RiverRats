@@ -87,6 +87,50 @@ When the player walks behind a tall prop (tree, cabin, boulder), a circular alph
 
 *(Add entries as particle and visual effect systems are built.)*
 
+## CRT Post-Process Filter
+
+A full-screen post-process effect applied to the final scene render target blit, simulating a curved CRT monitor. Toggled at runtime via `InputAction.ToggleCrtFilter` (F9).
+
+### Current implementation (Standard)
+
+`CrtEffect.fx` runs as a pixel shader during the final `SpriteBatch.Draw()` that blits `_sceneRenderTarget` to the backbuffer. Three composable layers:
+
+| Layer | Parameter | Default | Description |
+|---|---|---|---|
+| **Barrel distortion** | `DistortionAmount` | 0.15 | Pushes UVs outward from centre proportional to r². Pixels outside the curved boundary render black, creating rounded screen edges. |
+| **Scanlines** | `ScanlineIntensity` | 0.25 | Sine-wave pattern along pixel rows darkens every other scanline. Intensity 0 = off, 1 = fully dark. |
+| **Vignette** | `VignetteStrength` | 0.3 | Darkens pixels based on squared distance from centre. Simulates CRT brightness falloff toward edges. |
+
+### Integration point
+
+`Game1.Draw()` conditionally passes `_crtEffect` to `SpriteBatch.Begin()` when `_crtEnabled` is set. The HUD overlay pass renders *after* the CRT pass and is unaffected — HUD text stays crisp.
+
+### CRT Power-Off/On Zone Transition
+
+Zone transitions use a CRT-themed power-off/on effect instead of a simple alpha fade:
+
+| Phase | Alpha range | Visual |
+|---|---|---|
+| **Phase 1: Vertical squeeze** | 0.0–0.6 | Black bars close from top and bottom, squeezing the scene into a thin horizontal line at screen centre. A phosphor glow brightens the shrinking strip. |
+| **Phase 2: Horizontal shrink** | 0.6–1.0 | The line contracts horizontally to a bright dot at dead centre, then fades out. |
+| **Hold black** | 1.0 (held) | Zone swap occurs while screen is fully black. |
+| **Power-on** | 1.0→0.0 | Reverse of power-off: dot expands to line, line stretches to full image. |
+
+Total transition: ~0.95s (0.4s out + 0.15s hold + 0.4s in). Rendered entirely in `GameplayScreen.DrawOverlay()` using `_pixelTexture` rectangles — no additional shader needed.
+
+### Future enhancements (Full immersion tier)
+
+These can be layered into the same shader without changing the integration point:
+
+| Enhancement | Description | Complexity |
+|---|---|---|
+| **Chromatic aberration** | Offset R/G/B channel UV lookups by small amounts, increasing toward screen edges. Simulates colour fringing from imperfect CRT electron beam convergence. | Low — three `tex2D` calls instead of one, plus a per-channel UV offset proportional to distance from centre. |
+| **Phosphor dot grid** | Overlay a subtle RGB sub-pixel pattern that modulates brightness in a repeating 3-column pattern (R, G, B). Only visible at higher output resolutions. | Low — `fmod(screenPixel.x, 3)` selects which channel to slightly boost/dim. |
+| **Scanline flicker** | Modulate scanline intensity with a slow `sin(Time)` oscillation to simulate CRT refresh instability. | Trivial — add `Time` parameter and multiply scanline factor by `lerp(1, sin(Time * flickerSpeed), flickerAmount)`. |
+| **Screen glow / bloom** | Blur bright areas and composite additively, simulating phosphor bleed on a CRT. | Medium — requires a second downsampled render target for the blur pass. |
+| **Interlace simulation** | Alternate which scanline rows are bright every other frame, simulating interlaced video. | Low — pass a frame counter; offset scanline phase by half a row on odd frames. |
+| **Corner shadow rounding** | Darken the corners more aggressively near the barrel distortion edge for a thicker bezel look. | Low — additional `smoothstep` near the UV boundary. |
+
 ## Graphics Classes
 
 | Class | Description |
