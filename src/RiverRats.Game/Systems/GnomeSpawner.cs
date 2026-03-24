@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using RiverRats.Game.Entities;
+using RiverRats.Game.World;
 
 namespace RiverRats.Game.Systems;
 
@@ -50,7 +51,9 @@ internal sealed class GnomeSpawner
     /// <param name="gameTime">Current frame timing.</param>
     /// <param name="playerPosition">Player centre position used as the gnome target.</param>
     /// <param name="cameraWorldBounds">Camera visible area used to place spawns off-screen.</param>
-    public void Update(GameTime gameTime, Vector2 playerPosition, Rectangle cameraWorldBounds)
+    /// <param name="flowField">BFS flow field directing gnomes toward the player.</param>
+    /// <param name="collisionMap">World collision data for fine-grained obstacle queries.</param>
+    public void Update(GameTime gameTime, Vector2 playerPosition, Rectangle cameraWorldBounds, FlowField flowField, IMapCollisionData collisionMap)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
@@ -76,7 +79,7 @@ internal sealed class GnomeSpawner
         // Update all gnomes.
         for (var i = 0; i < _gnomes.Count; i++)
         {
-            _gnomes[i].Update(gameTime, playerPosition);
+            _gnomes[i].Update(gameTime, playerPosition, flowField, collisionMap);
         }
 
         // Cull gnomes that are too far from the player (iterate backwards for safe removal).

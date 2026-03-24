@@ -6,9 +6,13 @@
 |---|---|---|
 | `IInputManager` | `Input/` | Action-based input contract (held/pressed/released) used by gameplay and screens. |
 | `IKeyboardStateSource` | `Input/` | Keyboard state provider abstraction that enables deterministic tests. |
-| `InputManager` | `Input/` | Keyboard-backed implementation of `IInputManager` with default bindings and rebind support. |
+| `IGamePadStateSource` | `Input/` | Gamepad state provider abstraction that enables deterministic tests. |
+| `IJoystickStateSource` | `Input/` | Raw joystick state provider abstraction for unmapped USB controllers. Returns `JoystickSnapshot`. |
+| `InputManager` | `Input/` | Keyboard + gamepad + joystick implementation of `IInputManager` with default bindings and rebind support. OR-merges all three input devices. |
 | `EmptyInputManager` | `Input/` | Null-object implementation for states/screens that intentionally ignore input. |
 | `KeyboardStateSource` | `Input/` | Production keyboard source that wraps `Keyboard.GetState()`. |
+| `GamePadStateSource` | `Input/` | Production gamepad source that wraps `GamePad.GetState(PlayerIndex.One)`. |
+| `JoystickStateSource` | `Input/` | Production joystick source that wraps `Joystick.GetState(0)` and converts to `JoystickSnapshot`. |
 
 | `IGameScreen` | `Screens/` | Screen lifecycle contract (load, update, draw, unload, transparency). |
 | `ScreenManager` | `Screens/` | Stack-based screen host. Push/pop/replace semantics with deferred mutation during update. |
@@ -24,7 +28,7 @@
 
 | Class | Location | Description |
 |---|---|---|
-| `InputAction` | `Input/` | Enum of logical gameplay actions that key bindings map to. |
+| `InputAction` | `Input/` | Enum of logical gameplay actions that key bindings map to. |\n| `JoystickSnapshot` | `Input/` | Lightweight readonly struct capturing raw joystick Hat0 and button states. Public constructor enables deterministic tests without hardware. |
 | `FacingDirection` | `Data/` | Cardinal facing enum shared by movement and sprite animation. |
 | `FollowerMovementConfig` | `Data/` | Breadcrumb follower tuning for trailing distance, trail sampling, and facing dead-zone behavior. |
 | `LightData` | `Graphics/` | Immutable frame snapshot of a world point light: position, radius, color, and intensity. Used to pass lighting data from entities to the renderer without coupling rendering code to entity references. |

@@ -128,6 +128,33 @@ internal static class PropFactory
     ];
 
     /// <summary>
+    /// Collision boxes for bush variant 1 relative to the 32×31 sprite.
+    /// Single rectangle covering the bottom body of the bush.
+    /// </summary>
+    internal static readonly Rectangle[] Bush1CollisionBoxes =
+    [
+        new(2, 10, 28, 21),
+    ];
+
+    /// <summary>
+    /// Collision boxes for bush variant 2 relative to the 64×35 sprite.
+    /// Single rectangle covering the bottom body of the wide bush.
+    /// </summary>
+    internal static readonly Rectangle[] Bush2CollisionBoxes =
+    [
+        new(4, 12, 56, 23),
+    ];
+
+    /// <summary>
+    /// Collision boxes for bush variant 3 relative to the 32×33 sprite.
+    /// Single rectangle covering the bottom body of the bush.
+    /// </summary>
+    internal static readonly Rectangle[] Bush3CollisionBoxes =
+    [
+        new(2, 11, 28, 22),
+    ];
+
+    /// <summary>
     /// Collision boxes for cozy lake cabins relative to the 160×109 sprite.
     /// Multiple rectangles form the building footprint, leaving the porch
     /// steps (bottom-right) walkable.

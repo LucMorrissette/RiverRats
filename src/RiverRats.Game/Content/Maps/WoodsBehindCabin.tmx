@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="5">
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="25">
  <tileset firstgid="1" source="../Tilesets/Terrain.tsx"/>
  <tileset firstgid="50" source="../Tilesets/Props.tsx"/>
  <layer id="1" name="Water/Bottom" width="32" height="20" locked="1">
@@ -50,7 +50,7 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <layer id="3" name="Ground" width="32" height="20">
+ <layer id="3" name="Ground" width="32" height="20" locked="1">
   <data encoding="csv">
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
@@ -74,9 +74,24 @@
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,20,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
 </data>
  </layer>
- <objectgroup id="4" name="Props" locked="1"/>
+ <objectgroup id="4" name="Props">
+  <object id="9" gid="69" x="349" y="505" width="137" height="128"/>
+  <object id="11" gid="75" x="544" y="608" width="64" height="35"/>
+  <object id="12" gid="74" x="511" y="479" width="32" height="31"/>
+  <object id="14" gid="75" x="481" y="391" width="64" height="35"/>
+  <object id="15" gid="75" x="541" y="392" width="64" height="35"/>
+  <object id="16" gid="75" x="592" y="394" width="64" height="35"/>
+  <object id="17" gid="74" x="638" y="411" width="32" height="31"/>
+  <object id="18" gid="74" x="641" y="432" width="32" height="31"/>
+  <object id="19" gid="74" x="644" y="457" width="32" height="31"/>
+  <object id="20" gid="76" x="640" y="473" width="32" height="33"/>
+  <object id="21" gid="74" x="640" y="496" width="32" height="31"/>
+  <object id="22" gid="74" x="643" y="516" width="32" height="31"/>
+  <object id="23" gid="74" x="643" y="530" width="32" height="31"/>
+  <object id="24" gid="74" x="643" y="545" width="32" height="31"/>
+ </objectgroup>
  <objectgroup id="5" name="Colliders" locked="1"/>
- <objectgroup id="6" name="ZoneTriggers">
+ <objectgroup id="6" name="ZoneTriggers" locked="1">
   <object id="1" x="479" y="624" width="30" height="16">
    <properties>
     <property name="targetMap" value="Maps/StarterMap"/>
@@ -84,7 +99,7 @@
    </properties>
   </object>
  </objectgroup>
- <objectgroup id="7" name="SpawnPoints">
+ <objectgroup id="7" name="SpawnPoints" locked="1">
   <object id="2" name="from-starter" x="495" y="583"/>
   <object id="3" name="default" x="496" y="304"/>
  </objectgroup>

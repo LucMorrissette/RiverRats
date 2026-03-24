@@ -18,6 +18,9 @@
 | `FakeInputManager` | Scriptable `IInputManager` fake for integration tests (press/release/hold simulation). |
 | `FakeMusicManager` | Implements `IMusicManager`. Records `SetVolume` calls and other method invocations for assertions. |
 
+| `FakeGamePadStateSource` | Scriptable `IGamePadStateSource` fake for gamepad unit tests (queued `GamePadState` frames). Defined inline in `InputManagerGamepadTests`. |
+| `FakeJoystickStateSource` | Scriptable `IJoystickStateSource` fake for joystick unit tests (queued `JoystickSnapshot` frames). Defined inline in `InputManagerJoystickTests`. |
+
 *(Add entries as test helpers are created.)*
 
 <!-- Example format:

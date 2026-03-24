@@ -6,8 +6,13 @@ using Microsoft.Xna.Framework.Input;
 namespace RiverRats.Game.Input;
 
 /// <summary>
-/// Keyboard-backed input manager that tracks previous/current frame states
+/// Input manager that tracks keyboard, gamepad, and raw joystick state each frame
 /// and exposes action-based hold/press/release queries.
+/// Keyboard, gamepad, and joystick inputs are OR-merged — if any device satisfies
+/// a binding, the action is considered active.
+/// When <c>GamePadState.IsConnected</c> is false, the manager falls back to raw
+/// joystick polling via <see cref="JoystickSnapshot"/> for unmapped USB controllers
+/// (e.g., Hyperkin Cadet).
 /// Uses an SDL2 event listener to reliably detect fast mouse clicks on macOS,
 /// where <c>Mouse.GetState()</c> polling misses press+release cycles that
 /// complete between two consecutive polls.
@@ -15,32 +20,55 @@ namespace RiverRats.Game.Input;
 public sealed class InputManager : IInputManager, IDisposable
 {
     private readonly Dictionary<InputAction, Keys[]> _bindings;
+    private readonly Dictionary<InputAction, Buttons[]> _gamepadBindings;
+    private readonly Dictionary<InputAction, int[]> _joystickButtonBindings;
+    private readonly Dictionary<InputAction, JoystickHatDirection> _joystickHatBindings;
     private readonly IKeyboardStateSource _keyboardStateSource;
+    private readonly IGamePadStateSource _gamePadStateSource;
+    private readonly IJoystickStateSource _joystickStateSource;
     private readonly Sdl2MouseListener _sdl2Mouse = new();
 
     private KeyboardState _previousState;
     private KeyboardState _currentState;
+    private GamePadState _previousGamePadState;
+    private GamePadState _currentGamePadState;
+    private JoystickSnapshot _previousJoystickState;
+    private JoystickSnapshot _currentJoystickState;
     private MouseState _previousMouseState;
     private MouseState _currentMouseState;
 
     /// <summary>
-    /// Creates an input manager with default key bindings and a production keyboard source.
+    /// Creates an input manager with default bindings and production input sources.
     /// </summary>
     public InputManager()
-        : this(new KeyboardStateSource())
+        : this(new KeyboardStateSource(), new GamePadStateSource(), new JoystickStateSource())
     {
     }
 
     /// <summary>
-    /// Creates an input manager with default key bindings and a custom keyboard source.
+    /// Creates an input manager with default bindings and custom input sources.
     /// </summary>
     /// <param name="keyboardStateSource">Keyboard source used to sample current state each frame.</param>
-    public InputManager(IKeyboardStateSource keyboardStateSource)
+    /// <param name="gamePadStateSource">Gamepad source used to sample current state each frame.</param>
+    /// <param name="joystickStateSource">Joystick source for unmapped USB controllers. Falls back to production source if null.</param>
+    public InputManager(
+        IKeyboardStateSource keyboardStateSource,
+        IGamePadStateSource gamePadStateSource = null,
+        IJoystickStateSource joystickStateSource = null)
     {
         _keyboardStateSource = keyboardStateSource ?? throw new ArgumentNullException(nameof(keyboardStateSource));
+        _gamePadStateSource = gamePadStateSource ?? new GamePadStateSource();
+        _joystickStateSource = joystickStateSource ?? new JoystickStateSource();
         _bindings = CreateDefaultBindings();
+        _gamepadBindings = CreateDefaultGamepadBindings();
+        _joystickButtonBindings = CreateDefaultJoystickButtonBindings();
+        _joystickHatBindings = CreateDefaultJoystickHatBindings();
         _previousState = _keyboardStateSource.GetState();
         _currentState = _previousState;
+        _previousGamePadState = _gamePadStateSource.GetState();
+        _currentGamePadState = _previousGamePadState;
+        _previousJoystickState = _joystickStateSource.GetState();
+        _currentJoystickState = _previousJoystickState;
         _previousMouseState = Mouse.GetState();
         _currentMouseState = _previousMouseState;
 
@@ -53,6 +81,10 @@ public sealed class InputManager : IInputManager, IDisposable
     {
         _previousState = _currentState;
         _currentState = _keyboardStateSource.GetState();
+        _previousGamePadState = _currentGamePadState;
+        _currentGamePadState = _gamePadStateSource.GetState();
+        _previousJoystickState = _currentJoystickState;
+        _currentJoystickState = _joystickStateSource.GetState();
         _previousMouseState = _currentMouseState;
         _currentMouseState = Mouse.GetState();
     }
@@ -69,7 +101,7 @@ public sealed class InputManager : IInputManager, IDisposable
             }
         }
 
-        return false;
+        return IsGamepadButtonHeld(action) || IsJoystickHeld(action);
     }
 
     /// <inheritdoc />
@@ -85,7 +117,7 @@ public sealed class InputManager : IInputManager, IDisposable
             }
         }
 
-        return false;
+        return IsGamepadButtonPressed(action) || IsJoystickPressed(action);
     }
 
     /// <inheritdoc />
@@ -101,7 +133,7 @@ public sealed class InputManager : IInputManager, IDisposable
             }
         }
 
-        return false;
+        return IsGamepadButtonReleased(action) || IsJoystickReleased(action);
     }
 
     /// <summary>
@@ -188,6 +220,227 @@ public sealed class InputManager : IInputManager, IDisposable
             [InputAction.ToggleCrtFilter] = new[] { Keys.F9 },
             [InputAction.CopyScreenshotToClipboard] = new[] { Keys.P },
             [InputAction.Pause] = new[] { Keys.Escape }
+        };
+    }
+
+    /// <summary>
+    /// Default gamepad bindings for an NES-style controller (Hyperkin Cadet).
+    /// D-pad AND left-thumbstick for movement (USB retro controllers often report
+    /// the D-pad as thumbstick axis values rather than hat buttons), A = Confirm,
+    /// B = Cancel, Start = Pause. Debug/dev actions remain keyboard-only.
+    /// </summary>
+    private static Dictionary<InputAction, Buttons[]> CreateDefaultGamepadBindings()
+    {
+        return new Dictionary<InputAction, Buttons[]>
+        {
+            [InputAction.MoveUp] = new[] { Buttons.DPadUp, Buttons.LeftThumbstickUp },
+            [InputAction.MoveDown] = new[] { Buttons.DPadDown, Buttons.LeftThumbstickDown },
+            [InputAction.MoveLeft] = new[] { Buttons.DPadLeft, Buttons.LeftThumbstickLeft },
+            [InputAction.MoveRight] = new[] { Buttons.DPadRight, Buttons.LeftThumbstickRight },
+            [InputAction.Confirm] = new[] { Buttons.A },
+            [InputAction.Cancel] = new[] { Buttons.B },
+            [InputAction.Pause] = new[] { Buttons.Start }
+        };
+    }
+
+    private bool IsGamepadButtonHeld(InputAction action)
+    {
+        if (!_gamepadBindings.TryGetValue(action, out var buttons))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            if (_currentGamePadState.IsButtonDown(buttons[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsGamepadButtonPressed(InputAction action)
+    {
+        if (!_gamepadBindings.TryGetValue(action, out var buttons))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            var button = buttons[i];
+            if (_currentGamePadState.IsButtonDown(button) && _previousGamePadState.IsButtonUp(button))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsGamepadButtonReleased(InputAction action)
+    {
+        if (!_gamepadBindings.TryGetValue(action, out var buttons))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            var button = buttons[i];
+            if (_currentGamePadState.IsButtonUp(button) && _previousGamePadState.IsButtonDown(button))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // ── Joystick fallback (unmapped USB controllers) ──────────────────
+
+    /// <summary>
+    /// Hat direction flags used by joystick hat bindings.
+    /// </summary>
+    private enum JoystickHatDirection { Up, Down, Left, Right }
+
+    /// <summary>
+    /// Default joystick button bindings for the Hyperkin Cadet NES controller.
+    /// Button indices discovered via <see cref="JoystickDiagnostic"/>:
+    /// A = B1, B = B0, Start = B9.
+    /// </summary>
+    private static Dictionary<InputAction, int[]> CreateDefaultJoystickButtonBindings()
+    {
+        return new Dictionary<InputAction, int[]>
+        {
+            [InputAction.Confirm] = new[] { 1 },  // A button
+            [InputAction.Cancel] = new[] { 0 },   // B button
+            [InputAction.Pause] = new[] { 9 }     // Start button
+        };
+    }
+
+    /// <summary>
+    /// Default joystick hat bindings. D-pad = Hat0 for all USB NES controllers.
+    /// </summary>
+    private static Dictionary<InputAction, JoystickHatDirection> CreateDefaultJoystickHatBindings()
+    {
+        return new Dictionary<InputAction, JoystickHatDirection>
+        {
+            [InputAction.MoveUp] = JoystickHatDirection.Up,
+            [InputAction.MoveDown] = JoystickHatDirection.Down,
+            [InputAction.MoveLeft] = JoystickHatDirection.Left,
+            [InputAction.MoveRight] = JoystickHatDirection.Right
+        };
+    }
+
+    private bool IsJoystickHeld(InputAction action)
+    {
+        if (!_currentJoystickState.IsConnected)
+        {
+            return false;
+        }
+
+        if (_joystickHatBindings.TryGetValue(action, out var hatDir)
+            && IsHatActive(_currentJoystickState, hatDir))
+        {
+            return true;
+        }
+
+        if (_joystickButtonBindings.TryGetValue(action, out var buttonIndices))
+        {
+            for (var i = 0; i < buttonIndices.Length; i++)
+            {
+                var idx = buttonIndices[i];
+                if (idx < _currentJoystickState.Buttons.Length
+                    && _currentJoystickState.Buttons[idx])
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsJoystickPressed(InputAction action)
+    {
+        if (!_currentJoystickState.IsConnected)
+        {
+            return false;
+        }
+
+        if (_joystickHatBindings.TryGetValue(action, out var hatDir))
+        {
+            if (IsHatActive(_currentJoystickState, hatDir)
+                && !IsHatActive(_previousJoystickState, hatDir))
+            {
+                return true;
+            }
+        }
+
+        if (_joystickButtonBindings.TryGetValue(action, out var buttonIndices))
+        {
+            for (var i = 0; i < buttonIndices.Length; i++)
+            {
+                var idx = buttonIndices[i];
+                if (idx < _currentJoystickState.Buttons.Length
+                    && _currentJoystickState.Buttons[idx]
+                    && idx < _previousJoystickState.Buttons.Length
+                    && !_previousJoystickState.Buttons[idx])
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsJoystickReleased(InputAction action)
+    {
+        if (!_currentJoystickState.IsConnected)
+        {
+            return false;
+        }
+
+        if (_joystickHatBindings.TryGetValue(action, out var hatDir))
+        {
+            if (!IsHatActive(_currentJoystickState, hatDir)
+                && IsHatActive(_previousJoystickState, hatDir))
+            {
+                return true;
+            }
+        }
+
+        if (_joystickButtonBindings.TryGetValue(action, out var buttonIndices))
+        {
+            for (var i = 0; i < buttonIndices.Length; i++)
+            {
+                var idx = buttonIndices[i];
+                if (idx < _currentJoystickState.Buttons.Length
+                    && !_currentJoystickState.Buttons[idx]
+                    && idx < _previousJoystickState.Buttons.Length
+                    && _previousJoystickState.Buttons[idx])
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsHatActive(JoystickSnapshot snapshot, JoystickHatDirection direction)
+    {
+        return direction switch
+        {
+            JoystickHatDirection.Up => snapshot.HatUp,
+            JoystickHatDirection.Down => snapshot.HatDown,
+            JoystickHatDirection.Left => snapshot.HatLeft,
+            JoystickHatDirection.Right => snapshot.HatRight,
+            _ => false
         };
     }
 

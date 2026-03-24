@@ -36,6 +36,9 @@
 | **Cancel binding change** | `InputAction.Cancel` no longer includes `Escape` | `Cancel` retains `Back` only. `Escape` is now exclusively bound to `InputAction.Pause`. |
 | **Null-object pattern** | `EmptyInputManager` | For screens or states that don't process input. |
 | **Keyboard source abstraction** | `IKeyboardStateSource` | Decouples MonoGame hardware calls from input logic for deterministic unit testing. |
+| **Gamepad source abstraction** | `IGamePadStateSource` | Decouples `GamePad.GetState()` from input logic for deterministic unit testing. |
+| **Gamepad support** | `InputManager` polls `GamePadState` alongside `KeyboardState` via `IGamePadStateSource`; keyboard and gamepad results are OR-merged per action | Game is fully playable on an NES-style controller (Hyperkin Cadet). D-pad → movement, A → Confirm, B → Cancel, Start → Pause. Dev/debug actions remain keyboard-only. |
+| **Joystick fallback** | `InputManager` polls raw `JoystickSnapshot` via `IJoystickStateSource` for USB controllers without an SDL2 game controller mapping (MAPPING: n/a). Uses Hat0 for D-pad and raw button indices for face buttons (Hyperkin Cadet: B1=A, B0=B, B9=Start). | Unmapped retro USB controllers that SDL2 doesn't recognize as gamepads still work via the raw joystick API. |
 | **macOS fast-click detection** | Use `IsMouseLeftReleased()` (release edge) instead of `IsMouseLeftPressed()` (press edge) | On macOS/SDL2, fast clicks (press + release in ~30–80ms) complete between 60 FPS polls (~16ms/frame), missing the `Pressed` state entirely. The release edge is always captured because the button must be held ≥1 frame before releasing. See `[Obsolete]` marker on `IsMouseLeftPressed()`. |
 
 ## IInputManager API
@@ -43,9 +46,9 @@
 | Member | Type | Description |
 |---|---|---|
 | `Update()` | `void` | Advances input state from previous frame to current frame. |
-| `IsHeld(action)` | `bool` | `true` while any key bound to the action is down. |
-| `IsPressed(action)` | `bool` | `true` only on the frame a bound key transitions up -> down. |
-| `IsReleased(action)` | `bool` | `true` only on the frame a bound key transitions down -> up. |
+| `IsHeld(action)` | `bool` | `true` while any key, gamepad button, or joystick input bound to the action is down. |
+| `IsPressed(action)` | `bool` | `true` only on the frame a bound key, button, or joystick input transitions up -> down. |
+| `IsReleased(action)` | `bool` | `true` only on the frame a bound key, button, or joystick input transitions down -> up. |
 | `IsMouseLeftPressed()` | `bool` | **[Obsolete]** `true` only on the frame left button transitions Released → Pressed. Unreliable for fast clicks on macOS; use `IsMouseLeftReleased()` instead. |
 | `IsMouseLeftReleased()` | `bool` | `true` only on the frame left button transitions Pressed → Released. Reliable for fast clicks on macOS because the button must be held ≥1 frame. |
 | `GetMousePosition()` | `Point` | Current mouse cursor position in physical window client coordinates. |

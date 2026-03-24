@@ -38,6 +38,7 @@ public sealed class GameplayScreen : IGameScreen
     private const float BirchTreeSortAnchorOffsetPixels = 10f;
     private const float DeadTreeSortAnchorOffsetPixels = 10f;
     private const float DeciduousTreeSortAnchorOffsetPixels = 10f;
+    private const float BushSortAnchorOffsetPixels = 4f;
     private const float ZoneTransitionFadeDurationSeconds = 0.4f;
     private const float ZoneTransitionBlackHoldSeconds = 0.15f;
     private const float GameplayMusicVolume = 1f;
@@ -117,6 +118,7 @@ public sealed class GameplayScreen : IGameScreen
     private Tree[] _birchTrees;
     private Tree[] _deadTrees;
     private Tree[] _deciduousTrees;
+    private Tree[] _bushes;
     private Dock[] _docks;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
@@ -142,12 +144,15 @@ public sealed class GameplayScreen : IGameScreen
     private int _debugOverlayMode;
     private RippleSystem _rippleSystem;
     private GnomeSpawner _gnomeSpawner;
+    private FlowField _flowField;
     private Texture2D _gnomeEnemyTexture;
     private ProjectileSystem _projectileSystem;
     private readonly IMusicManager _musicManager = new MusicManager();
     private HudRenderer _hudRenderer;
     private FontSystem _fontSystem;
     private readonly ScreenManager _screenManager;
+    private readonly bool _hasDayNightCycle;
+    private readonly float _dayNightStartProgress;
     private FadeState _fadeState;
     private float _fadeAlpha;
     private float _fadeHoldTimer;
@@ -171,6 +176,7 @@ public sealed class GameplayScreen : IGameScreen
     /// <param name="mapAssetName">Content asset name for the TMX map to load.</param>
     /// <param name="spawnPointId">Name of the spawn point to place the player at, or null for map center.</param>
     /// <param name="fadeInFromBlack">When true, the screen starts fully black and fades in.</param>
+    /// <param name="dayNightStartProgress">Starting cycle progress (0–1). Pass the previous zone's progress to preserve time across transitions.</param>
     public GameplayScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
@@ -180,7 +186,8 @@ public sealed class GameplayScreen : IGameScreen
         Action requestExit,
         string mapAssetName = "Maps/StarterMap",
         string spawnPointId = null,
-        bool fadeInFromBlack = false)
+        bool fadeInFromBlack = false,
+        float dayNightStartProgress = DayNightCycleStartProgress)
     {
         _graphicsDevice = graphicsDevice;
         _content = content;
@@ -192,6 +199,8 @@ public sealed class GameplayScreen : IGameScreen
         _spawnPointId = spawnPointId;
         _fadeInFromBlack = fadeInFromBlack;
         _songName = GetSongForMap(mapAssetName);
+        _hasDayNightCycle = HasDayNightCycle(mapAssetName);
+        _dayNightStartProgress = dayNightStartProgress;
     }
 
     /// <inheritdoc />
@@ -289,7 +298,10 @@ public sealed class GameplayScreen : IGameScreen
         _docks = PropFactory.CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
         _dockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: false);
         _surfaceReachDockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
-        _sunkenLogs = PropFactory.CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
+        var sunkenLogs = PropFactory.CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
+        var logTexture = _content.Load<Texture2D>("Sprites/log");
+        var landLogs = PropFactory.CreatePropsByType(logTexture, _worldRenderer.PropPlacements, "log", isUnderwater: false);
+        _sunkenLogs = [.. sunkenLogs, .. landLogs];
         _underwaterSunkenLogs = PropFactory.CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
         _sunkenChests = PropFactory.CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: false);
         _underwaterSunkenChests = PropFactory.CreateSunkenChests(_sunkenChestTexture, _worldRenderer.PropPlacements, isUnderwater: true);
@@ -301,6 +313,19 @@ public sealed class GameplayScreen : IGameScreen
         _birchTrees = PropFactory.CreateTrees(birchTreeTexture, PropFactory.BirchTreeCollisionBoxes, _worldRenderer.PropPlacements, "birch-tree");
         _deadTrees = PropFactory.CreateVariantTrees(deadTreeTextures, deadTreeCollisionBoxes, _worldRenderer.PropPlacements, "dead-tree");
         _deciduousTrees = PropFactory.CreateVariantTrees(deciduousTreeTextures, deciduousTreeCollisionBoxes, _worldRenderer.PropPlacements, "deciduous-tree");
+        var bushTextures = new[]
+        {
+            _content.Load<Texture2D>("Sprites/bush1"),
+            _content.Load<Texture2D>("Sprites/bush2"),
+            _content.Load<Texture2D>("Sprites/bush3"),
+        };
+        var bushCollisionBoxes = new[]
+        {
+            PropFactory.Bush1CollisionBoxes,
+            PropFactory.Bush2CollisionBoxes,
+            PropFactory.Bush3CollisionBoxes,
+        };
+        _bushes = PropFactory.CreateVariantTrees(bushTextures, bushCollisionBoxes, _worldRenderer.PropPlacements, "bush");
         if (_mapAssetName == "Maps/WoodsBehindCabin")
         {
             _gnomeEnemyTexture = _content.Load<Texture2D>("Sprites/garden-gnome");
@@ -320,13 +345,18 @@ public sealed class GameplayScreen : IGameScreen
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_birchTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_deadTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_deciduousTrees));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_bushes));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetCabinCollisionBounds(_cozyLakeCabins));
         _collisionMap = new WorldCollisionMap(_worldRenderer, PropFactory.MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds), PropFactory.GetDockBounds(_docks));
+
+        if (_mapAssetName == "Maps/WoodsBehindCabin")
+            _flowField = new FlowField(_worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight, _collisionMap, agentRadius: 8);
+
         _camera.LookAt(_player.Center);
 
         _dayNightCycle = new DayNightCycle(
             DayNightCycleDurationSeconds,
-            DayNightCycleStartProgress);
+            _dayNightStartProgress);
 
         _pixelTexture = new Texture2D(_graphicsDevice, 1, 1);
         _pixelTexture.SetData(new[] { Color.White });
@@ -454,9 +484,10 @@ public sealed class GameplayScreen : IGameScreen
 
         _follower.Update(gameTime, _player.Position, _player.Facing, GetFollowerRestPosition());
 
-        _gnomeSpawner?.Update(gameTime, _player.Center, _camera.WorldBounds);
+        _flowField?.Update(_player.Center);
+        _gnomeSpawner?.Update(gameTime, _player.Center, _camera.WorldBounds, _flowField, _collisionMap);
         if (_projectileSystem != null && _gnomeSpawner != null)
-            _projectileSystem.Update(gameTime, _player.Center, _follower.Center, _gnomeSpawner);
+            _projectileSystem.Update(gameTime, _player.Center, _follower.Center, _gnomeSpawner, _collisionMap);
 
         UpdateWorldPresentation(gameTime, input, animateCharacters: true);
     }
@@ -471,7 +502,8 @@ public sealed class GameplayScreen : IGameScreen
         _isPlayerOccluded = CheckOcclusion(_player.Bounds, SortDepth(_player.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _isFollowerOccluded = CheckOcclusion(_follower.Bounds, SortDepth(_follower.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _worldRenderer.Update(gameTime);
-        _dayNightCycle.Update(gameTime);
+        if (_hasDayNightCycle)
+            _dayNightCycle.Update(gameTime);
         var activeFireLightCount = 0;
         for (var i = 0; i < _firepits.Length; i++)
         {
@@ -750,12 +782,15 @@ public sealed class GameplayScreen : IGameScreen
         // sceneScale converts virtual pixels to window pixels.
         var scaledFont = _fontSystem.GetFont(HudFontSize * sceneScale);
 
-        spriteBatch.Begin(
-            sortMode: SpriteSortMode.Deferred,
-            blendState: BlendState.AlphaBlend,
-            samplerState: SamplerState.LinearClamp);
-        _hudRenderer.Draw(spriteBatch, scaledFont, _pixelTexture, _dayNightCycle.GameHour, sceneScale);
-        spriteBatch.End();
+        if (_hasDayNightCycle)
+        {
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.LinearClamp);
+            _hudRenderer.Draw(spriteBatch, scaledFont, _pixelTexture, _dayNightCycle.GameHour, sceneScale);
+            spriteBatch.End();
+        }
 
         if (_fadeAlpha <= 0f)
         {
@@ -836,6 +871,14 @@ public sealed class GameplayScreen : IGameScreen
             for (var j = 0; j < _deciduousTrees[i].CollisionBoxCount; j++)
             {
                 _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _deciduousTrees[i].GetCollisionBounds(j), Color.LimeGreen);
+            }
+        }
+
+        for (var i = 0; i < _bushes.Length; i++)
+        {
+            for (var j = 0; j < _bushes[i].CollisionBoxCount; j++)
+            {
+                _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _bushes[i].GetCollisionBounds(j), Color.LimeGreen);
             }
         }
 
@@ -982,7 +1025,8 @@ public sealed class GameplayScreen : IGameScreen
                     _requestExit,
                     transition.TargetMap,
                     transition.TargetSpawnId,
-                    fadeInFromBlack: true));
+                    fadeInFromBlack: true,
+                    dayNightStartProgress: _dayNightCycle.CycleProgress));
             }
 
             return;
@@ -1006,6 +1050,15 @@ public sealed class GameplayScreen : IGameScreen
         {
             "Maps/WoodsBehindCabin" => "WoodsBehindCabinTheme",
             _ => "GameplayTheme",
+        };
+    }
+
+    private static bool HasDayNightCycle(string mapAssetName)
+    {
+        return mapAssetName switch
+        {
+            "Maps/WoodsBehindCabin" => false,
+            _ => true,
         };
     }
 
@@ -1243,6 +1296,13 @@ public sealed class GameplayScreen : IGameScreen
                 _deciduousTrees[i].Draw(_worldSpriteBatch, depth);
         }
 
+        for (var i = 0; i < _bushes.Length; i++)
+        {
+            var depth = SortDepth(_bushes[i].Bounds, mapHeight, mapWidth, BushSortAnchorOffsetPixels);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _bushes[i].Draw(_worldSpriteBatch, depth);
+        }
+
         if (_gnomeSpawner != null)
         {
             for (var i = 0; i < _gnomeSpawner.Gnomes.Count; i++)
@@ -1337,6 +1397,14 @@ public sealed class GameplayScreen : IGameScreen
             if (_deciduousTrees[i].SuppressOcclusion) continue;
             var depth = SortDepth(_deciduousTrees[i].Bounds, mapHeight, mapWidth, DeciduousTreeSortAnchorOffsetPixels);
             if (depth > characterDepth && _deciduousTrees[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _bushes.Length; i++)
+        {
+            if (_bushes[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_bushes[i].Bounds, mapHeight, mapWidth, BushSortAnchorOffsetPixels);
+            if (depth > characterDepth && _bushes[i].Bounds.Contains(characterBounds))
                 return true;
         }
 

@@ -1,6 +1,8 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using RiverRats.Game.Systems;
+using RiverRats.Game.World;
 
 namespace RiverRats.Game.Entities;
 
@@ -13,6 +15,7 @@ internal sealed class GnomeEnemy
     private const float HopCycleDuration = 0.45f;
     private const float HopHeight = 6f;
     private const float MoveSpeed = 35f;
+    private const int SpriteSize = 16;
 
     private Vector2 _position;
     private float _hopPhase;
@@ -33,24 +36,47 @@ internal sealed class GnomeEnemy
     public Vector2 Position => _position;
 
     /// <summary>
-    /// Advances the gnome one frame: moves toward the target and cycles the hop animation.
+    /// Advances the gnome one frame: moves along the flow field and cycles the hop animation.
+    /// The flow field provides a pre-computed direction that routes around obstacles.
+    /// Axis-separated collision checks are kept as a safety net for sub-tile prop boundaries.
     /// </summary>
     /// <param name="gameTime">Current frame timing.</param>
-    /// <param name="targetPosition">World position the gnome hops toward (typically the player centre).</param>
-    public void Update(GameTime gameTime, Vector2 targetPosition)
+    /// <param name="targetPosition">World position of the target (used for facing when flow is zero).</param>
+    /// <param name="flowField">Pre-computed BFS flow field pointing toward the target.</param>
+    /// <param name="collisionMap">World collision data for fine-grained obstacle queries.</param>
+    public void Update(GameTime gameTime, Vector2 targetPosition, FlowField flowField, IMapCollisionData collisionMap)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        // Move toward target.
-        var toTarget = targetPosition - _position;
-        if (toTarget.LengthSquared() > 1f)
+        // Query flow field at gnome centre.
+        var center = new Vector2(_position.X + SpriteSize * 0.5f, _position.Y + SpriteSize * 0.5f);
+        var flowDir = flowField.GetDirection(center);
+
+        if (flowDir != Vector2.Zero)
         {
-            toTarget.Normalize();
-            _position += toTarget * MoveSpeed * dt;
+            var movement = flowDir * MoveSpeed * dt;
+
+            // Try X axis (safety net for sub-tile prop collisions).
+            if (movement.X != 0f)
+            {
+                var candidateX = _position.X + movement.X;
+                var candidateBounds = new Rectangle((int)candidateX, (int)_position.Y, SpriteSize, SpriteSize);
+                if (!collisionMap.IsWorldRectangleBlocked(candidateBounds))
+                    _position.X = candidateX;
+            }
+
+            // Try Y axis.
+            if (movement.Y != 0f)
+            {
+                var candidateY = _position.Y + movement.Y;
+                var candidateBounds = new Rectangle((int)_position.X, (int)candidateY, SpriteSize, SpriteSize);
+                if (!collisionMap.IsWorldRectangleBlocked(candidateBounds))
+                    _position.Y = candidateY;
+            }
         }
 
-        // Update facing based on target direction.
-        _facingLeft = targetPosition.X < _position.X;
+        // Update facing based on flow direction, falling back to target position.
+        _facingLeft = flowDir.X < 0f || (flowDir.X == 0f && targetPosition.X < _position.X);
 
         // Advance hop cycle.
         _hopPhase += dt / HopCycleDuration;
@@ -89,6 +115,6 @@ internal sealed class GnomeEnemy
     public Rectangle Bounds => new(
         (int)_position.X,
         (int)_position.Y,
-        16,
-        16);
+        SpriteSize,
+        SpriteSize);
 }

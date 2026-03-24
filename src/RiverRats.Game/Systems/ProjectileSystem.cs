@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using RiverRats.Game.Entities;
+using RiverRats.Game.World;
 
 namespace RiverRats.Game.Systems;
 
@@ -46,7 +47,8 @@ internal sealed class ProjectileSystem
     /// <param name="playerCenter">Player centre position (fire origin).</param>
     /// <param name="followerCenter">Follower centre position (fire origin).</param>
     /// <param name="gnomeSpawner">Gnome spawner to query targets and remove hit gnomes.</param>
-    public void Update(GameTime gameTime, Vector2 playerCenter, Vector2 followerCenter, GnomeSpawner gnomeSpawner)
+    /// <param name="collisionMap">World collision data — projectiles die on impact with obstacles.</param>
+    public void Update(GameTime gameTime, Vector2 playerCenter, Vector2 followerCenter, GnomeSpawner gnomeSpawner, IMapCollisionData collisionMap)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
         var gnomes = gnomeSpawner.Gnomes;
@@ -76,7 +78,13 @@ internal sealed class ProjectileSystem
 
         // Move all alive projectiles.
         for (var i = 0; i < _pool.Length; i++)
+        {
             _pool[i].Update(gameTime);
+
+            // Kill projectile on world obstacle hit.
+            if (_pool[i].IsAlive && collisionMap.IsWorldRectangleBlocked(_pool[i].Bounds))
+                _pool[i].Kill();
+        }
 
         // Collision: projectile vs gnome.
         for (var i = 0; i < _pool.Length; i++)

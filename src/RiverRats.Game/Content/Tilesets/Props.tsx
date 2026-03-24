@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="24" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="28" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -152,5 +152,29 @@
       <property name="propType" value="garden-gnome"/>
     </properties>
     <image source="../Sprites/garden-gnome.png" width="9" height="16"/>
+  </tile>
+  <tile id="24">
+    <properties>
+      <property name="propType" value="bush1"/>
+    </properties>
+    <image source="../Sprites/bush1.png" width="32" height="31"/>
+  </tile>
+  <tile id="25">
+    <properties>
+      <property name="propType" value="bush2"/>
+    </properties>
+    <image source="../Sprites/bush2.png" width="64" height="35"/>
+  </tile>
+  <tile id="26">
+    <properties>
+      <property name="propType" value="bush3"/>
+    </properties>
+    <image source="../Sprites/bush3.png" width="32" height="33"/>
+  </tile>
+  <tile id="27">
+    <properties>
+      <property name="propType" value="log"/>
+    </properties>
+    <image source="../Sprites/log.png" width="96" height="32"/>
   </tile>
 </tileset>
