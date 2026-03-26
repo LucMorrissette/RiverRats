@@ -40,4 +40,19 @@ public sealed record ParticleProfile
 
     /// <summary>Downward acceleration in pixels per second². Negative values = rise.</summary>
     public float Gravity { get; init; } = 0f;
+
+    /// <summary>Minimum distance below the spawn point where the particle can hit its local ground plane.</summary>
+    public float MinGroundOffset { get; init; } = 0f;
+
+    /// <summary>Maximum distance below the spawn point where the particle can hit its local ground plane.</summary>
+    public float MaxGroundOffset { get; init; } = 0f;
+
+    /// <summary>How many times the particle can bounce off its local ground plane before expiring.</summary>
+    public int MaxGroundBounces { get; init; } = 0;
+
+    /// <summary>Vertical velocity multiplier applied after a bounce.</summary>
+    public float BounceDamping { get; init; } = 0.5f;
+
+    /// <summary>Horizontal velocity multiplier applied after a bounce.</summary>
+    public float BounceFriction { get; init; } = 0.7f;
 }

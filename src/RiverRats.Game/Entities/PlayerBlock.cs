@@ -154,9 +154,9 @@ public sealed class PlayerBlock
     /// <param name="animator">Sprite animator component.</param>
     /// <param name="spriteSheet">Character sprite sheet texture.</param>
     /// <param name="layerDepth">Depth value for Y-sorting (0 = back, 1 = front).</param>
-    public void Draw(SpriteBatch spriteBatch, SpriteAnimator animator, Texture2D spriteSheet, float layerDepth = 0f)
+    public void Draw(SpriteBatch spriteBatch, SpriteAnimator animator, Texture2D spriteSheet, float layerDepth = 0f, Color? tint = null)
     {
-        animator.Draw(spriteBatch, spriteSheet, _position, layerDepth);
+        animator.Draw(spriteBatch, spriteSheet, _position, layerDepth, tint);
     }
 
     private void UpdateFacing(Vector2 direction)

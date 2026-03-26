@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using FontStashSharp;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Content;
 using RiverRats.Game.Components;
@@ -43,9 +44,22 @@ public sealed class GameplayScreen : IGameScreen
     private const float ZoneTransitionBlackHoldSeconds = 0.15f;
     private const float GameplayMusicVolume = 1f;
     private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
-    private static readonly FollowerMovementConfig FollowerConfig = new();
-    private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
+    private static readonly FollowerMovementConfig DefaultFollowerConfig = FollowerMovementConfig.Default;
+    private static readonly FollowerMovementConfig WoodsFollowerConfig = FollowerMovementConfig.Default with
+    {
+        // Forest combat reads cleaner when the follower trails farther behind the player.
+        FollowDistancePixels = 60f,
+    };
     private static readonly EmptyInputManager EmptyInput = new();
+
+    // Forest follower aggression steering toward clustered gnomes.
+    private const int FollowerAttractionMinClusterSize = 3;
+    private const float FollowerAttractionClusterRadius = 48f;
+    private const float FollowerAttractionClusterRadiusSq = FollowerAttractionClusterRadius * FollowerAttractionClusterRadius;
+    private const float FollowerAttractionSearchRadius = 200f;
+    private const float FollowerAttractionSearchRadiusSq = FollowerAttractionSearchRadius * FollowerAttractionSearchRadius;
+    private const float FollowerAttractionStrength = 0.35f;
+    private const float FollowerAttractionMaxOffset = 28f;
 
     private static readonly ParticleProfile FireSmokeProfile = new()
     {
@@ -76,6 +90,58 @@ public sealed class GameplayScreen : IGameScreen
         SpreadRadians = MathHelper.PiOver4,
         Gravity = -80f
     };
+
+    private static readonly ParticleProfile ArrowTrailSparkProfile = new()
+    {
+        SpawnRate = 1f,
+        MinLife = 0.45f,
+        MaxLife = 0.7f,
+        MinSpeed = 28f,
+        MaxSpeed = 60f,
+        MinScale = 0.12f,
+        MaxScale = 0.22f,
+        StartColor = new Color(255, 222, 120, 230),
+        EndColor = new Color(255, 90, 28, 0),
+        SpreadRadians = MathHelper.ToRadians(28f),
+        Gravity = 260f,
+        MinGroundOffset = 6f,
+        MaxGroundOffset = 12f,
+        MaxGroundBounces = 3,
+        BounceDamping = 0.45f,
+        BounceFriction = 0.72f,
+    };
+
+    // Explosion effect pool for gnome deaths.
+    private const int MaxExplosions = 16;
+    private const int ExplosionFrameCount = 4;
+    private const int ExplosionCellSize = 32;
+    private const float ExplosionFrameDuration = 0.05f;
+    private const float GnomeDeathTrauma = 0.06f;
+    private const float PlayerHitTrauma = 0.15f;
+    private const float PlayerHitFlashDuration = 0.3f;
+    private const int GnomeDeathSfxCount = 12;
+    private const float GnomeDeathSfxVolume = 0.5f;
+    private const int PlayerHurtSfxCount = 4;
+    private const float PlayerHurtSfxVolume = 0.7f;
+    private const int OrbCollectVariationSfxCount = 12;
+    private const int RedOrbCollectVariationSfxCount = 3;
+    private const float OrbCollectSfxVolume = 0.75f;
+    private const float RedOrbCollectSfxVolume = 0.82f;
+
+    private const int MaxEnergyOrbs = 128;
+    private const float EnergyOrbDropChance = 0.75f;
+    private const float RedEnergyOrbChance = 0.10f;
+    private const float EnergyOrbPickupRadius = 14f;
+    private const float EnergyOrbPickupRadiusSq = EnergyOrbPickupRadius * EnergyOrbPickupRadius;
+    private const float EnergyOrbMagnetRadius = 72f;
+    private const float EnergyOrbMagnetRadiusSq = EnergyOrbMagnetRadius * EnergyOrbMagnetRadius;
+    private const float EnergyOrbMagnetForce = 1400f;
+    private const float EnergyOrbDragPerSecond = 2f;
+    private const float EnergyOrbTerminalSpeed = 280f;
+    private const float EnergyOrbPulseSpeed = 6f;
+    private const float EnergyOrbPulseAmount = 0.18f;
+    private const float EnergyOrbBaseScale = 0.70f;
+    private const float EnergyOrbMaxSpawnSpeed = 60f;
 
     private readonly GraphicsDevice _graphicsDevice;
     private readonly ContentManager _content;
@@ -146,13 +212,36 @@ public sealed class GameplayScreen : IGameScreen
     private GnomeSpawner _gnomeSpawner;
     private FlowField _flowField;
     private Texture2D _gnomeEnemyTexture;
+    private Texture2D _projectileArrowTexture;
     private ProjectileSystem _projectileSystem;
+    private SlashSystem _slashSystem;
+    private Texture2D _hatchetTexture;
+    private Texture2D _explosionTexture;
+    private Texture2D _energyOrbTexture;
+    private Texture2D _energyOrbRedTexture;
+    private readonly Vector2[] _explosionPositions = new Vector2[MaxExplosions];
+    private readonly int[] _explosionFrames = new int[MaxExplosions];
+    private readonly float[] _explosionElapsed = new float[MaxExplosions];
+    private readonly bool[] _explosionActive = new bool[MaxExplosions];
+    private readonly Vector2[] _energyOrbPositions = new Vector2[MaxEnergyOrbs];
+    private readonly Vector2[] _energyOrbVelocities = new Vector2[MaxEnergyOrbs];
+    private readonly float[] _energyOrbAges = new float[MaxEnergyOrbs];
+    private readonly float[] _energyOrbPulseOffsets = new float[MaxEnergyOrbs];
+    private readonly bool[] _energyOrbActive = new bool[MaxEnergyOrbs];
+    private readonly bool[] _energyOrbIsRed = new bool[MaxEnergyOrbs];
+    private float _playerHitFlashTimer;
+    private readonly SoundEffect[] _gnomeDeathSfx = new SoundEffect[GnomeDeathSfxCount];
+    private readonly SoundEffect[] _playerHurtSfx = new SoundEffect[PlayerHurtSfxCount];
+    private readonly SoundEffect[] _orbCollectVariationSfx = new SoundEffect[OrbCollectVariationSfxCount];
+    private readonly SoundEffect[] _redOrbCollectVariationSfx = new SoundEffect[RedOrbCollectVariationSfxCount];
+    private readonly Random _sfxRng = new Random();
     private readonly IMusicManager _musicManager = new MusicManager();
     private HudRenderer _hudRenderer;
     private FontSystem _fontSystem;
     private readonly ScreenManager _screenManager;
     private readonly bool _hasDayNightCycle;
     private readonly float _dayNightStartProgress;
+    private readonly FollowerMovementConfig _followerConfig;
     private FadeState _fadeState;
     private float _fadeAlpha;
     private float _fadeHoldTimer;
@@ -201,6 +290,7 @@ public sealed class GameplayScreen : IGameScreen
         _songName = GetSongForMap(mapAssetName);
         _hasDayNightCycle = HasDayNightCycle(mapAssetName);
         _dayNightStartProgress = dayNightStartProgress;
+        _followerConfig = GetFollowerConfigForMap(mapAssetName);
     }
 
     /// <inheritdoc />
@@ -286,12 +376,12 @@ public sealed class GameplayScreen : IGameScreen
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
             PlayerAccelerationRate);
 
-        var followerStartPosition = initialPosition + FollowerStartOffset;
+        var followerStartPosition = initialPosition + new Vector2(0f, _followerConfig.FollowDistancePixels);
         _follower = new FollowerBlock(
             followerStartPosition,
             new Point(PlayerFramePixels, PlayerFramePixels),
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
-            FollowerConfig);
+            _followerConfig);
 
         _boulders = PropFactory.CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
         _gardenGnomes = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/garden-gnome"), _worldRenderer.PropPlacements, "garden-gnome", isUnderwater: false);
@@ -326,15 +416,56 @@ public sealed class GameplayScreen : IGameScreen
             PropFactory.Bush3CollisionBoxes,
         };
         _bushes = PropFactory.CreateVariantTrees(bushTextures, bushCollisionBoxes, _worldRenderer.PropPlacements, "bush");
+        _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
+        _particleManager = new ParticleManager(MaxParticleCount);
+
         if (_mapAssetName == "Maps/WoodsBehindCabin")
         {
             _gnomeEnemyTexture = _content.Load<Texture2D>("Sprites/garden-gnome");
-            _gnomeSpawner = new GnomeSpawner(initialCount: 10, spawnIntervalSeconds: 2.5f, maxActive: 25);
-            _projectileSystem = new ProjectileSystem(maxProjectiles: 32, fireIntervalSeconds: 1.8f);
+            _projectileArrowTexture = _content.Load<Texture2D>("Sprites/projectile-arrow");
+            _explosionTexture = _content.Load<Texture2D>("Sprites/explosion");
+            _energyOrbTexture = _content.Load<Texture2D>("Sprites/energy-orb");
+            _energyOrbRedTexture = _content.Load<Texture2D>("Sprites/energy-orb-red");
+            for (var i = 0; i < GnomeDeathSfxCount; i++)
+                _gnomeDeathSfx[i] = _content.Load<SoundEffect>($"Audio/SFX/gnome_death_{i:D2}");
+            for (var i = 0; i < PlayerHurtSfxCount; i++)
+                _playerHurtSfx[i] = _content.Load<SoundEffect>($"Audio/SFX/player_hurt_{i:D2}");
+            for (var i = 0; i < OrbCollectVariationSfxCount; i++)
+                _orbCollectVariationSfx[i] = _content.Load<SoundEffect>($"Audio/SFX/orb_collect_v03p03_family_{i:D2}");
+            for (var i = 0; i < RedOrbCollectVariationSfxCount; i++)
+                _redOrbCollectVariationSfx[i] = _content.Load<SoundEffect>($"Audio/SFX/orb_collect_red_var_{i:D2}");
+            _gnomeSpawner = new GnomeSpawner(initialCount: 10, spawnIntervalSeconds: 0.15f, maxActive: 200);
+            _projectileSystem = new ProjectileSystem(
+                maxProjectiles: 32,
+                fireIntervalSeconds: 1.8f,
+                trailParticleManager: _particleManager,
+                trailParticleProfile: ArrowTrailSparkProfile);
         }
 
-        _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
-        _particleManager = new ParticleManager(MaxParticleCount);
+        if (_mapAssetName == "Maps/WoodsBehindCabin")
+            _slashSystem = new SlashSystem();
+
+        if (_mapAssetName == "Maps/WoodsBehindCabin")
+            _hatchetTexture = _content.Load<Texture2D>("Sprites/hatchet");
+
+        if (_gnomeSpawner != null)
+        {
+            _gnomeSpawner.OnGnomeDied = pos =>
+            {
+                SpawnExplosion(pos);
+                if (_sfxRng.NextDouble() < EnergyOrbDropChance)
+                    SpawnEnergyOrb(pos);
+                _camera.AddTrauma(GnomeDeathTrauma);
+                _gnomeDeathSfx[_sfxRng.Next(GnomeDeathSfxCount)].Play(GnomeDeathSfxVolume, 0f, 0f);
+            };
+            _gnomeSpawner.OnPlayerHit = () =>
+            {
+                _playerHitFlashTimer = PlayerHitFlashDuration;
+                _camera.AddTrauma(PlayerHitTrauma);
+                _playerHurtSfx[_sfxRng.Next(PlayerHurtSfxCount)].Play(PlayerHurtSfxVolume, 0f, 0f);
+            };
+        }
+
         for (var i = 0; i < _firepits.Length; i++)
         {
             _firepits[i].AttachSmokeEmitter(new ParticleEmitter(_particleManager, FireSmokeProfile));
@@ -482,12 +613,15 @@ public sealed class GameplayScreen : IGameScreen
             TryToggleNearbyFirepit();
         }
 
-        _follower.Update(gameTime, _player.Position, _player.Facing, GetFollowerRestPosition());
+        _follower.Update(gameTime, GetFollowerLeaderTargetPosition(), _player.Facing, GetFollowerRestPosition());
 
         _flowField?.Update(_player.Center);
-        _gnomeSpawner?.Update(gameTime, _player.Center, _camera.WorldBounds, _flowField, _collisionMap);
+        _gnomeSpawner?.Update(gameTime, _player.Center, _player.Bounds, _camera.WorldBounds, _flowField, _collisionMap);
         if (_projectileSystem != null && _gnomeSpawner != null)
             _projectileSystem.Update(gameTime, _player.Center, _follower.Center, _gnomeSpawner, _collisionMap);
+        if (_slashSystem != null && _gnomeSpawner != null)
+            _slashSystem.Update(gameTime, _player.Center, _follower.Center,
+                _player.Facing, _follower.Facing, _gnomeSpawner);
 
         UpdateWorldPresentation(gameTime, input, animateCharacters: true);
     }
@@ -499,6 +633,9 @@ public sealed class GameplayScreen : IGameScreen
         _followerAnimator.Direction = _follower.Facing;
         _followerAnimator.Update(gameTime, animateCharacters && _follower.IsMoving);
         _camera.LookAt(_player.Center);
+        _camera.UpdateShake((float)gameTime.ElapsedGameTime.TotalSeconds);
+        if (_playerHitFlashTimer > 0f)
+            _playerHitFlashTimer = Math.Max(0f, _playerHitFlashTimer - (float)gameTime.ElapsedGameTime.TotalSeconds);
         _isPlayerOccluded = CheckOcclusion(_player.Bounds, SortDepth(_player.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _isFollowerOccluded = CheckOcclusion(_follower.Bounds, SortDepth(_follower.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _worldRenderer.Update(gameTime);
@@ -526,6 +663,8 @@ public sealed class GameplayScreen : IGameScreen
         var fireflyLightCount = _fireflyManager.WriteLightData(_combinedLightData, activeFireLightCount);
         _lightingRenderer.SetLights(_combinedLightData, activeFireLightCount + fireflyLightCount);
         _particleManager.Update(gameTime);
+        UpdateExplosions((float)gameTime.ElapsedGameTime.TotalSeconds);
+        UpdateEnergyOrbs((float)gameTime.ElapsedGameTime.TotalSeconds);
         _cloudShadowRenderer.Update(gameTime);
         _musicManager.Update(gameTime);
         _rippleSystem.Update(gameTime, input, _camera, _graphicsDevice, _virtualWidth, _virtualHeight);
@@ -658,6 +797,7 @@ public sealed class GameplayScreen : IGameScreen
         var mapHeight = (float)_worldRenderer.MapPixelHeight;
         var mapWidth = (float)_worldRenderer.MapPixelWidth;
         var playerDepth = SortDepth(_player.Bounds, mapHeight, mapWidth);
+        var playerTint = GetPlayerHitTint();
 
         var followerDepth = SortDepth(_follower.Bounds, mapHeight, mapWidth);
         var anyOccluded = _isPlayerOccluded || _isFollowerOccluded;
@@ -679,7 +819,7 @@ public sealed class GameplayScreen : IGameScreen
                 transformMatrix: worldMatrix);
             DrawWorldEntities(mapHeight, mapWidth, behindCutoff, EntityDepthFilter.BehindOrAtPlayer);
             _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
-            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
+            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth, playerTint);
             _worldSpriteBatch.End();
 
             // --- Pass 4b: Entities in front of shallowest occluded character → occluder render target ---
@@ -709,7 +849,7 @@ public sealed class GameplayScreen : IGameScreen
                 transformMatrix: worldMatrix);
             DrawWorldEntities(mapHeight, mapWidth, playerDepth, EntityDepthFilter.All);
             _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
-            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
+            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth, playerTint);
             _worldSpriteBatch.End();
         }
 
@@ -746,6 +886,30 @@ public sealed class GameplayScreen : IGameScreen
             transformMatrix: worldMatrix);
         _particleManager.Draw(_worldSpriteBatch, _smokeTexture);
         _worldSpriteBatch.End();
+
+        // --- Pass 4b2: Hatchet sprites for slash system ---
+        if (_slashSystem != null && _hatchetTexture != null)
+        {
+            _worldSpriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp,
+                transformMatrix: worldMatrix);
+            var hatchetOrigin = new Vector2(_hatchetTexture.Width * 0.5f, _hatchetTexture.Height * 0.5f);
+            if (_slashSystem.PlayerIsSweeping)
+            {
+                var pAngle = _slashSystem.PlayerAngle;
+                var pPos = _player.Center + SlashSystem.Radius * new Vector2(MathF.Cos(pAngle), MathF.Sin(pAngle));
+                _worldSpriteBatch.Draw(_hatchetTexture, pPos, null, Color.White, pAngle, hatchetOrigin, 1.5f, SpriteEffects.None, 0f);
+            }
+            if (_slashSystem.FollowerIsSweeping)
+            {
+                var fAngle = _slashSystem.FollowerAngle;
+                var fPos = _follower.Center + SlashSystem.Radius * new Vector2(MathF.Cos(fAngle), MathF.Sin(fAngle));
+                _worldSpriteBatch.Draw(_hatchetTexture, fPos, null, Color.White, fAngle, hatchetOrigin, 1.5f, SpriteEffects.None, 0f);
+            }
+            _worldSpriteBatch.End();
+        }
 
         // --- Pass 4c: Fireflies (additive blend for a soft glow look) ---
         _worldSpriteBatch.Begin(
@@ -949,9 +1113,71 @@ public sealed class GameplayScreen : IGameScreen
         return firstOpen ? firstPosition : secondPosition;
     }
 
-    private static (Vector2 FirstOffset, Vector2 SecondOffset) GetRestOffsetsForFacing(FacingDirection facing)
+    private Vector2 GetFollowerLeaderTargetPosition()
     {
-        var sideOffset = FollowerConfig.SideRestOffsetPixels;
+        if (_mapAssetName != "Maps/WoodsBehindCabin" || _gnomeSpawner == null)
+            return _player.Position;
+
+        var gnomes = _gnomeSpawner.Gnomes;
+        if (gnomes.Count < FollowerAttractionMinClusterSize)
+            return _player.Position;
+
+        var followerCenter = _follower.Center;
+        var bestScore = 0f;
+        var bestClusterCenter = Vector2.Zero;
+        var foundCluster = false;
+
+        for (var i = 0; i < gnomes.Count; i++)
+        {
+            var origin = gnomes[i].Position + new Vector2(8f, 8f);
+            var followerDistanceSq = Vector2.DistanceSquared(followerCenter, origin);
+            if (followerDistanceSq > FollowerAttractionSearchRadiusSq)
+                continue;
+
+            var clusterSum = origin;
+            var clusterSize = 1;
+            for (var j = 0; j < gnomes.Count; j++)
+            {
+                if (i == j)
+                    continue;
+
+                var other = gnomes[j].Position + new Vector2(8f, 8f);
+                if (Vector2.DistanceSquared(origin, other) <= FollowerAttractionClusterRadiusSq)
+                {
+                    clusterSum += other;
+                    clusterSize++;
+                }
+            }
+
+            if (clusterSize < FollowerAttractionMinClusterSize)
+                continue;
+
+            var proximity = 1f - MathHelper.Clamp(followerDistanceSq / FollowerAttractionSearchRadiusSq, 0f, 1f);
+            var score = clusterSize * proximity;
+            if (score <= bestScore)
+                continue;
+
+            bestScore = score;
+            bestClusterCenter = clusterSum / clusterSize;
+            foundCluster = true;
+        }
+
+        if (!foundCluster)
+            return _player.Position;
+
+        var toCluster = bestClusterCenter - _player.Center;
+        var distance = toCluster.Length();
+        if (distance <= 0.001f)
+            return _player.Position;
+
+        var offsetDistance = Math.Min(distance * FollowerAttractionStrength, FollowerAttractionMaxOffset);
+        var offset = toCluster / distance * offsetDistance;
+        return _player.Position + offset;
+    }
+
+    private (Vector2 FirstOffset, Vector2 SecondOffset) GetRestOffsetsForFacing(FacingDirection facing)
+    {
+        var sideOffset = _followerConfig.SideRestOffsetPixels;
 
         return facing switch
         {
@@ -1050,6 +1276,15 @@ public sealed class GameplayScreen : IGameScreen
         {
             "Maps/WoodsBehindCabin" => "WoodsBehindCabinTheme",
             _ => "GameplayTheme",
+        };
+    }
+
+    private static FollowerMovementConfig GetFollowerConfigForMap(string mapAssetName)
+    {
+        return mapAssetName switch
+        {
+            "Maps/WoodsBehindCabin" => WoodsFollowerConfig,
+            _ => DefaultFollowerConfig,
         };
     }
 
@@ -1322,9 +1557,14 @@ public sealed class GameplayScreen : IGameScreen
                 if (!projectiles[i].IsAlive) continue;
                 var depth = SortDepth(projectiles[i].Bounds, mapHeight, mapWidth);
                 if (PassesDepthFilter(depth, playerDepth, filter))
-                    projectiles[i].Draw(_worldSpriteBatch, _pixelTexture, depth);
+                    projectiles[i].Draw(_worldSpriteBatch, _projectileArrowTexture, depth);
             }
         }
+
+                DrawEnergyOrbs(_worldSpriteBatch, mapHeight, mapWidth, playerDepth, filter);
+
+        if (filter == EntityDepthFilter.All || filter == EntityDepthFilter.InFrontOfPlayer)
+            DrawExplosions(_worldSpriteBatch, mapHeight, mapWidth);
     }
 
     private static bool PassesDepthFilter(float depth, float playerDepth, EntityDepthFilter filter)
@@ -1345,8 +1585,16 @@ public sealed class GameplayScreen : IGameScreen
     /// </summary>
     private static float SortDepth(Rectangle bounds, float mapHeight, float mapWidth, float anchorOffset = 0f)
     {
-        return (bounds.Bottom - anchorOffset) / mapHeight
-             + bounds.Left / (mapWidth * mapHeight);
+        var yDepth = (bounds.Bottom - anchorOffset) / mapHeight;
+
+        // Keep deterministic X tie-breaking while guaranteeing the final layer depth
+        // stays inside [0, 1). Without this headroom, entities at the map bottom can
+        // exceed 1.0 and disappear in SpriteBatch front-to-back sorting.
+        var tieBreakerRange = 1f / mapHeight;
+        var yScaled = yDepth * (1f - tieBreakerRange);
+        var xTie = bounds.Left / (mapWidth * mapHeight);
+
+        return MathHelper.Clamp(yScaled + xTie, 0f, 0.9999f);
     }
 
     /// <summary>
@@ -1425,5 +1673,189 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         return false;
+    }
+
+    private void SpawnExplosion(Vector2 centre)
+    {
+        for (var i = 0; i < MaxExplosions; i++)
+        {
+            if (!_explosionActive[i])
+            {
+                _explosionActive[i] = true;
+                _explosionPositions[i] = centre;
+                _explosionFrames[i] = 0;
+                _explosionElapsed[i] = 0f;
+                return;
+            }
+        }
+    }
+
+    private void SpawnEnergyOrb(Vector2 centre)
+    {
+        for (var i = 0; i < MaxEnergyOrbs; i++)
+        {
+            if (_energyOrbActive[i])
+                continue;
+
+            var angle = (float)(_sfxRng.NextDouble() * MathHelper.TwoPi);
+            var speed = (float)_sfxRng.NextDouble() * EnergyOrbMaxSpawnSpeed;
+            _energyOrbActive[i] = true;
+            _energyOrbPositions[i] = centre;
+            _energyOrbVelocities[i] = new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * speed;
+            _energyOrbAges[i] = 0f;
+            _energyOrbPulseOffsets[i] = (float)(_sfxRng.NextDouble() * MathHelper.TwoPi);
+            _energyOrbIsRed[i] = _sfxRng.NextDouble() < RedEnergyOrbChance;
+            return;
+        }
+    }
+
+    private void UpdateExplosions(float dt)
+    {
+        for (var i = 0; i < MaxExplosions; i++)
+        {
+            if (!_explosionActive[i]) continue;
+
+            _explosionElapsed[i] += dt;
+            if (_explosionElapsed[i] >= ExplosionFrameDuration)
+            {
+                _explosionElapsed[i] -= ExplosionFrameDuration;
+                _explosionFrames[i]++;
+                if (_explosionFrames[i] >= ExplosionFrameCount)
+                    _explosionActive[i] = false;
+            }
+        }
+    }
+
+    private void UpdateEnergyOrbs(float dt)
+    {
+        if (_energyOrbTexture == null)
+            return;
+
+        var playerCenter = _player.Center;
+        for (var i = 0; i < MaxEnergyOrbs; i++)
+        {
+            if (!_energyOrbActive[i])
+                continue;
+
+            _energyOrbAges[i] += dt;
+            var toPlayer = playerCenter - _energyOrbPositions[i];
+            var distanceSq = toPlayer.LengthSquared();
+
+            if (distanceSq <= EnergyOrbPickupRadiusSq)
+            {
+                if (_energyOrbIsRed[i] && _redOrbCollectVariationSfx[0] != null)
+                {
+                    var redCandidate = _redOrbCollectVariationSfx[_sfxRng.Next(RedOrbCollectVariationSfxCount)];
+                    redCandidate.Play(RedOrbCollectSfxVolume, 0f, 0f);
+                }
+                else if (_orbCollectVariationSfx[0] != null)
+                {
+                    var candidate = _orbCollectVariationSfx[_sfxRng.Next(OrbCollectVariationSfxCount)];
+                    candidate.Play(OrbCollectSfxVolume, 0f, 0f);
+                }
+                _energyOrbActive[i] = false;
+                _energyOrbIsRed[i] = false;
+                continue;
+            }
+
+            if (distanceSq <= EnergyOrbMagnetRadiusSq && distanceSq > 0.001f)
+            {
+                var distance = MathF.Sqrt(distanceSq);
+                var direction = toPlayer / distance;
+                var pullStrength = 1f - MathHelper.Clamp(distance / EnergyOrbMagnetRadius, 0f, 1f);
+                _energyOrbVelocities[i] += direction * (EnergyOrbMagnetForce * pullStrength * dt);
+            }
+
+            var drag = MathF.Exp(-EnergyOrbDragPerSecond * dt);
+            _energyOrbVelocities[i] *= drag;
+            var speed = _energyOrbVelocities[i].Length();
+            if (speed > EnergyOrbTerminalSpeed)
+                _energyOrbVelocities[i] = _energyOrbVelocities[i] / speed * EnergyOrbTerminalSpeed;
+            _energyOrbPositions[i] += _energyOrbVelocities[i] * dt;
+        }
+    }
+
+    private void DrawEnergyOrbs(SpriteBatch spriteBatch, float mapHeight, float mapWidth, float playerDepth, EntityDepthFilter filter)
+    {
+        if (_energyOrbTexture == null)
+            return;
+
+        for (var i = 0; i < MaxEnergyOrbs; i++)
+        {
+            if (!_energyOrbActive[i])
+                continue;
+
+            var orbTexture = _energyOrbIsRed[i] ? _energyOrbRedTexture ?? _energyOrbTexture : _energyOrbTexture;
+            if (orbTexture == null)
+                continue;
+
+            var position = _energyOrbPositions[i];
+            var halfOrbW = orbTexture.Width * 0.5f;
+            var halfOrbH = orbTexture.Height * 0.5f;
+            var bounds = new Rectangle((int)(position.X - halfOrbW), (int)(position.Y - halfOrbH), orbTexture.Width, orbTexture.Height);
+            var depth = SortDepth(bounds, mapHeight, mapWidth);
+            if (!PassesDepthFilter(depth, playerDepth, filter))
+                continue;
+
+            var pulse = MathF.Sin(_energyOrbAges[i] * EnergyOrbPulseSpeed + _energyOrbPulseOffsets[i]);
+            var scale = EnergyOrbBaseScale + ((pulse * 0.5f) + 0.5f) * EnergyOrbPulseAmount;
+            var alpha = 0.78f + ((pulse * 0.5f) + 0.5f) * 0.22f;
+
+            spriteBatch.Draw(
+                orbTexture,
+                position,
+                null,
+                Color.White * alpha,
+                0f,
+                new Vector2(halfOrbW, halfOrbH),
+                scale,
+                SpriteEffects.None,
+                depth);
+        }
+    }
+
+    private void DrawExplosions(SpriteBatch spriteBatch, float mapHeight, float mapWidth)
+    {
+        if (_explosionTexture == null) return;
+
+        var half = ExplosionCellSize * 0.5f;
+        var origin = new Vector2(half, half);
+
+        for (var i = 0; i < MaxExplosions; i++)
+        {
+            if (!_explosionActive[i]) continue;
+
+            var sourceRect = new Rectangle(
+                _explosionFrames[i] * ExplosionCellSize, 0,
+                ExplosionCellSize, ExplosionCellSize);
+
+            var pos = _explosionPositions[i];
+            var sortBounds = new Rectangle((int)(pos.X - half), (int)(pos.Y - half), ExplosionCellSize, ExplosionCellSize);
+            var depth = SortDepth(sortBounds, mapHeight, mapWidth);
+
+            spriteBatch.Draw(
+                _explosionTexture,
+                pos,
+                sourceRect,
+                Color.White,
+                0f,
+                origin,
+                1f,
+                SpriteEffects.None,
+                depth);
+        }
+    }
+
+    /// <summary>
+    /// Computes the player sprite tint during a hit flash.
+    /// Flashes red then fades back to white over <see cref="PlayerHitFlashDuration"/>.
+    /// </summary>
+    private Color? GetPlayerHitTint()
+    {
+        if (_playerHitFlashTimer <= 0f)
+            return null;
+
+        var t = _playerHitFlashTimer / PlayerHitFlashDuration;
+        return Color.Lerp(Color.White, new Color(255, 60, 60), t);
     }
 }

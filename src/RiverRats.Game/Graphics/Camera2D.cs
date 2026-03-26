@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 
 namespace RiverRats.Game.Graphics;
@@ -18,9 +19,15 @@ public sealed class Camera2D
     private readonly float _halfWidth;
     private readonly float _halfHeight;
 
+    private const float MaxShakeOffset = 4f;
+    private const float TraumaDecayRate = 4f;
+
     private Vector2 _position;
     private Matrix _viewMatrix;
     private bool _viewMatrixDirty = true;
+    private float _trauma;
+    private Vector2 _shakeOffset;
+    private readonly Random _shakeRng = new();
 
     /// <summary>
     /// Initializes a camera with fixed virtual viewport dimensions and map pixel bounds for clamping.
@@ -71,6 +78,47 @@ public sealed class Camera2D
     /// <summary>World-space position the camera is currently centred on.</summary>
     public Vector2 Position => _position;
 
+    /// <summary>Current trauma level (0–1). Squared to produce shake intensity.</summary>
+    public float Trauma => _trauma;
+
+    /// <summary>
+    /// Adds trauma to the camera. Values are clamped to [0, 1].
+    /// Trauma is squared to produce shake intensity, so small hits feel subtle
+    /// and multi-kills stack into a satisfying rumble.
+    /// </summary>
+    /// <param name="amount">Trauma to add (typically 0.02–0.15 per event).</param>
+    public void AddTrauma(float amount)
+    {
+        _trauma = MathHelper.Clamp(_trauma + amount, 0f, 1f);
+    }
+
+    /// <summary>
+    /// Decays trauma and computes the shake offset for this frame.
+    /// Call once per frame before <see cref="GetViewMatrix"/>.
+    /// </summary>
+    /// <param name="dt">Delta time in seconds.</param>
+    public void UpdateShake(float dt)
+    {
+        if (_trauma <= 0f)
+        {
+            if (_shakeOffset != Vector2.Zero)
+            {
+                _shakeOffset = Vector2.Zero;
+                _viewMatrixDirty = true;
+            }
+            return;
+        }
+
+        _trauma = MathF.Max(_trauma - TraumaDecayRate * dt, 0f);
+
+        // Shake intensity = trauma² for a nice ease-out curve.
+        var intensity = _trauma * _trauma;
+        _shakeOffset = new Vector2(
+            ((float)_shakeRng.NextDouble() * 2f - 1f) * MaxShakeOffset * intensity,
+            ((float)_shakeRng.NextDouble() * 2f - 1f) * MaxShakeOffset * intensity);
+        _viewMatrixDirty = true;
+    }
+
     /// <summary>
     /// Returns the world-space rectangle currently visible through the viewport.
     /// </summary>
@@ -106,9 +154,10 @@ public sealed class Camera2D
         if (_viewMatrixDirty)
         {
             // Translate so the camera position maps to the centre of the virtual viewport.
+            // Shake offset is applied on top of the base position.
             _viewMatrix = Matrix.CreateTranslation(
-                _halfWidth - _position.X,
-                _halfHeight - _position.Y,
+                _halfWidth - _position.X + _shakeOffset.X,
+                _halfHeight - _position.Y + _shakeOffset.Y,
                 0f);
             _viewMatrixDirty = false;
         }

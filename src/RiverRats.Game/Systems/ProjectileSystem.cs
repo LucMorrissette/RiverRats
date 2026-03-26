@@ -1,7 +1,11 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using RiverRats.Game.Data;
 using RiverRats.Game.Entities;
 using RiverRats.Game.World;
+
+#nullable enable
 
 namespace RiverRats.Game.Systems;
 
@@ -12,12 +16,16 @@ namespace RiverRats.Game.Systems;
 /// </summary>
 internal sealed class ProjectileSystem
 {
-    private const float ProjectileSpeed = 200f;
+    internal const float ProjectileSpeed = 320f;
+    internal const int ProjectilePierceCount = 3;
+    private const int TrailParticlesPerFrame = 1;
     private const float FiringRange = 200f;
     private const float FiringRangeSquared = FiringRange * FiringRange;
 
     private readonly Projectile[] _pool;
     private readonly float _fireInterval;
+    private readonly ParticleManager? _trailParticleManager;
+    private readonly ParticleProfile? _trailParticleProfile;
     private float _playerCooldown;
     private float _followerCooldown;
 
@@ -26,13 +34,21 @@ internal sealed class ProjectileSystem
     /// </summary>
     /// <param name="maxProjectiles">Maximum number of simultaneous projectiles.</param>
     /// <param name="fireIntervalSeconds">Seconds between auto-fire shots per shooter.</param>
-    public ProjectileSystem(int maxProjectiles, float fireIntervalSeconds)
+    /// <param name="trailParticleManager">Optional particle manager for projectile trail sparks.</param>
+    /// <param name="trailParticleProfile">Optional particle profile for projectile trail sparks.</param>
+    public ProjectileSystem(
+        int maxProjectiles,
+        float fireIntervalSeconds,
+        ParticleManager? trailParticleManager = null,
+        ParticleProfile? trailParticleProfile = null)
     {
         _pool = new Projectile[maxProjectiles];
         for (var i = 0; i < maxProjectiles; i++)
             _pool[i] = new Projectile();
 
         _fireInterval = fireIntervalSeconds;
+        _trailParticleManager = trailParticleManager;
+        _trailParticleProfile = trailParticleProfile;
         _playerCooldown = 0f;
         _followerCooldown = fireIntervalSeconds * 0.5f; // offset so shooters alternate
     }
@@ -58,9 +74,8 @@ internal sealed class ProjectileSystem
         if (_playerCooldown <= 0f && gnomes.Count > 0)
         {
             var idx = FindNearestGnomeInRange(playerCenter, gnomes);
-            if (idx >= 0)
+            if (idx >= 0 && TryFireProjectile(playerCenter, GnomeCenter(gnomes[idx])))
             {
-                Fire(playerCenter, GnomeCenter(gnomes[idx]));
                 _playerCooldown += _fireInterval;
             }
         }
@@ -69,9 +84,8 @@ internal sealed class ProjectileSystem
         if (_followerCooldown <= 0f && gnomes.Count > 0)
         {
             var idx = FindNearestGnomeInRange(followerCenter, gnomes);
-            if (idx >= 0)
+            if (idx >= 0 && TryFireProjectile(followerCenter, GnomeCenter(gnomes[idx])))
             {
-                Fire(followerCenter, GnomeCenter(gnomes[idx]));
                 _followerCooldown += _fireInterval;
             }
         }
@@ -80,6 +94,8 @@ internal sealed class ProjectileSystem
         for (var i = 0; i < _pool.Length; i++)
         {
             _pool[i].Update(gameTime);
+
+            EmitTrailParticles(_pool[i]);
 
             // Kill projectile on world obstacle hit.
             if (_pool[i].IsAlive && collisionMap.IsWorldRectangleBlocked(_pool[i].Bounds))
@@ -91,15 +107,26 @@ internal sealed class ProjectileSystem
         {
             if (!_pool[i].IsAlive) continue;
 
-            for (var g = gnomes.Count - 1; g >= 0; g--)
-            {
-                if (_pool[i].Bounds.Intersects(gnomes[g].Bounds))
-                {
-                    _pool[i].Kill();
-                    gnomeSpawner.RemoveAt(g);
-                    break;
-                }
-            }
+            ResolveProjectileHits(_pool[i], gnomes);
+        }
+    }
+
+    internal static void ResolveProjectileHits(Projectile projectile, IReadOnlyList<GnomeEnemy> gnomes)
+    {
+        if (!projectile.IsAlive)
+            return;
+
+        for (var g = gnomes.Count - 1; g >= 0; g--)
+        {
+            if (gnomes[g].State == GnomeState.Dying)
+                continue;
+
+            if (!projectile.Bounds.Intersects(gnomes[g].Bounds))
+                continue;
+
+            gnomes[g].Die();
+            if (!projectile.RegisterHit())
+                break;
         }
     }
 
@@ -115,6 +142,9 @@ internal sealed class ProjectileSystem
         var bestDistSq = FiringRangeSquared;
         for (var i = 0; i < gnomes.Count; i++)
         {
+            if (gnomes[i].State == GnomeState.Dying)
+                continue;
+
             var diff = gnomes[i].Position - origin;
             var distSq = diff.LengthSquared();
             if (distSq < bestDistSq)
@@ -126,18 +156,35 @@ internal sealed class ProjectileSystem
         return bestIndex;
     }
 
-    private void Fire(Vector2 origin, Vector2 targetCenter)
+    private void EmitTrailParticles(Projectile projectile)
+    {
+        if (!projectile.IsAlive || _trailParticleManager is null || _trailParticleProfile is null)
+            return;
+
+        _trailParticleManager.Emit(
+            _trailParticleProfile,
+            projectile.Position,
+            TrailParticlesPerFrame,
+            projectile.Rotation + MathHelper.PiOver2);
+    }
+
+    internal bool TryFireProjectile(Vector2 origin, Vector2 targetCenter)
     {
         for (var i = 0; i < _pool.Length; i++)
         {
             if (!_pool[i].IsAlive)
             {
                 var direction = targetCenter - origin;
-                if (direction.LengthSquared() > 0f)
-                    direction.Normalize();
-                _pool[i].Fire(origin, direction * ProjectileSpeed);
-                return;
+                var lengthSquared = direction.LengthSquared();
+                if (lengthSquared <= 0f)
+                    return false;
+
+                direction *= 1f / MathF.Sqrt(lengthSquared);
+                _pool[i].Fire(origin, direction * ProjectileSpeed, ProjectilePierceCount);
+                return true;
             }
         }
+
+        return false;
     }
 }

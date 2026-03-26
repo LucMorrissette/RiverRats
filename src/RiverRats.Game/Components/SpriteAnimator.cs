@@ -70,13 +70,13 @@ public sealed class SpriteAnimator
     /// <param name="texture">The sprite sheet texture.</param>
     /// <param name="position">World-space top-left position.</param>
     /// <param name="layerDepth">Depth value for Y-sorting (0 = back, 1 = front).</param>
-    public void Draw(SpriteBatch spriteBatch, Texture2D texture, Vector2 position, float layerDepth = 0f)
+    public void Draw(SpriteBatch spriteBatch, Texture2D texture, Vector2 position, float layerDepth = 0f, Color? tint = null)
     {
         spriteBatch.Draw(
             texture,
             position,
             SourceRectangle,
-            Color.White,
+            tint ?? Color.White,
             0f,
             Vector2.Zero,
             1f,

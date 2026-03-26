@@ -42,7 +42,7 @@ internal sealed class FlowField
     /// Indices 0–3 are cardinal (N, S, W, E); diagonals start at index 4.
     /// Diagonal index 4 (NW) requires N(0) and W(2), etc.
     /// </summary>
-    private static readonly int[] DiagCardinal1 = { 0, 0, 0, 1 }; // for diag indices 4,5,6,7
+    private static readonly int[] DiagCardinal1 = { 0, 0, 1, 1 }; // for diag indices 4,5,6,7
     private static readonly int[] DiagCardinal2 = { 2, 3, 2, 3 }; // for diag indices 4,5,6,7
 
     private readonly int _gridWidth;

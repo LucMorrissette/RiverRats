@@ -183,6 +183,30 @@
 /processorParam:TextureFormat=Color
 /build:Sprites/small-fire.png
 
+#begin Sprites/hatchet.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Sprites/hatchet.png
+
+#begin Sprites/projectile-arrow.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Sprites/projectile-arrow.png
+
 #begin Sprites/smoke-puff.png
 /importer:TextureImporter
 /processor:TextureProcessor
@@ -258,6 +282,222 @@
 /processor:SongProcessor
 /processorParam:Quality=Best
 /build:Audio/Music/CottageBehindWoods_theme.mp3
+
+#begin Audio/SFX/gnome_death_00.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_00.wav
+
+#begin Audio/SFX/gnome_death_01.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_01.wav
+
+#begin Audio/SFX/gnome_death_02.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_02.wav
+
+#begin Audio/SFX/gnome_death_03.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_03.wav
+
+#begin Audio/SFX/gnome_death_04.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_04.wav
+
+#begin Audio/SFX/gnome_death_05.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_05.wav
+
+#begin Audio/SFX/gnome_death_06.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_06.wav
+
+#begin Audio/SFX/gnome_death_07.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_07.wav
+
+#begin Audio/SFX/gnome_death_08.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_08.wav
+
+#begin Audio/SFX/gnome_death_09.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_09.wav
+
+#begin Audio/SFX/gnome_death_10.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_10.wav
+
+#begin Audio/SFX/gnome_death_11.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/gnome_death_11.wav
+
+#begin Audio/SFX/player_hurt_00.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/player_hurt_00.wav
+
+#begin Audio/SFX/player_hurt_01.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/player_hurt_01.wav
+
+#begin Audio/SFX/player_hurt_02.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/player_hurt_02.wav
+
+#begin Audio/SFX/player_hurt_03.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/player_hurt_03.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_00.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_00.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_01.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_01.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_02.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_02.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_03.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_03.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_04.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_04.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_05.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_05.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_06.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_06.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_07.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_07.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_08.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_08.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_09.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_09.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_10.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_10.wav
+
+#begin Audio/SFX/orb_collect_v03p03_family_11.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_v03p03_family_11.wav
+
+#begin Audio/SFX/orb_collect_red_special.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_red_special.wav
+
+#begin Audio/SFX/orb_collect_red_var_00.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_red_var_00.wav
+
+#begin Audio/SFX/orb_collect_red_var_01.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_red_var_01.wav
+
+#begin Audio/SFX/orb_collect_red_var_02.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/SFX/orb_collect_red_var_02.wav
+
+#begin Sprites/energy-orb.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Sprites/energy-orb.png
+
+#begin Sprites/energy-orb-red.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Sprites/energy-orb-red.png
 
 #begin Sprites/cozy_lake_cabin.png
 /importer:TextureImporter
@@ -438,4 +678,16 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:Sprites/garden-gnome.png
+
+#begin Sprites/explosion.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Sprites/explosion.png
 

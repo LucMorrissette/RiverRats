@@ -56,6 +56,26 @@ public sealed class ParticleManager
 
             _particles[i].Velocity.Y += _particles[i].Gravity * dt;
             _particles[i].Position += _particles[i].Velocity * dt;
+
+            if (_particles[i].RemainingBounces >= 0
+                && _particles[i].Position.Y >= _particles[i].GroundY
+                && _particles[i].Velocity.Y > 0f)
+            {
+                if (_particles[i].RemainingBounces > 0)
+                {
+                    _particles[i].Position.Y = _particles[i].GroundY;
+                    _particles[i].Velocity.Y = -_particles[i].Velocity.Y * _particles[i].BounceDamping;
+                    _particles[i].Velocity.X *= _particles[i].BounceFriction;
+                    _particles[i].RemainingBounces--;
+                }
+                else
+                {
+                    _particles[i].IsActive = false;
+                    _freeIndices[_freeCount++] = i;
+                    continue;
+                }
+            }
+
             _particles[i].Rotation += _particles[i].AngularVelocity * dt;
         }
     }
@@ -118,6 +138,7 @@ public sealed class ParticleManager
             float speed = MathHelper.Lerp(profile.MinSpeed, profile.MaxSpeed, (float)_rng.NextDouble());
             float angle = baseAngleRadians + MathHelper.Lerp(-profile.SpreadRadians / 2f, profile.SpreadRadians / 2f, (float)_rng.NextDouble());
             float scale = MathHelper.Lerp(profile.MinScale, profile.MaxScale, (float)_rng.NextDouble());
+            float groundOffset = MathHelper.Lerp(profile.MinGroundOffset, profile.MaxGroundOffset, (float)_rng.NextDouble());
 
             Vector2 direction = new Vector2(
                 (float)Math.Sin(angle),
@@ -133,7 +154,27 @@ public sealed class ParticleManager
             _particles[index].InitialLife = life;
             _particles[index].LifeRemaining = life;
             _particles[index].Gravity = profile.Gravity;
+            _particles[index].GroundY = position.Y + groundOffset;
+            _particles[index].BounceDamping = profile.BounceDamping;
+            _particles[index].BounceFriction = profile.BounceFriction;
+            _particles[index].RemainingBounces = profile.MaxGroundBounces;
             _particles[index].IsActive = true;
         }
+    }
+
+    /// <summary>Returns a copy of the first active particle for deterministic unit tests.</summary>
+    internal bool TryGetFirstActiveParticle(out Particle particle)
+    {
+        for (int i = 0; i < _maxParticles; i++)
+        {
+            if (_particles[i].IsActive)
+            {
+                particle = _particles[i];
+                return true;
+            }
+        }
+
+        particle = default;
+        return false;
     }
 }

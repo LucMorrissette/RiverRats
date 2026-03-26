@@ -16,7 +16,11 @@ public struct Particle
     public float Rotation;
     public float AngularVelocity;
     public float Gravity;       // Downward acceleration in pixels/sec²
+    public float GroundY;       // Local ground plane relative to the spawn point
+    public float BounceDamping; // Vertical velocity multiplier on bounce
+    public float BounceFriction; // Horizontal velocity multiplier on bounce
     public float LifeRemaining; // In seconds
     public float InitialLife;   // To calculate fade % and lerp color
+    public int RemainingBounces;
     public bool IsActive;
 }

@@ -121,4 +121,65 @@ public class ParticleManagerTests
         // Active count stays at 1 (life = 5s)
         Assert.Equal(1, manager.ActiveCount);
     }
+
+    [Fact]
+    public void Update__GroundBounceConfigured__ParticleBouncesAtGroundPlane()
+    {
+        var bounceProfile = new ParticleProfile
+        {
+            MinLife = 2f,
+            MaxLife = 2f,
+            MinSpeed = 10f,
+            MaxSpeed = 10f,
+            MinScale = 1f,
+            MaxScale = 1f,
+            SpreadRadians = 0f,
+            Gravity = 0f,
+            MinGroundOffset = 1f,
+            MaxGroundOffset = 1f,
+            MaxGroundBounces = 1,
+            BounceDamping = 0.5f,
+            BounceFriction = 0.5f,
+        };
+
+        var manager = new ParticleManager(4);
+        manager.Emit(bounceProfile, Vector2.Zero, 1, MathHelper.Pi);
+
+        manager.Update(FakeGameTime.FromSeconds(0.2f));
+
+        Assert.True(manager.TryGetFirstActiveParticle(out var particle));
+        Assert.Equal(1f, particle.Position.Y, 3);
+        Assert.True(particle.Velocity.Y < 0f);
+        Assert.Equal(0, particle.RemainingBounces);
+    }
+
+    [Fact]
+    public void Update__GroundBounceBudgetSpent__ParticleExpiresOnNextGroundHit()
+    {
+        var bounceProfile = new ParticleProfile
+        {
+            MinLife = 2f,
+            MaxLife = 2f,
+            MinSpeed = 10f,
+            MaxSpeed = 10f,
+            MinScale = 1f,
+            MaxScale = 1f,
+            SpreadRadians = 0f,
+            Gravity = 10f,
+            MinGroundOffset = 1f,
+            MaxGroundOffset = 1f,
+            MaxGroundBounces = 1,
+            BounceDamping = 0f,
+            BounceFriction = 0.5f,
+        };
+
+        var manager = new ParticleManager(4);
+        manager.Emit(bounceProfile, Vector2.Zero, 1, MathHelper.Pi);
+
+        manager.Update(FakeGameTime.FromSeconds(0.1f));
+        Assert.Equal(1, manager.ActiveCount);
+
+        manager.Update(FakeGameTime.FromSeconds(0.2f));
+        Assert.Equal(0, manager.ActiveCount);
+    }
 }
