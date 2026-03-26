@@ -60,6 +60,9 @@ public sealed class PlayerBlock
         ClampToBounds();
     }
 
+    /// <summary>External speed modifier applied to base movement speed (e.g., from level-ups).</summary>
+    internal float SpeedMultiplier { get; set; } = 1.0f;
+
     /// <summary>Current top-left world position in pixels.</summary>
     public Vector2 Position => _position;
 
@@ -129,7 +132,7 @@ public sealed class PlayerBlock
 
             UpdateFacing(direction);
             direction.Normalize();
-            var movementDelta = direction * _moveSpeedPixelsPerSecond * _currentSpeedFraction * elapsedSeconds;
+            var movementDelta = direction * _moveSpeedPixelsPerSecond * SpeedMultiplier * _currentSpeedFraction * elapsedSeconds;
 
             if (movementDelta.X != 0f)
             {

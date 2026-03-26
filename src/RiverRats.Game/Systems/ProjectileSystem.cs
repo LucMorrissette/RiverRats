@@ -20,7 +20,15 @@ internal sealed class ProjectileSystem
     internal const int ProjectilePierceCount = 3;
     private const int TrailParticlesPerFrame = 1;
     private const float FiringRange = 200f;
-    private const float FiringRangeSquared = FiringRange * FiringRange;
+
+    /// <summary>Multiplier applied to projectile speed (from level-ups). Default 1.0.</summary>
+    internal float SpeedMultiplier { get; set; } = 1.0f;
+
+    /// <summary>Multiplier applied to fire cooldown interval (from level-ups). Lower = faster. Default 1.0.</summary>
+    internal float CooldownMultiplier { get; set; } = 1.0f;
+
+    /// <summary>Multiplier applied to firing range (from level-ups). Default 1.0.</summary>
+    internal float RangeMultiplier { get; set; } = 1.0f;
 
     private readonly Projectile[] _pool;
     private readonly float _fireInterval;
@@ -76,7 +84,7 @@ internal sealed class ProjectileSystem
             var idx = FindNearestGnomeInRange(playerCenter, gnomes);
             if (idx >= 0 && TryFireProjectile(playerCenter, GnomeCenter(gnomes[idx])))
             {
-                _playerCooldown += _fireInterval;
+                _playerCooldown += _fireInterval * CooldownMultiplier;
             }
         }
 
@@ -86,7 +94,7 @@ internal sealed class ProjectileSystem
             var idx = FindNearestGnomeInRange(followerCenter, gnomes);
             if (idx >= 0 && TryFireProjectile(followerCenter, GnomeCenter(gnomes[idx])))
             {
-                _followerCooldown += _fireInterval;
+                _followerCooldown += _fireInterval * CooldownMultiplier;
             }
         }
 
@@ -124,7 +132,7 @@ internal sealed class ProjectileSystem
             if (!projectile.Bounds.Intersects(gnomes[g].Bounds))
                 continue;
 
-            gnomes[g].Die();
+            gnomes[g].TakeDamage(1);
             if (!projectile.RegisterHit())
                 break;
         }
@@ -136,10 +144,11 @@ internal sealed class ProjectileSystem
         return new Vector2(b.X + b.Width * 0.5f, b.Y + b.Height * 0.5f);
     }
 
-    private static int FindNearestGnomeInRange(Vector2 origin, IReadOnlyList<GnomeEnemy> gnomes)
+    private int FindNearestGnomeInRange(Vector2 origin, IReadOnlyList<GnomeEnemy> gnomes)
     {
         var bestIndex = -1;
-        var bestDistSq = FiringRangeSquared;
+        var effectiveRange = FiringRange * RangeMultiplier;
+        var bestDistSq = effectiveRange * effectiveRange;
         for (var i = 0; i < gnomes.Count; i++)
         {
             if (gnomes[i].State == GnomeState.Dying)
@@ -180,7 +189,7 @@ internal sealed class ProjectileSystem
                     return false;
 
                 direction *= 1f / MathF.Sqrt(lengthSquared);
-                _pool[i].Fire(origin, direction * ProjectileSpeed, ProjectilePierceCount);
+                _pool[i].Fire(origin, direction * (ProjectileSpeed * SpeedMultiplier), ProjectilePierceCount);
                 return true;
             }
         }

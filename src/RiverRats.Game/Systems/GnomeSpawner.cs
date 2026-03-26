@@ -62,6 +62,15 @@ internal sealed class GnomeSpawner
         _neighborCounts = new int[maxActive];
     }
 
+    /// <summary>HP assigned to each newly spawned gnome. Defaults to 1.</summary>
+    internal int GnomeHp { get; set; } = 1;
+
+    /// <summary>Speed multiplier applied to each newly spawned gnome. Defaults to 1.</summary>
+    internal float GnomeSpeedMultiplier { get; set; } = 1.0f;
+
+    /// <summary>When false, trickle and initial batch spawning is skipped in Update. Defaults to true.</summary>
+    internal bool AutoSpawnEnabled { get; set; } = true;
+
     /// <summary>Read-only access to active gnomes for external draw loops.</summary>
     internal IReadOnlyList<GnomeEnemy> Gnomes => _gnomes;
 
@@ -78,25 +87,29 @@ internal sealed class GnomeSpawner
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        // Initial batch spawn on first call.
-        if (!_initialSpawnDone)
+        // Auto-spawn logic (initial batch + trickle). Skipped when WaveManager controls spawning.
+        if (AutoSpawnEnabled)
         {
-            _initialSpawnDone = true;
-            var count = Math.Min(_initialCount, _maxActive);
-            for (var i = 0; i < count; i++)
+            // Initial batch spawn on first call.
+            if (!_initialSpawnDone)
             {
-                _gnomes.Add(CreateGnome(cameraWorldBounds));
+                _initialSpawnDone = true;
+                var count = Math.Min(_initialCount, _maxActive);
+                for (var i = 0; i < count; i++)
+                {
+                    _gnomes.Add(CreateGnome(cameraWorldBounds));
+                }
             }
-        }
 
-        // Trickle spawn (batch of up to 3 per interval).
-        _spawnTimer += dt;
-        if (_spawnTimer >= _spawnIntervalSeconds && _gnomes.Count < _maxActive)
-        {
-            _spawnTimer -= _spawnIntervalSeconds;
-            var batchSize = Math.Min(3, _maxActive - _gnomes.Count);
-            for (var i = 0; i < batchSize; i++)
-                _gnomes.Add(CreateGnome(cameraWorldBounds));
+            // Trickle spawn (batch of up to 3 per interval).
+            _spawnTimer += dt;
+            if (_spawnTimer >= _spawnIntervalSeconds && _gnomes.Count < _maxActive)
+            {
+                _spawnTimer -= _spawnIntervalSeconds;
+                var batchSize = Math.Min(3, _maxActive - _gnomes.Count);
+                for (var i = 0; i < batchSize; i++)
+                    _gnomes.Add(CreateGnome(cameraWorldBounds));
+            }
         }
 
         // Compute separation vectors (O(n²) — acceptable for small enemy counts).
@@ -130,6 +143,21 @@ internal sealed class GnomeSpawner
             {
                 _gnomes.RemoveAt(i);
             }
+        }
+    }
+
+    /// <summary>
+    /// Spawns up to <paramref name="count"/> gnomes immediately (respecting maxActive).
+    /// Used by <see cref="WaveManager"/> to control spawning externally.
+    /// </summary>
+    /// <param name="count">Number of gnomes to spawn.</param>
+    /// <param name="cameraBounds">Camera world bounds for off-screen placement.</param>
+    internal void SpawnBatch(int count, Rectangle cameraBounds)
+    {
+        var toSpawn = Math.Min(count, _maxActive - _gnomes.Count);
+        for (var i = 0; i < toSpawn; i++)
+        {
+            _gnomes.Add(CreateGnome(cameraBounds));
         }
     }
 
@@ -187,7 +215,10 @@ internal sealed class GnomeSpawner
     {
         var pos = PickOffscreenPosition(cameraBounds);
         var phase = (float)_rng.NextDouble();
-        return new GnomeEnemy(pos, phase);
+        var gnome = new GnomeEnemy(pos, phase);
+        gnome.SetHp(GnomeHp);
+        gnome.SetSpeedMultiplier(GnomeSpeedMultiplier);
+        return gnome;
     }
 
     private Vector2 PickOffscreenPosition(Rectangle cameraBounds)

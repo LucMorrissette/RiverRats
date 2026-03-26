@@ -30,10 +30,15 @@ internal sealed class GnomeEnemy
     private const int BounceCount = 3;
     private const float BounceHeight = 8f;
 
+    // Damage stun (shorter than recoil stun).
+    private const float DamageStunDuration = 0.6f;
+
     // Death pop animation.
     private const float DyingDuration = 0.2f;
     private const float PopScaleMax = 1.6f;
 
+    private int _hp = 1;
+    private float _speedMultiplier = 1.0f;
     private Vector2 _position;
     private float _hopPhase;
     private bool _facingLeft;
@@ -70,6 +75,9 @@ internal sealed class GnomeEnemy
         _state = GnomeState.Chasing;
     }
 
+    /// <summary>Current hit points. Defaults to 1 for backwards compatibility.</summary>
+    public int Hp => _hp;
+
     /// <summary>World position of the gnome (top-left of sprite, excluding hop offset).</summary>
     public Vector2 Position => _position;
 
@@ -93,6 +101,47 @@ internal sealed class GnomeEnemy
         (int)_position.Y,
         SpriteSize,
         SpriteSize);
+
+    /// <summary>
+    /// Sets the gnome's HP. Call when spawning or recycling from the pool.
+    /// </summary>
+    public void SetHp(int hp)
+    {
+        _hp = hp;
+    }
+
+    /// <summary>
+    /// Sets a per-gnome speed multiplier applied on top of crowding slowdown.
+    /// </summary>
+    /// <param name="multiplier">Speed scaling factor (1.0 = normal).</param>
+    public void SetSpeedMultiplier(float multiplier)
+    {
+        _speedMultiplier = multiplier;
+    }
+
+    /// <summary>
+    /// Reduces HP by the given damage amount. Transitions to Dying if HP reaches zero,
+    /// or to a short Stunned state if HP remains above zero.
+    /// </summary>
+    public void TakeDamage(int damage)
+    {
+        if (_state == GnomeState.Dying)
+            return;
+
+        _hp -= damage;
+        if (_hp <= 0)
+        {
+            Die();
+        }
+        else
+        {
+            _state = GnomeState.Stunned;
+            _stateTimer = 0f;
+            _hitPlayer = false;
+            _recoilStart = _position;
+            _recoilEnd = _position; // no recoil slide on damage stun
+        }
+    }
 
     /// <summary>
     /// Transitions the gnome into the Dying state with a pop animation.
@@ -261,7 +310,7 @@ internal sealed class GnomeEnemy
         if (steerLenSq > 0.0001f)
         {
             steeringDir *= 1f / MathF.Sqrt(steerLenSq);
-            var effectiveSpeed = MoveSpeed * speedMultiplier;
+            var effectiveSpeed = MoveSpeed * _speedMultiplier * speedMultiplier;
             var movement = steeringDir * effectiveSpeed * dt;
 
             if (_phasing)
@@ -424,7 +473,12 @@ internal sealed class GnomeEnemy
 
     private void UpdateStunned(float dt)
     {
-        var duration = _hitPlayer ? HitStunDuration : MissRecoveryDuration;
+        // Damage stun uses a shorter duration when the gnome was hit by a projectile
+        // but still has HP remaining. We detect this by checking _recoilStart == _recoilEnd
+        // (no recoil slide) combined with !_hitPlayer.
+        var duration = _hitPlayer ? HitStunDuration
+            : _recoilStart == _recoilEnd ? DamageStunDuration
+            : MissRecoveryDuration;
         _stateTimer += dt;
         var t = Math.Clamp(_stateTimer / duration, 0f, 1f);
 

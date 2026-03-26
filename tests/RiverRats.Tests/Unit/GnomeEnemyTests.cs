@@ -358,6 +358,50 @@ public class GnomeEnemyTests
         Assert.True(gnome.IsDead);
     }
 
+    // -- HP / TakeDamage tests --
+
+    [Fact]
+    public void SetHp__SetsHpToValue__OnSpawn()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        gnome.SetHp(3);
+        Assert.Equal(3, gnome.Hp);
+    }
+
+    [Fact]
+    public void TakeDamage__ReducesHp__ByDamageAmount()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        gnome.SetHp(3);
+
+        gnome.TakeDamage(1);
+
+        Assert.Equal(2, gnome.Hp);
+    }
+
+    [Fact]
+    public void TakeDamage__TransitionsToDying__WhenHpReachesZero()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        gnome.SetHp(1);
+
+        gnome.TakeDamage(1);
+
+        Assert.Equal(GnomeState.Dying, gnome.State);
+    }
+
+    [Fact]
+    public void TakeDamage__TransitionsToStunned__WhenHpAboveZero()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        gnome.SetHp(2);
+
+        gnome.TakeDamage(1);
+
+        Assert.Equal(GnomeState.Stunned, gnome.State);
+        Assert.NotEqual(GnomeState.Dying, gnome.State);
+    }
+
     // -- Helper --
 
     private sealed class DelegateCollisionData : IMapCollisionData

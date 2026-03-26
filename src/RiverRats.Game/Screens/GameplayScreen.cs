@@ -6,6 +6,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Content;
+using RiverRats.Components;
+using RiverRats.Data;
 using RiverRats.Game.Components;
 using RiverRats.Game.Data;
 using RiverRats.Game.Entities;
@@ -111,6 +113,21 @@ public sealed class GameplayScreen : IGameScreen
         BounceFriction = 0.72f,
     };
 
+    private static readonly ParticleProfile LevelUpBurstProfile = new()
+    {
+        SpawnRate = 1f,
+        MinLife = 0.4f,
+        MaxLife = 0.7f,
+        MinSpeed = 60f,
+        MaxSpeed = 100f,
+        MinScale = 0.3f,
+        MaxScale = 0.6f,
+        StartColor = new Color(255, 215, 0, 255),
+        EndColor = new Color(255, 180, 0, 0),
+        SpreadRadians = MathHelper.ToRadians(30f),
+        Gravity = 80f,
+    };
+
     // Explosion effect pool for gnome deaths.
     private const int MaxExplosions = 16;
     private const int ExplosionFrameCount = 4;
@@ -127,6 +144,17 @@ public sealed class GameplayScreen : IGameScreen
     private const int RedOrbCollectVariationSfxCount = 3;
     private const float OrbCollectSfxVolume = 0.75f;
     private const float RedOrbCollectSfxVolume = 0.82f;
+
+    // Health pickup pool for the forest survival minigame.
+    private const int MaxHealthPickups = 2;
+    private const float HealthPickupSpawnIntervalMin = 15f;
+    private const float HealthPickupSpawnIntervalMax = 25f;
+    private const float HealthPickupCollectionRadiusSq = 16f * 16f;
+    private const int HealthPickupDrawSize = 10;
+    private const float HealthPickupSpawnRadiusMin = 150f;
+    private const float HealthPickupSpawnRadiusMax = 250f;
+    private const int HealthPickupSpawnAttempts = 10;
+    private const int HealthPickupCollisionSize = 16;
 
     private const int MaxEnergyOrbs = 128;
     private const float EnergyOrbDropChance = 0.75f;
@@ -210,6 +238,8 @@ public sealed class GameplayScreen : IGameScreen
     private int _debugOverlayMode;
     private RippleSystem _rippleSystem;
     private GnomeSpawner _gnomeSpawner;
+    private WaveManager _waveManager;
+    private XpLevelSystem _xpSystem;
     private FlowField _flowField;
     private Texture2D _gnomeEnemyTexture;
     private Texture2D _projectileArrowTexture;
@@ -229,7 +259,16 @@ public sealed class GameplayScreen : IGameScreen
     private readonly float[] _energyOrbPulseOffsets = new float[MaxEnergyOrbs];
     private readonly bool[] _energyOrbActive = new bool[MaxEnergyOrbs];
     private readonly bool[] _energyOrbIsRed = new bool[MaxEnergyOrbs];
+    private HealthPickup[] _healthPickups;
+    private float _healthPickupSpawnTimer;
+    private float _nextHealthPickupInterval;
     private float _playerHitFlashTimer;
+    private Health _playerHealth;
+    private PlayerCombatStats _combatStats;
+    private const float LevelUpFlashDuration = 0.5f;
+    private float _levelUpFlashTimer;
+    private bool _playerDead;
+    private float _deathDelayTimer;
     private readonly SoundEffect[] _gnomeDeathSfx = new SoundEffect[GnomeDeathSfxCount];
     private readonly SoundEffect[] _playerHurtSfx = new SoundEffect[PlayerHurtSfxCount];
     private readonly SoundEffect[] _orbCollectVariationSfx = new SoundEffect[OrbCollectVariationSfxCount];
@@ -237,6 +276,7 @@ public sealed class GameplayScreen : IGameScreen
     private readonly Random _sfxRng = new Random();
     private readonly IMusicManager _musicManager = new MusicManager();
     private HudRenderer _hudRenderer;
+    private ForestHudRenderer _forestHudRenderer;
     private FontSystem _fontSystem;
     private readonly ScreenManager _screenManager;
     private readonly bool _hasDayNightCycle;
@@ -434,12 +474,42 @@ public sealed class GameplayScreen : IGameScreen
                 _orbCollectVariationSfx[i] = _content.Load<SoundEffect>($"Audio/SFX/orb_collect_v03p03_family_{i:D2}");
             for (var i = 0; i < RedOrbCollectVariationSfxCount; i++)
                 _redOrbCollectVariationSfx[i] = _content.Load<SoundEffect>($"Audio/SFX/orb_collect_red_var_{i:D2}");
+            _combatStats = new PlayerCombatStats();
+            _playerHealth = new Health(_combatStats.MaxHp);
+            _playerHealth.OnDied += OnPlayerDied;
+            _xpSystem = new XpLevelSystem(_combatStats, _playerHealth);
+            _xpSystem.OnLevelUp += level =>
+            {
+                _levelUpFlashTimer = LevelUpFlashDuration;
+                if (_redOrbCollectVariationSfx[0] != null)
+                    _redOrbCollectVariationSfx[0].Play(0.9f, 0.3f, 0f);
+
+                // Spawn gold particles around player on level-up.
+                for (var i = 0; i < 12; i++)
+                {
+                    var angle = i * (MathF.PI * 2f / 12f);
+                    var speed = 60f + (float)_sfxRng.NextDouble() * 40f;
+                    var vel = new Vector2(MathF.Cos(angle) * speed, MathF.Sin(angle) * speed);
+                    _particleManager.Emit(LevelUpBurstProfile, _player.Center, 1, angle);
+                }
+            };
             _gnomeSpawner = new GnomeSpawner(initialCount: 10, spawnIntervalSeconds: 0.15f, maxActive: 200);
             _projectileSystem = new ProjectileSystem(
                 maxProjectiles: 32,
                 fireIntervalSeconds: 1.8f,
                 trailParticleManager: _particleManager,
                 trailParticleProfile: ArrowTrailSparkProfile);
+            _waveManager = new WaveManager(_gnomeSpawner);
+            _waveManager.OnWaveCleared += waveNum => { /* future: banner display */ };
+            _waveManager.OnAllWavesComplete += OnAllWavesComplete;
+            _waveManager.StartFirstWave();
+
+            _forestHudRenderer = new ForestHudRenderer();
+            _healthPickups = new HealthPickup[MaxHealthPickups];
+            for (var i = 0; i < MaxHealthPickups; i++)
+                _healthPickups[i] = new HealthPickup();
+            _nextHealthPickupInterval = HealthPickupSpawnIntervalMin
+                + (float)_sfxRng.NextDouble() * (HealthPickupSpawnIntervalMax - HealthPickupSpawnIntervalMin);
         }
 
         if (_mapAssetName == "Maps/WoodsBehindCabin")
@@ -460,6 +530,14 @@ public sealed class GameplayScreen : IGameScreen
             };
             _gnomeSpawner.OnPlayerHit = () =>
             {
+                if (_playerHealth != null)
+                {
+                    if (!_playerHealth.IsAlive) return;
+                    if (_playerHealth.IsInvincible) return;
+                    _playerHealth.TakeDamage(1);
+                    _playerHealth.SetInvincibleForDuration(1.0f);
+                }
+
                 _playerHitFlashTimer = PlayerHitFlashDuration;
                 _camera.AddTrauma(PlayerHitTrauma);
                 _playerHurtSfx[_sfxRng.Next(PlayerHurtSfxCount)].Play(PlayerHurtSfxVolume, 0f, 0f);
@@ -578,6 +656,29 @@ public sealed class GameplayScreen : IGameScreen
             return;
         }
 
+        _playerHealth?.Update(gameTime);
+
+        if (_playerDead)
+        {
+            _deathDelayTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_deathDelayTimer <= 0f)
+            {
+                _screenManager.Replace(new DeathScreen(
+                    _graphicsDevice,
+                    _content,
+                    _virtualWidth,
+                    _virtualHeight,
+                    _screenManager,
+                    _requestExit,
+                    _musicManager,
+                    _dayNightCycle?.CycleProgress ?? 0f));
+                _playerDead = false;
+            }
+
+            UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
+
         if (input.IsPressed(InputAction.Pause))
         {
             _screenManager.Push(new PauseScreen(
@@ -596,6 +697,9 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         _player.Update(gameTime, input, _collisionMap);
+
+        if (_combatStats != null)
+            _player.SpeedMultiplier = _combatStats.SpeedMultiplier;
 
         // Check zone transition triggers after player movement.
         for (var i = 0; i < _worldRenderer.ZoneTriggers.Count; i++)
@@ -616,12 +720,23 @@ public sealed class GameplayScreen : IGameScreen
         _follower.Update(gameTime, GetFollowerLeaderTargetPosition(), _player.Facing, GetFollowerRestPosition());
 
         _flowField?.Update(_player.Center);
+        _waveManager?.Update(gameTime, _camera.WorldBounds);
         _gnomeSpawner?.Update(gameTime, _player.Center, _player.Bounds, _camera.WorldBounds, _flowField, _collisionMap);
         if (_projectileSystem != null && _gnomeSpawner != null)
+        {
+            if (_combatStats != null)
+            {
+                _projectileSystem.SpeedMultiplier = _combatStats.ProjectileSpeedMultiplier;
+                _projectileSystem.CooldownMultiplier = _combatStats.CooldownMultiplier;
+                _projectileSystem.RangeMultiplier = _combatStats.ProjectileRangeMultiplier;
+            }
             _projectileSystem.Update(gameTime, _player.Center, _follower.Center, _gnomeSpawner, _collisionMap);
+        }
         if (_slashSystem != null && _gnomeSpawner != null)
             _slashSystem.Update(gameTime, _player.Center, _follower.Center,
                 _player.Facing, _follower.Facing, _gnomeSpawner);
+
+        UpdateHealthPickups((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         UpdateWorldPresentation(gameTime, input, animateCharacters: true);
     }
@@ -636,6 +751,8 @@ public sealed class GameplayScreen : IGameScreen
         _camera.UpdateShake((float)gameTime.ElapsedGameTime.TotalSeconds);
         if (_playerHitFlashTimer > 0f)
             _playerHitFlashTimer = Math.Max(0f, _playerHitFlashTimer - (float)gameTime.ElapsedGameTime.TotalSeconds);
+        if (_levelUpFlashTimer > 0f)
+            _levelUpFlashTimer = Math.Max(0f, _levelUpFlashTimer - (float)gameTime.ElapsedGameTime.TotalSeconds);
         _isPlayerOccluded = CheckOcclusion(_player.Bounds, SortDepth(_player.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _isFollowerOccluded = CheckOcclusion(_follower.Bounds, SortDepth(_follower.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _worldRenderer.Update(gameTime);
@@ -942,6 +1059,17 @@ public sealed class GameplayScreen : IGameScreen
     /// <inheritdoc />
     public void DrawOverlay(GameTime gameTime, SpriteBatch spriteBatch, int sceneScale)
     {
+        // Level-up gold screen flash (drawn before HUD, after scene).
+        if (_levelUpFlashTimer > 0f)
+        {
+            var flashAlpha = (_levelUpFlashTimer / LevelUpFlashDuration) * 0.35f;
+            var flashColor = new Color(255, 215, 0) * flashAlpha;
+            var vp = _graphicsDevice.Viewport;
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
+            spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, vp.Width, vp.Height), flashColor);
+            spriteBatch.End();
+        }
+
         // Get the font at a size scaled for the actual window resolution.
         // sceneScale converts virtual pixels to window pixels.
         var scaledFont = _fontSystem.GetFont(HudFontSize * sceneScale);
@@ -953,6 +1081,18 @@ public sealed class GameplayScreen : IGameScreen
                 blendState: BlendState.AlphaBlend,
                 samplerState: SamplerState.LinearClamp);
             _hudRenderer.Draw(spriteBatch, scaledFont, _pixelTexture, _dayNightCycle.GameHour, sceneScale);
+            spriteBatch.End();
+        }
+
+        if (_forestHudRenderer != null)
+        {
+            var vp = _graphicsDevice.Viewport;
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+            _forestHudRenderer.Draw(spriteBatch, scaledFont, _pixelTexture, _playerHealth, _combatStats,
+                _waveManager.CurrentWaveNumber, _waveManager.State, sceneScale, vp.Width, vp.Height);
             spriteBatch.End();
         }
 
@@ -1208,6 +1348,21 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         return !_collisionMap.IsWorldRectangleBlocked(candidateBounds);
+    }
+
+    private void OnPlayerDied()
+    {
+        _playerDead = true;
+        _deathDelayTimer = 1.0f;
+    }
+
+    private void OnAllWavesComplete()
+    {
+        var victoryTrigger = new ZoneTriggerData(
+            Rectangle.Empty,
+            "Maps/StarterMap",
+            "from-woods");
+        BeginZoneTransition(victoryTrigger);
     }
 
     private void BeginZoneTransition(ZoneTriggerData trigger)
@@ -1563,6 +1718,8 @@ public sealed class GameplayScreen : IGameScreen
 
                 DrawEnergyOrbs(_worldSpriteBatch, mapHeight, mapWidth, playerDepth, filter);
 
+        DrawHealthPickups(_worldSpriteBatch, mapHeight, mapWidth, playerDepth, filter);
+
         if (filter == EntityDepthFilter.All || filter == EntityDepthFilter.InFrontOfPlayer)
             DrawExplosions(_worldSpriteBatch, mapHeight, mapWidth);
     }
@@ -1753,6 +1910,7 @@ public sealed class GameplayScreen : IGameScreen
                     var candidate = _orbCollectVariationSfx[_sfxRng.Next(OrbCollectVariationSfxCount)];
                     candidate.Play(OrbCollectSfxVolume, 0f, 0f);
                 }
+                _xpSystem?.AddXp(_energyOrbIsRed[i] ? 5 : 1);
                 _energyOrbActive[i] = false;
                 _energyOrbIsRed[i] = false;
                 continue;
@@ -1772,6 +1930,105 @@ public sealed class GameplayScreen : IGameScreen
             if (speed > EnergyOrbTerminalSpeed)
                 _energyOrbVelocities[i] = _energyOrbVelocities[i] / speed * EnergyOrbTerminalSpeed;
             _energyOrbPositions[i] += _energyOrbVelocities[i] * dt;
+        }
+    }
+
+    private void UpdateHealthPickups(float dt)
+    {
+        if (_healthPickups == null || _playerHealth == null || !_playerHealth.IsAlive)
+            return;
+
+        _healthPickupSpawnTimer += dt;
+        if (_healthPickupSpawnTimer >= _nextHealthPickupInterval)
+        {
+            _healthPickupSpawnTimer = 0f;
+            _nextHealthPickupInterval = HealthPickupSpawnIntervalMin
+                + (float)_sfxRng.NextDouble() * (HealthPickupSpawnIntervalMax - HealthPickupSpawnIntervalMin);
+
+            // Find an inactive slot.
+            int freeSlot = -1;
+            for (var i = 0; i < MaxHealthPickups; i++)
+            {
+                if (!_healthPickups[i].IsActive)
+                {
+                    freeSlot = i;
+                    break;
+                }
+            }
+
+            if (freeSlot >= 0)
+            {
+                var spawnPos = TryFindWalkablePosition(_player.Center,
+                    HealthPickupSpawnRadiusMin, HealthPickupSpawnRadiusMax);
+                if (spawnPos.HasValue)
+                    _healthPickups[freeSlot].Spawn(spawnPos.Value);
+            }
+        }
+
+        var playerCenter = _player.Center;
+        for (var i = 0; i < MaxHealthPickups; i++)
+        {
+            _healthPickups[i].Update(dt);
+
+            if (!_healthPickups[i].IsActive)
+                continue;
+
+            var toPlayer = playerCenter - _healthPickups[i].Position;
+            if (toPlayer.LengthSquared() <= HealthPickupCollectionRadiusSq)
+            {
+                _healthPickups[i].Deactivate();
+                _playerHealth.Heal(1);
+            }
+        }
+    }
+
+    private Vector2? TryFindWalkablePosition(Vector2 center, float minRadius, float maxRadius)
+    {
+        for (var attempt = 0; attempt < HealthPickupSpawnAttempts; attempt++)
+        {
+            var angle = (float)(_sfxRng.NextDouble() * MathHelper.TwoPi);
+            var radius = minRadius + (float)_sfxRng.NextDouble() * (maxRadius - minRadius);
+            var candidate = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            var bounds = new Rectangle(
+                (int)candidate.X - HealthPickupCollisionSize / 2,
+                (int)candidate.Y - HealthPickupCollisionSize / 2,
+                HealthPickupCollisionSize,
+                HealthPickupCollisionSize);
+            var worldBounds = new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight);
+            if (worldBounds.Contains(bounds) && !_collisionMap.IsWorldRectangleBlocked(bounds))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private void DrawHealthPickups(SpriteBatch spriteBatch, float mapHeight, float mapWidth, float playerDepth, EntityDepthFilter filter)
+    {
+        if (_healthPickups == null)
+            return;
+
+        int halfSize = HealthPickupDrawSize / 2;
+        for (var i = 0; i < MaxHealthPickups; i++)
+        {
+            if (!_healthPickups[i].IsActive)
+                continue;
+
+            var pos = _healthPickups[i].Position;
+            var sortBounds = new Rectangle((int)(pos.X - halfSize), (int)(pos.Y - halfSize),
+                HealthPickupDrawSize, HealthPickupDrawSize);
+            var depth = SortDepth(sortBounds, mapHeight, mapWidth);
+            if (!PassesDepthFilter(depth, playerDepth, filter))
+                continue;
+
+            spriteBatch.Draw(
+                _pixelTexture,
+                sortBounds,
+                null,
+                Color.LimeGreen * _healthPickups[i].Opacity,
+                0f,
+                Vector2.Zero,
+                SpriteEffects.None,
+                depth);
         }
     }
 
