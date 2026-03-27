@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using RiverRats.Data;
 using RiverRats.Game.Data;
 using RiverRats.Game.Systems;
 using RiverRats.Game.World;
@@ -39,6 +40,14 @@ internal sealed class GnomeEnemy
 
     private int _hp = 1;
     private float _speedMultiplier = 1.0f;
+
+    // Per-type variant fields (set once at spawn via SetEnemyType).
+    private EnemyType _enemyType = EnemyType.Standard;
+    private float _drawScale = 1.0f;
+    private Color _tintColor = Color.White;
+    private float _baseSpeedMultiplier = 1.0f;
+    private bool _explodeOnDeath;
+
     private Vector2 _position;
     private float _hopPhase;
     private bool _facingLeft;
@@ -93,6 +102,12 @@ internal sealed class GnomeEnemy
     /// <summary>Whether the gnome is currently phasing through obstacles.</summary>
     public bool IsPhasing => _phasing;
 
+    /// <summary>The enemy variant type of this gnome.</summary>
+    public EnemyType EnemyType => _enemyType;
+
+    /// <summary>Whether this gnome should explode on death (Bomber type).</summary>
+    public bool ExplodeOnDeath => _explodeOnDeath;
+
     /// <summary>
     /// Returns the bounding rectangle used for Y-sorting. Based on world position (no hop offset).
     /// </summary>
@@ -117,6 +132,41 @@ internal sealed class GnomeEnemy
     public void SetSpeedMultiplier(float multiplier)
     {
         _speedMultiplier = multiplier;
+    }
+
+    /// <summary>
+    /// Configures per-type visual and behavioral overrides. Call once right after construction.
+    /// </summary>
+    public void SetEnemyType(EnemyType type)
+    {
+        _enemyType = type;
+        switch (type)
+        {
+            case EnemyType.Standard:
+                _drawScale = 1.0f;
+                _tintColor = Color.White;
+                _baseSpeedMultiplier = 1.0f;
+                _explodeOnDeath = false;
+                break;
+            case EnemyType.Rusher:
+                _drawScale = 0.7f;
+                _tintColor = new Color(120, 255, 120);
+                _baseSpeedMultiplier = 1.8f;
+                _explodeOnDeath = false;
+                break;
+            case EnemyType.Brute:
+                _drawScale = 1.4f;
+                _tintColor = new Color(180, 100, 255);
+                _baseSpeedMultiplier = 0.5f;
+                _explodeOnDeath = false;
+                break;
+            case EnemyType.Bomber:
+                _drawScale = 1.0f;
+                _tintColor = new Color(255, 140, 60);
+                _baseSpeedMultiplier = 1.0f;
+                _explodeOnDeath = true;
+                break;
+        }
     }
 
     /// <summary>
@@ -211,8 +261,8 @@ internal sealed class GnomeEnemy
             {
                 var hopOffset = -MathF.Abs(MathF.Sin(_hopPhase * MathHelper.TwoPi)) * HopHeight;
                 drawCenter.Y += hopOffset;
-                spriteBatch.Draw(texture, drawCenter, null, Color.White, 0f, origin,
-                    Vector2.One, effects, layerDepth);
+                spriteBatch.Draw(texture, drawCenter, null, _tintColor, 0f, origin,
+                    new Vector2(_drawScale, _drawScale), effects, layerDepth);
                 break;
             }
 
@@ -222,8 +272,8 @@ internal sealed class GnomeEnemy
                 var t = _stateTimer / WindUpDuration;
                 var scaleX = 1f + t * 0.4f;
                 var scaleY = 1f - t * 0.35f;
-                spriteBatch.Draw(texture, drawCenter, null, Color.White, 0f, origin,
-                    new Vector2(scaleX, scaleY), effects, layerDepth);
+                spriteBatch.Draw(texture, drawCenter, null, _tintColor, 0f, origin,
+                    new Vector2(scaleX * _drawScale, scaleY * _drawScale), effects, layerDepth);
                 break;
             }
 
@@ -233,8 +283,8 @@ internal sealed class GnomeEnemy
                 // Sprite hat is at -Y (top), so add PiOver2 to align hat with movement.
                 var rotation = MathF.Atan2(_lungeDirection.Y, _lungeDirection.X) + MathHelper.PiOver2;
                 // Stretch along lunge axis for a missile look.
-                spriteBatch.Draw(texture, drawCenter, null, Color.White, rotation, origin,
-                    new Vector2(1f, 1.3f), SpriteEffects.None, layerDepth);
+                spriteBatch.Draw(texture, drawCenter, null, _tintColor, rotation, origin,
+                    new Vector2(_drawScale, 1.3f * _drawScale), SpriteEffects.None, layerDepth);
                 break;
             }
 
@@ -249,8 +299,8 @@ internal sealed class GnomeEnemy
                 drawCenter.Y += bounceOffset;
                 // Flash white briefly to show stun.
                 var tint = stunT < 0.15f ? Color.White * 0.5f : Color.White;
-                spriteBatch.Draw(texture, drawCenter, null, tint, 0f, origin,
-                    Vector2.One, effects, layerDepth);
+                spriteBatch.Draw(texture, drawCenter, null, MultiplyColor(tint, _tintColor), 0f, origin,
+                    new Vector2(_drawScale, _drawScale), effects, layerDepth);
                 break;
             }
 
@@ -273,8 +323,8 @@ internal sealed class GnomeEnemy
                 // Flash white for the first half, then fade to transparent.
                 var alpha = 1f - dyingT;
                 var dyingTint = dyingT < 0.5f ? Color.White : Color.White * alpha;
-                spriteBatch.Draw(texture, drawCenter, null, dyingTint, 0f, origin,
-                    new Vector2(popScale, popScale), effects, layerDepth);
+                spriteBatch.Draw(texture, drawCenter, null, MultiplyColor(dyingTint, _tintColor), 0f, origin,
+                    new Vector2(popScale * _drawScale, popScale * _drawScale), effects, layerDepth);
                 break;
             }
         }
@@ -310,7 +360,7 @@ internal sealed class GnomeEnemy
         if (steerLenSq > 0.0001f)
         {
             steeringDir *= 1f / MathF.Sqrt(steerLenSq);
-            var effectiveSpeed = MoveSpeed * _speedMultiplier * speedMultiplier;
+            var effectiveSpeed = MoveSpeed * _baseSpeedMultiplier * _speedMultiplier * speedMultiplier;
             var movement = steeringDir * effectiveSpeed * dt;
 
             if (_phasing)
@@ -511,5 +561,14 @@ internal sealed class GnomeEnemy
         _stateTimer += dt;
         if (_stateTimer >= DyingDuration)
             _isDead = true;
+    }
+
+    private static Color MultiplyColor(Color a, Color b)
+    {
+        return new Color(
+            (a.R * b.R) / 255,
+            (a.G * b.G) / 255,
+            (a.B * b.B) / 255,
+            (a.A * b.A) / 255);
     }
 }

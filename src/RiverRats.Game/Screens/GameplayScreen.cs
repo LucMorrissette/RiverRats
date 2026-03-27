@@ -144,6 +144,8 @@ public sealed class GameplayScreen : IGameScreen
     private const int RedOrbCollectVariationSfxCount = 3;
     private const float OrbCollectSfxVolume = 0.75f;
     private const float RedOrbCollectSfxVolume = 0.82f;
+    private const float BomberBlastRadiusSq = 48f * 48f;
+    private const float BomberDeathTrauma = 0.12f;
 
     // Health pickup pool for the forest survival minigame.
     private const int MaxHealthPickups = 2;
@@ -520,13 +522,28 @@ public sealed class GameplayScreen : IGameScreen
 
         if (_gnomeSpawner != null)
         {
-            _gnomeSpawner.OnGnomeDied = pos =>
+            _gnomeSpawner.OnGnomeDied = (pos, enemyType, dropsLoot) =>
             {
                 SpawnExplosion(pos);
-                if (_sfxRng.NextDouble() < EnergyOrbDropChance)
+                if (dropsLoot && _sfxRng.NextDouble() < EnergyOrbDropChance)
                     SpawnEnergyOrb(pos);
                 _camera.AddTrauma(GnomeDeathTrauma);
                 _gnomeDeathSfx[_sfxRng.Next(GnomeDeathSfxCount)].Play(GnomeDeathSfxVolume, 0f, 0f);
+
+                // Bomber gnomes explode on death, dealing damage to the player if within blast radius.
+                // Only trigger blast damage for loot-dropping deaths (player-killed, not wave-end cleanup).
+                if (dropsLoot && enemyType == EnemyType.Bomber)
+                {
+                    _camera.AddTrauma(BomberDeathTrauma);
+                    var distSq = Vector2.DistanceSquared(pos, _player.Center);
+                    if (distSq <= BomberBlastRadiusSq && _playerHealth != null && _playerHealth.IsAlive && !_playerHealth.IsInvincible)
+                    {
+                        _playerHealth.TakeDamage(1);
+                        _playerHealth.SetInvincibleForDuration(1.0f);
+                        _playerHitFlashTimer = PlayerHitFlashDuration;
+                        _playerHurtSfx[_sfxRng.Next(PlayerHurtSfxCount)].Play(PlayerHurtSfxVolume, 0f, 0f);
+                    }
+                }
             };
             _gnomeSpawner.OnPlayerHit = () =>
             {
@@ -1092,7 +1109,9 @@ public sealed class GameplayScreen : IGameScreen
                 blendState: BlendState.AlphaBlend,
                 samplerState: SamplerState.PointClamp);
             _forestHudRenderer.Draw(spriteBatch, scaledFont, _pixelTexture, _playerHealth, _combatStats,
-                _waveManager.CurrentWaveNumber, _waveManager.State, sceneScale, vp.Width, vp.Height);
+                _waveManager.CurrentWaveNumber, _waveManager.State, _waveManager.CountdownSeconds,
+                _waveManager.WaveTimeRemaining, _waveManager.WaveDuration,
+                sceneScale, vp.Width, vp.Height);
             spriteBatch.End();
         }
 

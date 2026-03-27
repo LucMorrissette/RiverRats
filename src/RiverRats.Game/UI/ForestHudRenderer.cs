@@ -20,12 +20,16 @@ internal sealed class ForestHudRenderer
     private const int BarWidth = 100;
     private const int HeartSize = 12;
     private const int HeartSpacing = 2;
+    private const int TimerBarWidth = 80;
+    private const int TimerBarHeight = 6;
 
     private static readonly Color HeartFilled = new(220, 40, 40);
     private static readonly Color HeartEmpty = new(80, 20, 20);
     private static readonly Color XpBarBackground = new(50, 50, 50);
     private static readonly Color XpBarFill = new(240, 200, 40);
     private static readonly Color BannerColor = new(255, 255, 200);
+    private static readonly Color TimerBarBackground = new(50, 50, 50);
+    private static readonly Color TimerBarFill = new(100, 200, 255);
 
     /// <summary>
     /// Draws the forest survival HUD.
@@ -42,6 +46,7 @@ internal sealed class ForestHudRenderer
     /// <param name="screenHeight">Window height in pixels.</param>
     internal void Draw(SpriteBatch spriteBatch, SpriteFontBase font, Texture2D pixel,
         Health health, PlayerCombatStats stats, int waveNumber, WaveState waveState,
+        int countdownSeconds, float waveTimeRemaining, float waveDuration,
         int sceneScale, int screenWidth, int screenHeight)
     {
         int pad = Padding * sceneScale;
@@ -86,9 +91,30 @@ internal sealed class ForestHudRenderer
         int waveY = pad;
         spriteBatch.DrawString(font, waveText, new Vector2(waveX, waveY), Color.White);
 
+        // --- Top-right: Wave timer bar (Active state only) ---
+        if (waveState == WaveState.Active)
+        {
+            int timerBarWidth = TimerBarWidth * sceneScale;
+            int timerBarHeight = TimerBarHeight * sceneScale;
+            int timerBarX = screenWidth - timerBarWidth - pad;
+            int timerBarY = waveY + (int)waveSize.Y + pad / 2;
+
+            // Background
+            spriteBatch.Draw(pixel, new Rectangle(timerBarX, timerBarY, timerBarWidth, timerBarHeight), TimerBarBackground);
+
+            // Fill (depletes from right to left as time runs out)
+            float timerFraction = waveDuration > 0f
+                ? MathHelper.Clamp(waveTimeRemaining / waveDuration, 0f, 1f)
+                : 0f;
+            int timerFillWidth = (int)(timerBarWidth * timerFraction);
+            if (timerFillWidth > 0)
+                spriteBatch.Draw(pixel, new Rectangle(timerBarX, timerBarY, timerFillWidth, timerBarHeight), TimerBarFill);
+        }
+
         // --- Center: Wave status banner ---
         string? bannerText = waveState switch
         {
+            WaveState.Countdown => countdownSeconds.ToString(),
             WaveState.Cleared => $"Wave {waveNumber} Complete!",
             WaveState.Intermission => $"Wave {waveNumber} Complete!",
             WaveState.AllWavesComplete => "Victory!",
@@ -99,7 +125,7 @@ internal sealed class ForestHudRenderer
         {
             var bannerSize = font.MeasureString(bannerText);
             int bannerX = (screenWidth - (int)bannerSize.X) / 2;
-            int bannerY = (screenHeight - (int)bannerSize.Y) / 2;
+            int bannerY = screenHeight / 3 - (int)bannerSize.Y / 2;
             spriteBatch.DrawString(font, bannerText, new Vector2(bannerX, bannerY), BannerColor);
         }
     }

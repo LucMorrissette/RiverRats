@@ -19,7 +19,13 @@ public sealed class DeathScreen : IGameScreen
     private const float PromptDelay = 3.0f;
 
     /// <summary>Seconds before auto-transitioning to the overworld.</summary>
-    private const float AutoTransitionDelay = 8.0f;
+    private const float AutoTransitionDelay = 18.0f;
+
+    /// <summary>Duration of the fade-in from black at the start.</summary>
+    private const float FadeInDuration = 1.5f;
+
+    /// <summary>Duration of the fade-out to black before transitioning.</summary>
+    private const float FadeOutDuration = 2.0f;
 
     /// <summary>Width of the low-res noise texture (stretched to fill screen for chunky CRT look).</summary>
     private const int NoiseWidth = 120;
@@ -43,6 +49,8 @@ public sealed class DeathScreen : IGameScreen
     private Random _rng;
     private float _elapsed;
     private bool _transitioning;
+    private bool _fadingOut;
+    private float _fadeOutTimer;
 
     /// <inheritdoc />
     public bool IsTransparent => false;
@@ -81,7 +89,7 @@ public sealed class DeathScreen : IGameScreen
     /// <inheritdoc />
     public void LoadContent()
     {
-        _musicManager.StopSong();
+        _musicManager.PlaySong("ForestFailSong", loopDelaySeconds: -1f);
         _rng = new Random();
 
         _noiseTexture = new Texture2D(_graphicsDevice, NoiseWidth, NoiseHeight);
@@ -103,7 +111,20 @@ public sealed class DeathScreen : IGameScreen
     /// <inheritdoc />
     public void Update(GameTime gameTime, IInputManager input)
     {
-        _elapsed += (float)gameTime.ElapsedGameTime.TotalSeconds;
+        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        _elapsed += dt;
+
+        // While fading out, count down and transition when done
+        if (_fadingOut)
+        {
+            _fadeOutTimer += dt;
+            if (_fadeOutTimer >= FadeOutDuration)
+            {
+                FinishTransition();
+            }
+
+            return;
+        }
 
         RegenerateNoise();
 
@@ -117,7 +138,7 @@ public sealed class DeathScreen : IGameScreen
                 input.IsPressed(InputAction.MoveLeft) ||
                 input.IsPressed(InputAction.MoveRight))
             {
-                TransitionToOverworld();
+                BeginFadeOut();
                 return;
             }
         }
@@ -125,7 +146,7 @@ public sealed class DeathScreen : IGameScreen
         // Auto-transition after timeout
         if (_elapsed >= AutoTransitionDelay)
         {
-            TransitionToOverworld();
+            BeginFadeOut();
         }
     }
 
@@ -140,12 +161,39 @@ public sealed class DeathScreen : IGameScreen
         // Semi-transparent dark overlay to dim the static
         spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
         spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, _virtualWidth, _virtualHeight), new Color(0, 0, 0, 120));
+
+        // Fade-in: black overlay fading from opaque to transparent
+        if (_elapsed < FadeInDuration)
+        {
+            var fadeInAlpha = 1f - MathHelper.Clamp(_elapsed / FadeInDuration, 0f, 1f);
+            spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, _virtualWidth, _virtualHeight), Color.Black * fadeInAlpha);
+        }
+
+        // Fade-out: black overlay fading from transparent to opaque
+        if (_fadingOut)
+        {
+            var fadeOutAlpha = MathHelper.Clamp(_fadeOutTimer / FadeOutDuration, 0f, 1f);
+            spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, _virtualWidth, _virtualHeight), Color.Black * fadeOutAlpha);
+        }
+
         spriteBatch.End();
     }
 
     /// <inheritdoc />
     public void DrawOverlay(GameTime gameTime, SpriteBatch spriteBatch, int sceneScale)
     {
+        // Compute overall opacity for fade-in and fade-out
+        var overlayAlpha = 1f;
+        if (_elapsed < FadeInDuration)
+        {
+            overlayAlpha = MathHelper.Clamp(_elapsed / FadeInDuration, 0f, 1f);
+        }
+
+        if (_fadingOut)
+        {
+            overlayAlpha *= 1f - MathHelper.Clamp(_fadeOutTimer / FadeOutDuration, 0f, 1f);
+        }
+
         var screenWidth = _graphicsDevice.Viewport.Width;
         var screenHeight = _graphicsDevice.Viewport.Height;
 
@@ -161,15 +209,15 @@ public sealed class DeathScreen : IGameScreen
             (screenHeight - textSize.Y) / 2f - 20f * sceneScale);
 
         var flicker = 0.85f + 0.15f * MathF.Sin(_elapsed * 12f);
-        var textColor = new Color(220, 30, 30) * flicker;
+        var textColor = new Color(220, 30, 30) * flicker * overlayAlpha;
 
         // Shadow for readability against static
         var shadowOffset = MathF.Max(1f, sceneScale);
-        spriteBatch.DrawString(font, text, pos + new Vector2(shadowOffset, shadowOffset), new Color(0, 0, 0, 180));
+        spriteBatch.DrawString(font, text, pos + new Vector2(shadowOffset, shadowOffset), new Color(0, 0, 0, 180) * overlayAlpha);
         spriteBatch.DrawString(font, text, pos, textColor);
 
         // "Press any key" prompt after delay
-        if (_elapsed >= PromptDelay)
+        if (_elapsed >= PromptDelay && !_fadingOut)
         {
             var promptFont = _fontSystem.GetFont(14f * sceneScale);
             var promptText = "Press any key to continue";
@@ -178,7 +226,7 @@ public sealed class DeathScreen : IGameScreen
                 (screenWidth - promptSize.X) / 2f,
                 pos.Y + textSize.Y + 16f * sceneScale);
 
-            var promptAlpha = 0.6f + 0.4f * MathF.Sin(_elapsed * 3f);
+            var promptAlpha = (0.6f + 0.4f * MathF.Sin(_elapsed * 3f)) * overlayAlpha;
             spriteBatch.DrawString(promptFont, promptText, promptPos, Color.White * promptAlpha);
         }
 
@@ -208,11 +256,19 @@ public sealed class DeathScreen : IGameScreen
         _noiseTexture.SetData(_noisePixels);
     }
 
-    private void TransitionToOverworld()
+    private void BeginFadeOut()
+    {
+        if (_fadingOut || _transitioning) return;
+        _fadingOut = true;
+        _fadeOutTimer = 0f;
+    }
+
+    private void FinishTransition()
     {
         if (_transitioning) return;
         _transitioning = true;
 
+        _musicManager.StopSong();
         _screenManager.Replace(new GameplayScreen(
             _graphicsDevice,
             _content,

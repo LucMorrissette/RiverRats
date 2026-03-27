@@ -1,5 +1,6 @@
 using System;
 using Microsoft.Xna.Framework;
+using RiverRats.Data;
 using RiverRats.Game.Data;
 using RiverRats.Game.Entities;
 using RiverRats.Game.Systems;
@@ -400,6 +401,77 @@ public class GnomeEnemyTests
 
         Assert.Equal(GnomeState.Stunned, gnome.State);
         Assert.NotEqual(GnomeState.Dying, gnome.State);
+    }
+
+    // -- Enemy Type Variant Tests --
+
+    [Fact]
+    public void SetEnemyType__Standard__DefaultValues()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        gnome.SetEnemyType(EnemyType.Standard);
+
+        Assert.Equal(EnemyType.Standard, gnome.EnemyType);
+        Assert.False(gnome.ExplodeOnDeath);
+    }
+
+    [Fact]
+    public void SetEnemyType__Rusher__HasHigherBaseSpeed()
+    {
+        var standard = new GnomeEnemy(new Vector2(160, 160), 0f);
+        var rusher = new GnomeEnemy(new Vector2(160, 160), 0f);
+        rusher.SetEnemyType(EnemyType.Rusher);
+
+        var target = new Vector2(300, 160);
+        var flow = CreateOpenFlowField(target);
+        var noWalls = new DelegateCollisionData(_ => false);
+
+        UpdateChasing(standard, FakeGameTime.FromSeconds(0.5f), target, flow, noWalls);
+        UpdateChasing(rusher, FakeGameTime.FromSeconds(0.5f), target, flow, noWalls);
+
+        // Rusher should move further due to higher base speed.
+        Assert.True(rusher.Position.X > standard.Position.X,
+            $"Rusher ({rusher.Position.X}) should move further right than Standard ({standard.Position.X})");
+    }
+
+    [Fact]
+    public void SetEnemyType__Brute__HasLowerBaseSpeed()
+    {
+        var standard = new GnomeEnemy(new Vector2(160, 160), 0f);
+        var brute = new GnomeEnemy(new Vector2(160, 160), 0f);
+        brute.SetEnemyType(EnemyType.Brute);
+
+        var target = new Vector2(300, 160);
+        var flow = CreateOpenFlowField(target);
+        var noWalls = new DelegateCollisionData(_ => false);
+
+        UpdateChasing(standard, FakeGameTime.FromSeconds(0.5f), target, flow, noWalls);
+        UpdateChasing(brute, FakeGameTime.FromSeconds(0.5f), target, flow, noWalls);
+
+        // Brute should move less due to lower base speed.
+        Assert.True(brute.Position.X < standard.Position.X,
+            $"Brute ({brute.Position.X}) should move less than Standard ({standard.Position.X})");
+    }
+
+    [Fact]
+    public void SetEnemyType__Bomber__HasExplodeOnDeath()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        gnome.SetEnemyType(EnemyType.Bomber);
+
+        Assert.Equal(EnemyType.Bomber, gnome.EnemyType);
+        Assert.True(gnome.ExplodeOnDeath);
+    }
+
+    [Fact]
+    public void SetEnemyType__Bomber__NoExplodeOnDeath_ForOtherTypes()
+    {
+        foreach (var type in new[] { EnemyType.Standard, EnemyType.Rusher, EnemyType.Brute })
+        {
+            var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+            gnome.SetEnemyType(type);
+            Assert.False(gnome.ExplodeOnDeath, $"{type} should not explode on death");
+        }
     }
 
     // -- Helper --

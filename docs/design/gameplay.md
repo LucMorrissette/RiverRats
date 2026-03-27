@@ -17,6 +17,10 @@
 | **Walkable prop overrides** | Props like docks can contribute walkable bounds that suppress blocked terrain underneath | Lets bridges/docks sit over blocked water or collision layers without carving holes in the base map. |
 | **Object-layer colliders** | TMX `Colliders` object layer rectangles are loaded and merged into `WorldCollisionMap._staticObstacleBounds` | Supports sub-tile collision precision for barriers, railings, and architectural details without tile-grid constraints. |
 | **Party trail following** | Companion position is sampled from the player's recent path at a fixed lag distance | Prevents corner-cutting and keeps follower placement deterministic without separate collision steering. |
+| **Wave completion model** | Time-based: each wave runs for a configured duration; the wave clears when the timer expires, not when all enemies are killed | "Survive the wave" feel. Enemies trickle-spawn continuously throughout the duration up to a max-active cap. Remaining enemies after expiry persist but no new ones spawn. |
+| **Pre-wave countdown** | A configurable countdown phase precedes each wave's Active phase | Gives the player a visual warning before enemies begin spawning. Displayed as a centered integer countdown. |
+| **Wave intermission** | A configurable pause phase follows each cleared wave before the next countdown begins | Provides time for orb collection and repositioning between waves. Duration is a tunable constant. |
+| **Enemy variant system** | `GnomeEnemy` accepts an `EnemyType` that parameterizes tint, scale, speed, HP, and on-death behavior | Enables visually and mechanically distinct enemy variants without separate entity classes. The `WaveConfig` spawn-weight mix controls which types appear each wave. |
 
 *(Add entries as movement speed, hitbox sizing, terrain modifiers, combat, and other gameplay systems are designed.)*
 

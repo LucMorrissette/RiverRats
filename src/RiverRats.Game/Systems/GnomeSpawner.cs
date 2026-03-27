@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using RiverRats.Data;
 using RiverRats.Game.Entities;
 using RiverRats.Game.World;
 
@@ -33,12 +34,13 @@ internal sealed class GnomeSpawner
 
     private float _spawnTimer;
     private bool _initialSpawnDone;
+    private bool _suppressLoot;
 
     /// <summary>
     /// Callback invoked when a gnome finishes its death animation and is removed.
-    /// Receives the centre position of the dead gnome for spawning effects.
+    /// Receives the centre position, enemy type, and whether it should drop loot.
     /// </summary>
-    internal Action<Vector2> OnGnomeDied { get; set; } = _ => { };
+    internal Action<Vector2, EnemyType, bool> OnGnomeDied { get; set; } = (_, _, _) => { };
 
     /// <summary>
     /// Callback invoked when a gnome's lunge hits the player.
@@ -97,7 +99,7 @@ internal sealed class GnomeSpawner
                 var count = Math.Min(_initialCount, _maxActive);
                 for (var i = 0; i < count; i++)
                 {
-                    _gnomes.Add(CreateGnome(cameraWorldBounds));
+                    _gnomes.Add(CreateGnome(cameraWorldBounds, EnemyType.Standard));
                 }
             }
 
@@ -108,7 +110,7 @@ internal sealed class GnomeSpawner
                 _spawnTimer -= _spawnIntervalSeconds;
                 var batchSize = Math.Min(3, _maxActive - _gnomes.Count);
                 for (var i = 0; i < batchSize; i++)
-                    _gnomes.Add(CreateGnome(cameraWorldBounds));
+                    _gnomes.Add(CreateGnome(cameraWorldBounds, EnemyType.Standard));
             }
         }
 
@@ -133,7 +135,7 @@ internal sealed class GnomeSpawner
             if (gnome.IsDead)
             {
                 var b = gnome.Bounds;
-                OnGnomeDied(new Vector2(b.X + b.Width * 0.5f, b.Y + b.Height * 0.5f));
+                OnGnomeDied(new Vector2(b.X + b.Width * 0.5f, b.Y + b.Height * 0.5f), gnome.EnemyType, !_suppressLoot);
                 _gnomes.RemoveAt(i);
                 continue;
             }
@@ -144,6 +146,10 @@ internal sealed class GnomeSpawner
                 _gnomes.RemoveAt(i);
             }
         }
+
+        // Reset loot suppression once all wave-end kills have been swept.
+        if (_suppressLoot && _gnomes.Count == 0)
+            _suppressLoot = false;
     }
 
     /// <summary>
@@ -152,12 +158,25 @@ internal sealed class GnomeSpawner
     /// </summary>
     /// <param name="count">Number of gnomes to spawn.</param>
     /// <param name="cameraBounds">Camera world bounds for off-screen placement.</param>
-    internal void SpawnBatch(int count, Rectangle cameraBounds)
+    internal void SpawnBatch(int count, Rectangle cameraBounds, EnemyType enemyType = EnemyType.Standard)
     {
         var toSpawn = Math.Min(count, _maxActive - _gnomes.Count);
         for (var i = 0; i < toSpawn; i++)
         {
-            _gnomes.Add(CreateGnome(cameraBounds));
+            _gnomes.Add(CreateGnome(cameraBounds, enemyType));
+        }
+    }
+
+    /// <summary>
+    /// Kills all active gnomes (triggers death animation). Gnomes killed this way
+    /// will not drop loot when swept. The flag resets once all killed gnomes are swept.
+    /// </summary>
+    internal void KillAll()
+    {
+        _suppressLoot = true;
+        for (var i = 0; i < _gnomes.Count; i++)
+        {
+            _gnomes[i].Die();
         }
     }
 
@@ -211,13 +230,22 @@ internal sealed class GnomeSpawner
         }
     }
 
-    private GnomeEnemy CreateGnome(Rectangle cameraBounds)
+    private GnomeEnemy CreateGnome(Rectangle cameraBounds, EnemyType enemyType)
     {
         var pos = PickOffscreenPosition(cameraBounds);
         var phase = (float)_rng.NextDouble();
         var gnome = new GnomeEnemy(pos, phase);
-        gnome.SetHp(GnomeHp);
         gnome.SetSpeedMultiplier(GnomeSpeedMultiplier);
+        gnome.SetEnemyType(enemyType);
+
+        var typeHp = enemyType switch
+        {
+            EnemyType.Brute => GnomeHp + 2,
+            EnemyType.Rusher => Math.Max(1, GnomeHp - 1),
+            _ => GnomeHp,
+        };
+        gnome.SetHp(typeHp);
+
         return gnome;
     }
 

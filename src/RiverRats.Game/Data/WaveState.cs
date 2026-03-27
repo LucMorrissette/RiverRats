@@ -8,16 +8,16 @@ internal enum WaveState
     /// <summary>Initial state before the first wave begins.</summary>
     PreWave,
 
-    /// <summary>Enemies are being stagger-spawned into the arena.</summary>
-    Spawning,
+    /// <summary>Countdown phase (5-4-3-2-1) before the wave starts.</summary>
+    Countdown,
 
-    /// <summary>All enemies are spawned; waiting for them to be defeated.</summary>
+    /// <summary>Wave is active: enemies continuously spawn and timer counts down.</summary>
     Active,
 
-    /// <summary>All enemies from the wave are dead. Transitional state.</summary>
+    /// <summary>Wave timer expired. Transitional state.</summary>
     Cleared,
 
-    /// <summary>Brief pause between waves.</summary>
+    /// <summary>Extended pause between waves for orb collection.</summary>
     Intermission,
 
     /// <summary>All waves have been completed (victory).</summary>

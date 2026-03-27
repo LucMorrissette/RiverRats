@@ -36,6 +36,11 @@
 | `Particle` | `Systems/` | Value-type `struct` representing a single particle: position, velocity, rotation, angular velocity, scale, start/end colors, gravity, optional local ground-plane bounce state, initial/remaining life, and active flag. Designed for cache-friendly iteration in `ParticleManager`. |
 | `SpawnPointData` | `Data/` | Immutable record describing a named world-space spawn position parsed from a TMX `SpawnPoints` object layer. |
 | `ZoneTriggerData` | `Data/` | Immutable record describing a world-space transition rectangle plus its destination map asset and spawn id, parsed from a TMX `ZoneTriggers` object layer. |
+| `EnemyType` | `Data/` | Enum identifying an enemy variant kind. Each value maps to a set of visual and behavioral parameter overrides (tint, scale, speed multiplier, HP, on-death behavior) applied to a `GnomeEnemy` at spawn time. The spawner selects a type from the current wave's configured mix. |
+| `GnomeState` | `Data/` | Enum describing behavioral states for `GnomeEnemy`: Chasing, WindingUp, Lunging, Stunned, Dying. Drives the per-frame state machine inside the entity. |
+| `WaveConfig` | `Data/` | Readonly data object describing one wave's parameters: wave number, enemy count, speed multiplier, enemy HP, wave duration, and enemy-type spawn-weight mix. Used by `WaveManager` to configure each wave's spawning and completion rules. |
+| `WaveState` | `Data/` | Enum tracking the lifecycle phase of a wave: PreWave, Countdown, Active (continuous spawning + timer), Cleared, Intermission, AllWavesComplete. Consumed by `WaveManager` for state transitions and by HUD renderers for display logic. |
+| `PlayerCombatStats` | `Data/` | Mutable combat stat modifiers for the forest survival minigame: max HP, speed multiplier, cooldown multiplier, projectile tuning, level, XP, and XP-to-next-level. Supports level-up stat scaling and reset-to-defaults. |
 
 *(Add entries as data classes are created — configs, enums, save DTOs, etc.)*
 

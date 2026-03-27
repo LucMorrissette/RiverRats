@@ -283,6 +283,12 @@
 /processorParam:Quality=Best
 /build:Audio/Music/CottageBehindWoods_theme.mp3
 
+#begin Audio/Music/forest_fail_song.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:Audio/Music/forest_fail_song.mp3
+
 #begin Audio/SFX/gnome_death_00.wav
 /importer:WavImporter
 /processor:SoundEffectProcessor
