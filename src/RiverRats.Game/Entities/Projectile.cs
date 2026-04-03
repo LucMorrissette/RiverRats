@@ -8,7 +8,7 @@ namespace RiverRats.Game.Entities;
 /// A small projectile that flies in a straight line at constant speed.
 /// Managed by <see cref="RiverRats.Game.Systems.ProjectileSystem"/> via object pooling.
 /// </summary>
-internal sealed class Projectile
+internal sealed class Projectile : IWorldProp
 {
     private const float MaxLifetime = 1f;
     private const int CollisionWidth = 10;
@@ -116,4 +116,11 @@ internal sealed class Projectile
             effects: SpriteEffects.None,
             layerDepth: layerDepth);
     }
+
+    /// <summary>
+    /// Not supported — the projectile must be drawn via <see cref="Draw(SpriteBatch,Texture2D,float)"/>,
+    /// which requires the projectile texture.
+    /// </summary>
+    void IWorldProp.Draw(SpriteBatch spriteBatch, float layerDepth) =>
+        throw new NotSupportedException("Projectile must be drawn via Draw(SpriteBatch, Texture2D, float).");
 }

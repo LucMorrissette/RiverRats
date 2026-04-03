@@ -35,7 +35,7 @@ public class GnomeEnemyTests
     }
 
     [Fact]
-    public void FlowField_Update__TargetOnTopRow__DoesNotThrow()
+    public void FlowField__Update__TargetOnTopRow__DoesNotThrow()
     {
         var collision = new DelegateCollisionData(_ => false);
         var flow = new FlowField(MapSize, MapSize, collision);
@@ -472,6 +472,106 @@ public class GnomeEnemyTests
             gnome.SetEnemyType(type);
             Assert.False(gnome.ExplodeOnDeath, $"{type} should not explode on death");
         }
+    }
+
+    // -- JustHitPlayer flag tests --
+
+    [Fact]
+    public void JustHitPlayer__IsFalse__InitiallyAndAfterNonHitUpdate()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        var flow = CreateOpenFlowField(new Vector2(300, 160));
+        var noWalls = new DelegateCollisionData(_ => false);
+
+        gnome.Update(FakeGameTime.OneFrame(), new Vector2(300, 160), flow, noWalls, Vector2.Zero, FarPlayerBounds);
+
+        Assert.False(gnome.JustHitPlayer);
+    }
+
+    [Fact]
+    public void JustHitPlayer__IsTrueExactlyOneFrame__AfterLungeHitsPlayer()
+    {
+        // Set up: gnome close to player, get it into Lunging state.
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        var target = new Vector2(168, 160);
+        var flow = CreateOpenFlowField(target);
+        var noWalls = new DelegateCollisionData(_ => false);
+        // Player sits just to the right so the lunge can intersect it.
+        var playerBounds = new Rectangle(176, 155, 16, 16);
+
+        // Enter WindingUp.
+        gnome.Update(FakeGameTime.OneFrame(), target, flow, noWalls, Vector2.Zero, playerBounds);
+        // Complete wind-up → Lunging.
+        gnome.Update(FakeGameTime.FromSeconds(0.5f), target, flow, noWalls, Vector2.Zero, playerBounds);
+        Assert.Equal(GnomeState.Lunging, gnome.State);
+
+        // Advance until lunge hits player.
+        bool hitSeen = false;
+        for (var i = 0; i < 60; i++)
+        {
+            gnome.Update(FakeGameTime.OneFrame(), target, flow, noWalls, Vector2.Zero, playerBounds);
+            if (gnome.JustHitPlayer)
+            {
+                hitSeen = true;
+                break;
+            }
+        }
+
+        Assert.True(hitSeen, "JustHitPlayer should be true on the frame the lunge connects");
+    }
+
+    [Fact]
+    public void JustHitPlayer__ClearsToFalse__OnNextUpdate()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        var target = new Vector2(168, 160);
+        var flow = CreateOpenFlowField(target);
+        var noWalls = new DelegateCollisionData(_ => false);
+        var playerBounds = new Rectangle(176, 155, 16, 16);
+
+        // WindingUp → Lunging.
+        gnome.Update(FakeGameTime.OneFrame(), target, flow, noWalls, Vector2.Zero, playerBounds);
+        gnome.Update(FakeGameTime.FromSeconds(0.5f), target, flow, noWalls, Vector2.Zero, playerBounds);
+
+        // Drive lunge until hit is detected.
+        for (var i = 0; i < 60; i++)
+        {
+            gnome.Update(FakeGameTime.OneFrame(), target, flow, noWalls, Vector2.Zero, playerBounds);
+            if (gnome.JustHitPlayer)
+                break;
+        }
+
+        Assert.True(gnome.JustHitPlayer, "Precondition: should have just hit player");
+
+        // One more update — flag must clear.
+        gnome.Update(FakeGameTime.OneFrame(), target, flow, noWalls, Vector2.Zero, playerBounds);
+
+        Assert.False(gnome.JustHitPlayer, "JustHitPlayer should clear after one frame");
+    }
+
+    [Fact]
+    public void JustHitPlayer__IsFalse__WhenLungeHitsWallInsteadOfPlayer()
+    {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+        var target = new Vector2(168, 160);
+        var flow = CreateOpenFlowField(target);
+        // Wall on the right side.
+        var wallOnRight = new DelegateCollisionData(r => r.X > 170);
+        var playerBounds = FarPlayerBounds;
+
+        // Enter WindingUp then Lunging.
+        gnome.Update(FakeGameTime.OneFrame(), target, flow, wallOnRight, Vector2.Zero, playerBounds);
+        gnome.Update(FakeGameTime.FromSeconds(0.5f), target, flow, wallOnRight, Vector2.Zero, playerBounds);
+
+        // Let the lunge run into the wall — gnome enters Stunned from wall hit.
+        for (var i = 0; i < 30; i++)
+        {
+            gnome.Update(FakeGameTime.OneFrame(), target, flow, wallOnRight, Vector2.Zero, playerBounds);
+            if (gnome.State == GnomeState.Stunned)
+                break;
+        }
+
+        Assert.False(gnome.JustHitPlayer, "JustHitPlayer should remain false when lunge hits a wall");
     }
 
     // -- Helper --

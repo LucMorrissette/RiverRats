@@ -142,7 +142,9 @@ These can be layered into the same shader without changing the integration point
 | `TiledWorldRenderer` | Wraps TMX/TSX map loading, deterministic weighted tile-variant drawing, and `Water/*` layer grouping for the distortion pass. |
 
 | `OcclusionRevealRenderer` | Manages a virtual-resolution render target for entities that sort in front of the player. Composites them back over the scene through the `OcclusionReveal` shader which applies a circular alpha-fade lens centred on the player, letting the player show through occluding props. |
-| `FishingRippleManager` | Manages event-driven water ripples, splash highlights, and spook rings for the fishing scene. Tracks up to 8 concentric distortion ripples, 4 expanding splash highlight rings, and 4 red spook rings, spawned by gameplay events (lure splash, fish strike, catch, twitch, bad cast). Writes ripple/splash/spook data to `FishingWater.fx` shader parameters. |
+| `BlendStates` | `internal static` class exposing shared custom `BlendState` instances (e.g. additive, premultiplied-alpha variants) reused across renderers to avoid per-frame allocations. |
+| `DebugRenderer` | `internal` helper that draws a pixel tile grid overlay and rectangle outlines onto a `SpriteBatch`. Used during development to visualise collision bounds and tile edges. |
+| `SkyCloudRenderer` | Procedural cloud renderer for the fishing mini-game skybox. Generates animated Perlin-noise cloud textures, scrolls them across the sky strip above the water, and draws them via `SpriteBatch`. Implements `IDisposable`; loaded via `LoadContent` / `UnloadContent`. |
 
 ### FishingWater Shader
 

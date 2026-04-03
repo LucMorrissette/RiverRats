@@ -11,7 +11,7 @@ namespace RiverRats.Game.Entities;
 /// <summary>
 /// Player entity with sprite-animated, four-direction movement.
 /// </summary>
-public sealed class PlayerBlock
+public sealed class PlayerBlock : IWorldProp
 {
     private readonly Vector2 _size;
     private readonly float _moveSpeedPixelsPerSecond;
@@ -161,6 +161,13 @@ public sealed class PlayerBlock
     {
         animator.Draw(spriteBatch, spriteSheet, _position, layerDepth, tint);
     }
+
+    /// <summary>
+    /// Not supported — the player must be drawn via <see cref="Draw(SpriteBatch,SpriteAnimator,Texture2D,float,Color?)"/>,
+    /// which requires an animator and sprite sheet.
+    /// </summary>
+    void IWorldProp.Draw(SpriteBatch spriteBatch, float layerDepth) =>
+        throw new NotSupportedException("PlayerBlock must be drawn via Draw(SpriteBatch, SpriteAnimator, Texture2D, float, Color?).");
 
     private void UpdateFacing(Vector2 direction)
     {

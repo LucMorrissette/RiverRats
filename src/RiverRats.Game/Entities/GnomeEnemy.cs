@@ -12,7 +12,7 @@ namespace RiverRats.Game.Entities;
 /// A garden gnome enemy that chases the player via flow field, then winds up
 /// and lunges hat-first like a missile. Bounces back on hit or slides to a stop on miss.
 /// </summary>
-internal sealed class GnomeEnemy
+internal sealed class GnomeEnemy : IWorldProp
 {
     private const float HopCycleDuration = 0.45f;
     private const float HopHeight = 6f;
@@ -329,6 +329,13 @@ internal sealed class GnomeEnemy
             }
         }
     }
+
+    /// <summary>
+    /// Not supported — the gnome must be drawn via <see cref="Draw(SpriteBatch,Texture2D,float)"/>,
+    /// which requires the gnome texture.
+    /// </summary>
+    void IWorldProp.Draw(SpriteBatch spriteBatch, float layerDepth) =>
+        throw new NotSupportedException("GnomeEnemy must be drawn via Draw(SpriteBatch, Texture2D, float).");
 
     private void UpdateChasing(float dt, Vector2 targetPosition, FlowField flowField,
         IMapCollisionData collisionMap, Vector2 separationForce, float speedMultiplier)

@@ -13,7 +13,7 @@ namespace RiverRats.Game.Entities;
 /// Purely visual — no collision. Can be layered on top of other props.
 /// Emits a warm flickering light that is read by the lighting renderer during night.
 /// </summary>
-public sealed class SmallFire
+public sealed class SmallFire : IWorldProp
 {
     private const float SmokeOffsetX = 8f;   // Center of 16px fire sprite
     private const float SmokeOffsetY = 2f;   // Near the top of the fire
@@ -66,6 +66,9 @@ public sealed class SmallFire
 
     /// <summary>Top-left world position of the fire sprite.</summary>
     public Vector2 Position => _position;
+
+    /// <summary>World-space bounding rectangle of the fire sprite (16×16).</summary>
+    public Rectangle Bounds => new((int)_position.X, (int)_position.Y, 16, 16);
 
     /// <summary>
     /// World-space position of the light origin — horizontally centered on the sprite,

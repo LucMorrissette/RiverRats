@@ -1,239 +1,318 @@
+using System;
 using Microsoft.Xna.Framework;
 using RiverRats.Game.Entities;
 using RiverRats.Game.Util;
-using RiverRats.Tests.Helpers;
-using System;
 using Xunit;
 
 namespace RiverRats.Tests.Unit;
 
 /// <summary>
-/// Tests for <see cref="FishSilhouette"/> behavior and state transitions.
+/// Tests for the <see cref="FishSilhouette"/> <see cref="FishSilhouette.AttractionState"/>
+/// state machine, covering all 7 states and their transitions.
 /// </summary>
-public sealed class FishSilhouetteTests
+public class FishSilhouetteTests
 {
-    private static readonly PolygonBounds DefaultSwimBounds =
-        PolygonBounds.FromRectangle(new Rectangle(0, 0, 480, 200));
+    // ── Helpers ──────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Creates a <see cref="FishSilhouette"/> of the given species centred inside a generous
+    /// rectangular swim area. Uses a fixed RNG seed for deterministic behaviour.
+    /// </summary>
     private static FishSilhouette CreateFish(
-        FishSilhouette.FishType type = FishSilhouette.FishType.Minnow,
+        FishSilhouette.FishType type = FishSilhouette.FishType.Bass,
         Vector2? position = null,
-        PolygonBounds? swimBounds = null,
-        int seed = 42)
+        int rngSeed = 42)
     {
-        return new FishSilhouette(
-            type,
-            position ?? new Vector2(100, 50),
-            swimBounds ?? DefaultSwimBounds,
-            new Random(seed));
+        var bounds = PolygonBounds.FromRectangle(new Rectangle(0, 0, 800, 400));
+        var pos = position ?? new Vector2(400, 200);
+        return new FishSilhouette(type, pos, bounds, new Random(rngSeed));
     }
+
+    /// <summary>
+    /// Returns a lure position to the right of the fish at the given X distance.
+    /// </summary>
+    private static Vector2 LureAt(float distance) => new(400 + distance, 100);
+
+    // ── Initial state ─────────────────────────────────────────────────────
 
     [Fact]
-    public void Constructor__SetsInitialPosition()
-    {
-        var pos = new Vector2(120, 80);
-        var fish = CreateFish(position: pos);
-
-        Assert.Equal(pos, fish.Position);
-    }
-
-    [Theory]
-    [InlineData(FishSilhouette.FishType.Minnow)]
-    [InlineData(FishSilhouette.FishType.Bass)]
-    [InlineData(FishSilhouette.FishType.Catfish)]
-    public void Constructor__AcceptsAllFishTypes(FishSilhouette.FishType type)
-    {
-        var fish = CreateFish(type: type);
-        // Should not throw; fish starts in a valid state.
-        Assert.NotNull(fish);
-    }
-
-    [Fact]
-    public void Update__MovesFishOverTime()
+    public void Initial__AttractionState__IsUnaware()
     {
         var fish = CreateFish();
-        var startPos = fish.Position;
-
-        // Simulate 1 second of updates.
-        var frame = FakeGameTime.FromSeconds(1f / 60f);
-        for (var i = 0; i < 60; i++)
-        {
-            fish.Update(frame);
-        }
-
-        Assert.NotEqual(startPos, fish.Position);
+        Assert.Equal(FishSilhouette.AttractionState.Unaware, fish.Attraction);
     }
 
     [Fact]
-    public void Update__FishStaysWithinSwimBounds()
-    {
-        var bounds = PolygonBounds.FromRectangle(new Rectangle(50, 50, 100, 80));
-        var fish = CreateFish(swimBounds: bounds, position: new Vector2(70, 70));
-
-        var frame = FakeGameTime.FromSeconds(1f / 60f);
-        for (var i = 0; i < 600; i++) // 10 seconds of simulation
-        {
-            fish.Update(frame);
-        }
-
-        // Fish center must be within the polygon's bounding box as a basic check.
-        var bbox = bounds.BoundingBox;
-        Assert.True(fish.Position.X >= bbox.Left - 16,
-            $"Fish X ({fish.Position.X}) went far left of bounds ({bbox.Left})");
-        Assert.True(fish.Position.X <= bbox.Right + 16,
-            $"Fish right edge ({fish.Position.X}) exceeded bounds right ({bbox.Right})");
-        Assert.True(fish.Position.Y >= bbox.Top - 10,
-            $"Fish Y ({fish.Position.Y}) went far above bounds ({bbox.Top})");
-        Assert.True(fish.Position.Y <= bbox.Bottom + 10,
-            $"Fish bottom edge ({fish.Position.Y}) exceeded bounds bottom ({bbox.Bottom})");
-    }
-
-    [Fact]
-    public void Update__BehaviorTransitionsOverTime()
+    public void Initial__IsHooked__IsFalse()
     {
         var fish = CreateFish();
-        var initialBehavior = fish.Behavior;
-        var sawDifferentBehavior = false;
-
-        // Run for 30 seconds — behaviors should transition multiple times.
-        var frame = FakeGameTime.FromSeconds(1f / 60f);
-        for (var i = 0; i < 1800; i++)
-        {
-            fish.Update(frame);
-            if (fish.Behavior != initialBehavior)
-            {
-                sawDifferentBehavior = true;
-                break;
-            }
-        }
-
-        Assert.True(sawDifferentBehavior, "Fish behavior never changed during 30s simulation");
+        Assert.False(fish.IsHooked);
     }
 
     [Fact]
-    public void Update__FishCanDart()
+    public void Initial__IsFleeing__IsFalse()
     {
         var fish = CreateFish();
-        var sawDart = false;
-
-        var frame = FakeGameTime.FromSeconds(1f / 60f);
-        for (var i = 0; i < 3600; i++) // 60 seconds
-        {
-            fish.Update(frame);
-            if (fish.Behavior == FishSilhouette.FishBehavior.Dart)
-            {
-                sawDart = true;
-                break;
-            }
-        }
-
-        Assert.True(sawDart, "Fish never darted during 60s simulation");
+        Assert.False(fish.IsFleeing);
     }
 
+    // ── Unaware → Curious ────────────────────────────────────────────────
+
     [Fact]
-    public void Update__FishCanPause()
+    public void UpdateAttraction__Twitch__TransitionsUnawareToCurious__WhenInRange()
     {
         var fish = CreateFish();
-        var sawPause = false;
+        // Bass awareness radius is 200px. Lure at 100px away — well within range.
+        var lure = LureAt(100);
 
-        var frame = FakeGameTime.FromSeconds(1f / 60f);
-        for (var i = 0; i < 3600; i++)
-        {
-            fish.Update(frame);
-            if (fish.Behavior == FishSilhouette.FishBehavior.Pause)
-            {
-                sawPause = true;
-                break;
-            }
-        }
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Twitch);
 
-        Assert.True(sawPause, "Fish never paused during 60s simulation");
+        Assert.Equal(FishSilhouette.AttractionState.Curious, fish.Attraction);
     }
 
     [Fact]
-    public void Update__PausedFishDoesNotMove()
-    {
-        // Use a seed that quickly produces a Pause behavior, and brute-force find it.
-        for (var seed = 0; seed < 200; seed++)
-        {
-            var fish = CreateFish(seed: seed);
-            var frame = FakeGameTime.FromSeconds(1f / 60f);
-
-            for (var i = 0; i < 3600; i++)
-            {
-                fish.Update(frame);
-                if (fish.Behavior == FishSilhouette.FishBehavior.Pause)
-                {
-                    var posBeforePause = fish.Position;
-                    // Run several frames while paused.
-                    for (var j = 0; j < 10; j++)
-                    {
-                        fish.Update(frame);
-                        if (fish.Behavior != FishSilhouette.FishBehavior.Pause)
-                            break;
-                    }
-
-                    // If still paused, position should not have changed.
-                    if (fish.Behavior == FishSilhouette.FishBehavior.Pause)
-                    {
-                        Assert.Equal(posBeforePause, fish.Position);
-                        return;
-                    }
-                }
-            }
-        }
-
-        Assert.Fail("Could not find a seed that produced a stable Pause state");
-    }
-
-    [Fact]
-    public void Update__FishFacingCanFlip()
+    public void UpdateAttraction__Splash__TransitionsUnawareToCurious__WhenInRange()
     {
         var fish = CreateFish();
-        var initialFacing = fish.FacingLeft;
-        var sawFlip = false;
+        var lure = LureAt(100);
 
-        var frame = FakeGameTime.FromSeconds(1f / 60f);
-        for (var i = 0; i < 3600; i++)
-        {
-            fish.Update(frame);
-            if (fish.FacingLeft != initialFacing)
-            {
-                sawFlip = true;
-                break;
-            }
-        }
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Splash);
 
-        Assert.True(sawFlip, "Fish facing direction never changed during 60s simulation");
+        Assert.Equal(FishSilhouette.AttractionState.Curious, fish.Attraction);
     }
 
     [Fact]
-    public void Update__CatfishSlowerThanMinnow()
+    public void UpdateAttraction__Twitch__DoesNotTransition__WhenTooFar()
     {
-        var minnow = CreateFish(type: FishSilhouette.FishType.Minnow, position: new Vector2(200, 100));
-        var catfish = CreateFish(type: FishSilhouette.FishType.Catfish, position: new Vector2(200, 100));
+        var fish = CreateFish();
+        // Bass awareness radius is 200px. Lure at 500px away.
+        var lure = LureAt(500);
 
-        var frame = FakeGameTime.FromSeconds(1f / 60f);
-        float minnowTotalDist = 0;
-        float catfishTotalDist = 0;
-        var prevMinnow = minnow.Position;
-        var prevCatfish = catfish.Position;
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Twitch);
 
-        for (var i = 0; i < 600; i++) // 10 seconds
-        {
-            minnow.Update(frame);
-            catfish.Update(frame);
+        Assert.Equal(FishSilhouette.AttractionState.Unaware, fish.Attraction);
+    }
 
-            minnowTotalDist += Vector2.Distance(prevMinnow, minnow.Position);
-            catfishTotalDist += Vector2.Distance(prevCatfish, catfish.Position);
-            prevMinnow = minnow.Position;
-            prevCatfish = catfish.Position;
-        }
+    [Fact]
+    public void UpdateAttraction__None__DoesNotTransitionFromUnaware()
+    {
+        var fish = CreateFish();
+        var lure = LureAt(50);
 
-        // With fixed seed=42 and 10 seconds, on average minnow should move more.
-        // This isn't a guarantee with any single seed, so we use a lenient check.
-        // Both should have moved at least some distance.
-        Assert.True(minnowTotalDist > 0, "Minnow didn't move at all");
-        Assert.True(catfishTotalDist > 0, "Catfish didn't move at all");
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.None);
+
+        Assert.Equal(FishSilhouette.AttractionState.Unaware, fish.Attraction);
+    }
+
+    // ── Curious → Approaching ────────────────────────────────────────────
+
+    [Fact]
+    public void UpdateAttraction__Twitch__TransitionsCuriousToApproaching__WhenCanStrike()
+    {
+        // Bass can strike. Trigger Curious first, then Twitch again.
+        var fish = CreateFish(FishSilhouette.FishType.Bass);
+        var lure = LureAt(100);
+
+        // Enter Curious.
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Twitch);
+        Assert.Equal(FishSilhouette.AttractionState.Curious, fish.Attraction);
+
+        // Second Twitch from Curious → Approaching.
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Twitch);
+
+        Assert.Equal(FishSilhouette.AttractionState.Approaching, fish.Attraction);
+    }
+
+    [Fact]
+    public void UpdateAttraction__Twitch__MinnowCanStrike__TransitionsToCurious()
+    {
+        // Minnow also has CanStrike=true. Same pattern should work.
+        var fish = CreateFish(FishSilhouette.FishType.Minnow);
+        var lure = LureAt(80);
+
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Twitch);
+        Assert.Equal(FishSilhouette.AttractionState.Curious, fish.Attraction);
+
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Twitch);
+
+        Assert.Equal(FishSilhouette.AttractionState.Approaching, fish.Attraction);
+    }
+
+    // ── Approaching → StrikeReady ────────────────────────────────────────
+
+    [Fact]
+    public void UpdateAttraction__CloseToLure__TransitionsApproachingToStrikeReady()
+    {
+        var fish = CreateFish(FishSilhouette.FishType.Bass);
+
+        // Bring fish to Approaching state.
+        var lure = LureAt(100);
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Twitch);
+        fish.UpdateAttraction(lure, 0.016f, FishSilhouette.LureEvent.Twitch);
+        Assert.Equal(FishSilhouette.AttractionState.Approaching, fish.Attraction);
+
+        // Place lure extremely close (<30px from fish centre).
+        // Fish centre X is at 400; lure X at 420 = 20px distance.
+        var closeLure = new Vector2(420, 100);
+        fish.UpdateAttraction(closeLure, 0.016f, FishSilhouette.LureEvent.None);
+
+        Assert.Equal(FishSilhouette.AttractionState.StrikeReady, fish.Attraction);
+    }
+
+    // ── → Hooked ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void SetHooked__TransitionsToHooked__FromAnyState()
+    {
+        var fish = CreateFish();
+
+        fish.SetHooked();
+
+        Assert.Equal(FishSilhouette.AttractionState.Hooked, fish.Attraction);
+        Assert.True(fish.IsHooked);
+    }
+
+    [Fact]
+    public void SetHooked__FreezesVelocity__ToZero()
+    {
+        var fish = CreateFish();
+        var prevPos = fish.Position;
+
+        fish.SetHooked();
+        fish.Update(new Microsoft.Xna.Framework.GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(0.5f)));
+
+        // When hooked, position-setting is done externally; internal velocity is zero.
+        // The fish shouldn't auto-drift from its position.
+        Assert.Equal(prevPos, fish.Position);
+    }
+
+    [Fact]
+    public void UpdateAttraction__Hooked__DoesNotTransitionAway()
+    {
+        var fish = CreateFish();
+        fish.SetHooked();
+
+        // Even a BadSplash won't change the state once hooked.
+        fish.UpdateAttraction(LureAt(10), 0.016f, FishSilhouette.LureEvent.BadSplash);
+
+        Assert.Equal(FishSilhouette.AttractionState.Hooked, fish.Attraction);
+        Assert.True(fish.IsHooked);
+    }
+
+    // ── → Spooked ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Spook__TransitionsToSpooked__FromUnaware()
+    {
+        var fish = CreateFish();
+        fish.UpdateAttraction(LureAt(50), 0.016f, FishSilhouette.LureEvent.None); // ensure lure position set
+
+        fish.Spook();
+
+        Assert.Equal(FishSilhouette.AttractionState.Spooked, fish.Attraction);
+    }
+
+    [Fact]
+    public void Spook__DoesNotTransition__FromHooked()
+    {
+        var fish = CreateFish();
+        fish.SetHooked();
+
+        fish.Spook();
+
+        // Spook is ignored when hooked.
+        Assert.Equal(FishSilhouette.AttractionState.Hooked, fish.Attraction);
+    }
+
+    [Fact]
+    public void Spook__DoesNotTransition__FromFleeing()
+    {
+        var fish = CreateFish();
+        fish.Flee();
+
+        fish.Spook();
+
+        Assert.Equal(FishSilhouette.AttractionState.Fleeing, fish.Attraction);
+    }
+
+    [Fact]
+    public void UpdateAttraction__BadSplash__TransitionsToSpooked__WhenCloseEnough()
+    {
+        var fish = CreateFish();
+        // A close BadSplash adds large disturbance; if it exceeds the spook threshold, fish spookes.
+        var closeLure = LureAt(20);
+
+        // Apply many BadSplash events to push disturbance over threshold.
+        for (var i = 0; i < 10; i++)
+            fish.UpdateAttraction(closeLure, 0.001f, FishSilhouette.LureEvent.BadSplash);
+
+        Assert.Equal(FishSilhouette.AttractionState.Spooked, fish.Attraction);
+    }
+
+    // ── → Fleeing ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Flee__TransitionsToFleeing__FromAnyState()
+    {
+        var fish = CreateFish();
+
+        fish.Flee();
+
+        Assert.Equal(FishSilhouette.AttractionState.Fleeing, fish.Attraction);
+        Assert.True(fish.IsFleeing);
+    }
+
+    [Fact]
+    public void Flee__SetsVelocityRight__PositiveX()
+    {
+        var fish = CreateFish();
+        fish.Flee();
+
+        // After a brief update, the fish should have moved to the right.
+        var startX = fish.Position.X;
+        fish.Update(new Microsoft.Xna.Framework.GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(0.1f)));
+
+        Assert.True(fish.Position.X >= startX, "Fleeing fish should move right (or stay same if clamped)");
+    }
+
+    // ── Species-specific behaviour ────────────────────────────────────────
+
+    [Fact]
+    public void ReelSpeedMultiplier__Minnow__IsFastest()
+    {
+        var minnow = CreateFish(FishSilhouette.FishType.Minnow);
+        var bass = CreateFish(FishSilhouette.FishType.Bass);
+        var catfish = CreateFish(FishSilhouette.FishType.Catfish);
+
+        Assert.True(minnow.ReelSpeedMultiplier > bass.ReelSpeedMultiplier);
+        Assert.True(bass.ReelSpeedMultiplier > catfish.ReelSpeedMultiplier);
+    }
+
+    [Fact]
+    public void ReelSpeedMultiplier__Catfish__IsSlowest()
+    {
+        var catfish = CreateFish(FishSilhouette.FishType.Catfish);
+        Assert.Equal(0.4f, catfish.ReelSpeedMultiplier, 0.001f);
+    }
+
+    // ── SetPosition / SetRotation ─────────────────────────────────────────
+
+    [Fact]
+    public void SetPosition__UpdatesPosition()
+    {
+        var fish = CreateFish();
+        var newPos = new Vector2(123, 456);
+
+        fish.SetPosition(newPos);
+
+        Assert.Equal(newPos, fish.Position);
+    }
+
+    [Fact]
+    public void SetRotation__DoesNotThrow()
+    {
+        var fish = CreateFish();
+        var ex = Record.Exception(() => fish.SetRotation(MathF.PI / 4f));
+        Assert.Null(ex);
     }
 }

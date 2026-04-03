@@ -75,4 +75,74 @@ public class XpLevelSystemTests
         // ApplyLevelUp adds 1 to stats.MaxHp, and XpLevelSystem calls IncreaseMax(1) on Health.
         Assert.Equal(initialMaxHp + 1, health.MaxHp);
     }
+
+    // ── Edge cases ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void AddXp__ZeroAmount__DoesNotChangeLevelOrXp()
+    {
+        var (system, stats, _) = CreateSystem();
+
+        system.AddXp(0);
+
+        Assert.Equal(1, stats.Level);
+        Assert.Equal(0, stats.Xp);
+    }
+
+    [Fact]
+    public void AddXp__OneXpBelowThreshold__DoesNotLevelUp()
+    {
+        var (system, stats, _) = CreateSystem();
+
+        system.AddXp(stats.XpToNextLevel - 1); // 9 XP — just below threshold
+
+        Assert.Equal(1, stats.Level);
+        Assert.Equal(9, stats.Xp);
+    }
+
+    [Fact]
+    public void AddXp__ExactlyAtThreshold__LevelsUpAndResetsXp()
+    {
+        var (system, stats, _) = CreateSystem();
+
+        system.AddXp(10); // Exactly 10 = XpToNextLevel
+
+        Assert.Equal(2, stats.Level);
+        Assert.Equal(0, stats.Xp); // No excess XP.
+    }
+
+    [Fact]
+    public void AddXp__ExcessXp__CarriesOverAfterLevelUp()
+    {
+        var (system, stats, _) = CreateSystem();
+
+        system.AddXp(13); // 10 for level-up, 3 excess
+
+        Assert.Equal(2, stats.Level);
+        Assert.Equal(3, stats.Xp);
+    }
+
+    [Fact]
+    public void AddXp__XpToNextLevel__ScalesUpAfterLevelUp()
+    {
+        var (system, stats, _) = CreateSystem();
+        var firstThreshold = stats.XpToNextLevel; // 10
+
+        system.AddXp(10); // Level 1 → 2
+
+        // XpToNextLevel = (int)(10 * 1.5) = 15
+        Assert.Equal((int)(firstThreshold * 1.5f), stats.XpToNextLevel);
+    }
+
+    [Fact]
+    public void AddXp__DoesNotFireOnLevelUp__WhenNoThresholdCrossed()
+    {
+        var (system, _,  _) = CreateSystem();
+        int levelUpCount = 0;
+        system.OnLevelUp += _ => levelUpCount++;
+
+        system.AddXp(5); // Below threshold — no level-up
+
+        Assert.Equal(0, levelUpCount);
+    }
 }

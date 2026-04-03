@@ -4,7 +4,7 @@ namespace RiverRats.Data;
 /// Mutable combat stat modifiers for the forest survival minigame.
 /// Owned by the gameplay screen and passed into systems that need it.
 /// </summary>
-public class PlayerCombatStats
+public sealed class PlayerCombatStats
 {
     /// <summary>Starting max HP.</summary>
     public int MaxHp { get; set; } = 5;

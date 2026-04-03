@@ -1,4 +1,6 @@
+using System;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace RiverRats.Game.Entities;
 
@@ -6,7 +8,7 @@ namespace RiverRats.Game.Entities;
 /// A pooled health pickup (pill) that auto-despawns after a fixed lifetime,
 /// fading out near the end. Managed externally by a spawning system.
 /// </summary>
-internal sealed class HealthPickup
+internal sealed class HealthPickup : IWorldProp
 {
     private const float DespawnTime = 10f;
     private const float FadeStartTime = 7f;
@@ -20,7 +22,7 @@ internal sealed class HealthPickup
     private bool _active;
 
     /// <summary>Current world position of the pickup.</summary>
-    internal Vector2 Position => _position;
+    public Vector2 Position => _position;
 
     /// <summary>Whether the pickup is currently active and collectible.</summary>
     internal bool IsActive => _active;
@@ -34,10 +36,17 @@ internal sealed class HealthPickup
         : 1f;
 
     /// <summary>Axis-aligned bounding rectangle (16×16) centred on the pickup position.</summary>
-    internal Rectangle Bounds => new(
+    public Rectangle Bounds => new(
         (int)_position.X - 8,
         (int)_position.Y - 8,
         16, 16);
+
+    /// <summary>
+    /// Not supported — drawing is handled externally by <see cref="RiverRats.Game.Systems.HealthPickupSystem"/>,
+    /// which owns the pickup texture.
+    /// </summary>
+    void IWorldProp.Draw(SpriteBatch spriteBatch, float layerDepth) =>
+        throw new NotSupportedException("HealthPickup must be drawn via HealthPickupSystem.Draw().");
 
     /// <summary>
     /// Activates this pooled pickup at the given world position, resetting its age.

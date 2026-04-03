@@ -8,7 +8,7 @@ namespace RiverRats.Components;
 /// Tracks hit points, invincibility, and raises events on damage and death.
 /// Reusable by any entity that needs health (player, enemies, etc.).
 /// </summary>
-public class Health
+public sealed class Health
 {
     private float _invincibilityTimer;
 

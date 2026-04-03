@@ -41,6 +41,8 @@
 | `WaveConfig` | `Data/` | Readonly data object describing one wave's parameters: wave number, enemy count, speed multiplier, enemy HP, wave duration, and enemy-type spawn-weight mix. Used by `WaveManager` to configure each wave's spawning and completion rules. |
 | `WaveState` | `Data/` | Enum tracking the lifecycle phase of a wave: PreWave, Countdown, Active (continuous spawning + timer), Cleared, Intermission, AllWavesComplete. Consumed by `WaveManager` for state transitions and by HUD renderers for display logic. |
 | `PlayerCombatStats` | `Data/` | Mutable combat stat modifiers for the forest survival minigame: max HP, speed multiplier, cooldown multiplier, projectile tuning, level, XP, and XP-to-next-level. Supports level-up stat scaling and reset-to-defaults. |
+| `FishingZoneData` | `Data/` | Readonly `record struct` parsed from the TMX `FishingZones` object layer. Holds the zone `Rectangle` and a `FishType` identifier used by `FishingScreen` to spawn species-appropriate fish silhouettes. |
+| `WaterShaderConfig` | `Data/` | Plain data class holding water distortion shader parameters: wave speed, amplitude, frequency layers, and surface Y-threshold. Passed to `FishingWater.fx` and `WaterDistortion.fx` at runtime. |
 
 *(Add entries as data classes are created — configs, enums, save DTOs, etc.)*
 
@@ -53,5 +55,6 @@
 | Class | Description |
 |---|---|
 | `PerlinNoise` | Static 2D Perlin noise generator with tileable output. Provides single-sample and multi-octave fBm noise-map generation for procedural textures. |
+| `PolygonBounds` | Convex or concave polygon shape used to define irregular swim areas in the fishing mini-game. Supports point containment (`Contains`), random interior sampling (`RandomPointInside`), inset erosion (`Inset`), horizontal slicing (`SliceHorizontal`), and rectangle conversion (`FromRectangle`). Parsed from TMX polygon objects by `SimpleTiledRenderer.GetObjectPolygons()`. |
 
 *(Add entries as utility classes are created — MathUtils, TextHelper, etc.)*

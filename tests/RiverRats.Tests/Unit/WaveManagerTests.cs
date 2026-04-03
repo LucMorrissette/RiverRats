@@ -386,4 +386,86 @@ public class WaveManagerTests
 
         Assert.Equal(manager.Waves[0].DurationSeconds, manager.WaveDuration);
     }
+
+    // ── Spawn Stagger Math Tests ──────────────────────────────────────────
+
+    [Fact]
+    public void SpawnStagger__ExactlyOneBatch__AfterOneInterval()
+    {
+        // After exactly SpawnStaggerInterval seconds in Active, exactly one batch fires.
+        var spawner = CreateSpawner();
+        var manager = new WaveManager(spawner);
+        manager.StartFirstWave();
+        TickPastCountdown(manager);
+
+        // Advance exactly one stagger interval.
+        manager.Update(FakeGameTime.FromSeconds(WaveManager.SpawnStaggerInterval), CameraBounds);
+
+        // SpawnBatchSize = 2, and we should have spawned exactly 1 batch = 2 gnomes.
+        Assert.Equal(2, spawner.Gnomes.Count);
+    }
+
+    [Fact]
+    public void SpawnStagger__TwoBatches__AfterTwoIntervals()
+    {
+        var spawner = CreateSpawner();
+        var manager = new WaveManager(spawner);
+        manager.StartFirstWave();
+        TickPastCountdown(manager);
+
+        // Advance two full stagger intervals in one tick.
+        manager.Update(FakeGameTime.FromSeconds(WaveManager.SpawnStaggerInterval * 2f), CameraBounds);
+
+        // Two batches × 2 gnomes each = 4 gnomes.
+        Assert.Equal(4, spawner.Gnomes.Count);
+    }
+
+    [Fact]
+    public void SpawnStagger__JustBeforeInterval__NoBatchYet()
+    {
+        var spawner = CreateSpawner();
+        var manager = new WaveManager(spawner);
+        manager.StartFirstWave();
+        TickPastCountdown(manager);
+
+        // Advance slightly less than one interval.
+        manager.Update(FakeGameTime.FromSeconds(WaveManager.SpawnStaggerInterval - 0.01f), CameraBounds);
+
+        Assert.Empty(spawner.Gnomes);
+    }
+
+    [Fact]
+    public void SpawnStagger__AccumulatesCorrectly__OverSeparateTicks()
+    {
+        // Split a single stagger interval across two ticks — should fire once.
+        var spawner = CreateSpawner();
+        var manager = new WaveManager(spawner);
+        manager.StartFirstWave();
+        TickPastCountdown(manager);
+
+        var half = WaveManager.SpawnStaggerInterval * 0.5f;
+        manager.Update(FakeGameTime.FromSeconds(half), CameraBounds);
+        Assert.Empty(spawner.Gnomes); // Not yet.
+
+        manager.Update(FakeGameTime.FromSeconds(half + 0.01f), CameraBounds);
+        Assert.Equal(2, spawner.Gnomes.Count); // One batch fired.
+    }
+
+    [Fact]
+    public void SpawnStagger__DoesNotSpawn__WhenMaxActiveReached()
+    {
+        // Use a spawner with maxActive = 2 (one batch fills it exactly).
+        var spawner = CreateSpawner(maxActive: 2);
+        var manager = new WaveManager(spawner);
+        manager.StartFirstWave();
+        TickPastCountdown(manager);
+
+        // First interval fills the cap.
+        manager.Update(FakeGameTime.FromSeconds(WaveManager.SpawnStaggerInterval), CameraBounds);
+        Assert.Equal(2, spawner.Gnomes.Count);
+
+        // Second interval — already at cap, no more spawns.
+        manager.Update(FakeGameTime.FromSeconds(WaveManager.SpawnStaggerInterval), CameraBounds);
+        Assert.Equal(2, spawner.Gnomes.Count);
+    }
 }

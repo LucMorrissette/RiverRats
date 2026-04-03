@@ -21,6 +21,12 @@ namespace RiverRats.Game.Screens;
 /// Side-view fishing mini-game screen. Renders the scene from a TMX map
 /// designed in Tiled, with animated fish silhouettes swimming in the
 /// underwater area. Cancel returns to the overworld.
+/// <para>
+/// All cast / fight state-machine logic lives in <see cref="FishingCastLogic"/>
+/// (pure, GPU-free) and is reflected in <see cref="FishingCastState"/>.
+/// The screen owns GPU resources and translates <see cref="FishingCastEvents"/>
+/// into SFX calls, particle spawns, and ripple triggers each frame.
+/// </para>
 /// </summary>
 public sealed class FishingScreen : IGameScreen
 {
@@ -34,7 +40,7 @@ public sealed class FishingScreen : IGameScreen
     private const int SkyCloudTileRows = 2;
 
     /// <summary>Tile height in pixels (matches the TMX tileheight).</summary>
-    private const int TileHeightPx = 16;
+    private const int TileHeightPx = FishingCastLogic.TileHeightPx;
 
     /// <summary>Top grass shelf row in the fishing map.</summary>
     private const int GrassShelfRow = 6;
@@ -60,10 +66,10 @@ public sealed class FishingScreen : IGameScreen
     private const float ShakeDuration = 0.25f;
 
     /// <summary>How fast the fish wiggles while hooked (rad/s).</summary>
-    private const float WiggleSpeed = 18f;
+    private const float WiggleSpeed = FishingCastLogic.WiggleSpeed;
 
     /// <summary>Maximum wiggle rotation in radians.</summary>
-    private const float WiggleAmplitude = 0.15f;
+    private const float WiggleAmplitude = FishingCastLogic.WiggleAmplitude;
 
     /// <summary>Number of splash particles emitted on breach.</summary>
     private const int SplashParticleCount = 12;
@@ -140,22 +146,22 @@ public sealed class FishingScreen : IGameScreen
     /// Offset from the player position to place the cast-complete rod overlay.
     /// Same handle position as idle, rod has a slight droop.
     /// </summary>
-    private static readonly Vector2 FishingRodCastOffset = new(17f, -8f);
+    private static readonly Vector2 FishingRodCastOffset = FishingCastLogic.FishingRodCastOffset;
 
     /// <summary>Delay before the power gauge appears after holding Confirm.</summary>
-    private const float WindupDelaySeconds = 0.5f;
+    private const float WindupDelaySeconds = FishingCastLogic.WindupDelaySeconds;
 
     /// <summary>Speed at which the power gauge needle oscillates (cycles per second).</summary>
-    private const float GaugeSpeedCyclesPerSecond = 1.2f;
+    private const float GaugeSpeedCyclesPerSecond = FishingCastLogic.GaugeSpeedCyclesPerSecond;
 
     /// <summary>Green zone half-width at minimum cast distance (fraction of gauge, 0–1).</summary>
-    private const float GaugeGreenHalfClose = 0.20f;
+    private const float GaugeGreenHalfClose = FishingCastLogic.GaugeGreenHalfClose;
 
     /// <summary>Green zone half-width at maximum cast distance (fraction of gauge, 0–1).</summary>
-    private const float GaugeGreenHalfFar = 0.08f;
+    private const float GaugeGreenHalfFar = FishingCastLogic.GaugeGreenHalfFar;
 
     /// <summary>Center of the green zone on the gauge (fraction, 0–1).</summary>
-    private const float GaugeGreenCenter = 0.5f;
+    private const float GaugeGreenCenter = FishingCastLogic.GaugeGreenCenter;
 
     // Power gauge visual dimensions (in virtual-resolution pixels).
     private const int GaugeWidth = 4;
@@ -168,16 +174,16 @@ public sealed class FishingScreen : IGameScreen
     private static readonly Color GaugeNeedleColor = new(255, 255, 255, 255);
 
     /// <summary>Speed of the aim cursor in pixels per second.</summary>
-    private const float AimSpeedPxPerSecond = 60f;
+    private const float AimSpeedPxPerSecond = FishingCastLogic.AimSpeedPxPerSecond;
 
     /// <summary>Row where the water surface sits (matches the TMX map).</summary>
-    private const int WaterSurfaceRow = 6;
+    private const int WaterSurfaceRow = FishingCastLogic.WaterSurfaceRow;
 
     /// <summary>Left boundary (px) of the aimable water surface. Past the shore slope.</summary>
-    private const float AimMinX = 96f;
+    private const float AimMinX = FishingCastLogic.AimMinX;
 
     /// <summary>Y position of the aim arrow on the water surface.</summary>
-    private static readonly float AimY = WaterSurfaceRow * TileHeightPx;
+    private static readonly float AimY = FishingCastLogic.AimY;
 
     /// <summary>Size of the aim arrow indicator in pixels.</summary>
     private const int AimArrowSize = 5;
@@ -185,14 +191,14 @@ public sealed class FishingScreen : IGameScreen
     private static readonly Color AimArrowColor = new(255, 255, 80, 220);
 
     /// <summary>Duration of the lure flight arc in seconds.</summary>
-    private const float LureFlightDurationSeconds = 0.6f;
+    private const float LureFlightDurationSeconds = FishingCastLogic.LureFlightDurationSeconds;
 
     /// <summary>Peak height of the lure arc above the straight-line path (pixels).</summary>
-    private const float LureArcHeight = 30f;
+    private const float LureArcHeight = FishingCastLogic.LureArcHeight;
 
     /// <summary>How far off-target a bad (red-zone) cast lands (pixels).</summary>
-    private const float BadCastMinOffset = 80f;
-    private const float BadCastMaxOffset = 150f;
+    private const float BadCastMinOffset = FishingCastLogic.BadCastMinOffset;
+    private const float BadCastMaxOffset = FishingCastLogic.BadCastMaxOffset;
 
     /// <summary>Color of the fishing line.</summary>
     private static readonly Color LineColor = new(180, 180, 180, 160);
@@ -201,96 +207,96 @@ public sealed class FishingScreen : IGameScreen
     private const int LineSegments = 24;
 
     /// <summary>Duration (seconds) for the line to settle from taut to fully slack after landing.</summary>
-    private const float LineSettleDurationSeconds = 0.8f;
+    private const float LineSettleDurationSeconds = FishingCastLogic.LineSettleDurationSeconds;
 
     /// <summary>Maximum sag (pixels) of the slack catenary at full settle.</summary>
-    private const float LineMaxSag = 22f;
+    private const float LineMaxSag = FishingCastLogic.LineMaxSag;
 
     /// <summary>Small sag (pixels) that appears when the player stops reeling, so the line doesn't look perfectly taut.</summary>
-    private const float LineRelaxSag = 14f;
+    private const float LineRelaxSag = FishingCastLogic.LineRelaxSag;
 
     /// <summary>Pixels the fish breaches above the water surface during a strike.</summary>
-    private const float StrikeBreachHeight = 10f;
+    private const float StrikeBreachHeight = FishingCastLogic.StrikeBreachHeight;
 
     /// <summary>Total duration of the strike animation (lunge + breach + dive) in seconds.</summary>
-    private const float StrikeDuration = 0.8f;
+    private const float StrikeDuration = FishingCastLogic.StrikeDuration;
 
     /// <summary>Time within the strike when the breach reaches its peak.</summary>
-    private const float StrikeBreachPeakTime = 0.3f;
+    private const float StrikeBreachPeakTime = FishingCastLogic.StrikeBreachPeakTime;
 
     /// <summary>Time within the strike when the dive back down begins.</summary>
-    private const float StrikeDiveStartTime = 0.4f;
+    private const float StrikeDiveStartTime = FishingCastLogic.StrikeDiveStartTime;
 
     /// <summary>Speed (px/sec) at which a hooked fish is reeled toward the rod tip.</summary>
-    private const float HookedReelSpeed = 30f;
+    private const float HookedReelSpeed = FishingCastLogic.HookedReelSpeed;
 
     /// <summary>Speed (px/sec) at which a hooked fish drifts back when the player is not reeling.</summary>
-    private const float HookedDriftBackSpeed = 2f;
+    private const float HookedDriftBackSpeed = FishingCastLogic.HookedDriftBackSpeed;
 
     // --- Fish fight & line tension ---
 
     /// <summary>Minimum seconds between fight bursts.</summary>
-    private const float FightCooldownMin = 2.0f;
+    private const float FightCooldownMin = FishingCastLogic.FightCooldownMin;
 
     /// <summary>Maximum seconds between fight bursts.</summary>
-    private const float FightCooldownMax = 5.0f;
+    private const float FightCooldownMax = FishingCastLogic.FightCooldownMax;
 
     /// <summary>Duration (seconds) of a single fight burst.</summary>
-    private const float FightBurstDuration = 1.2f;
+    private const float FightBurstDuration = FishingCastLogic.FightBurstDuration;
 
     /// <summary>Speed (px/sec) the fish pulls away during a fight burst.</summary>
-    private const float FightPullSpeed = 55f;
+    private const float FightPullSpeed = FishingCastLogic.FightPullSpeed;
 
     /// <summary>Tension gained per second when reeling during a fight burst.</summary>
-    private const float TensionReelDuringFight = 0.8f;
+    private const float TensionReelDuringFight = FishingCastLogic.TensionReelDuringFight;
 
     /// <summary>Tension gained per second when reeling normally (no fight).</summary>
-    private const float TensionReelNormal = 0.15f;
+    private const float TensionReelNormal = FishingCastLogic.TensionReelNormal;
 
     /// <summary>Tension lost per second when NOT reeling.</summary>
-    private const float TensionDecay = 0.45f;
+    private const float TensionDecay = FishingCastLogic.TensionDecay;
 
     /// <summary>Tension value at which the line snaps (0–1 scale).</summary>
-    private const float TensionSnapThreshold = 1.0f;
+    private const float TensionSnapThreshold = FishingCastLogic.TensionSnapThreshold;
 
     /// <summary>Line color when tension is at maximum (danger).</summary>
     private static readonly Color LineDangerColor = new(255, 60, 40, 220);
 
     /// <summary>Stamina drained from the fish per fight burst (0–1 scale).</summary>
-    private const float StaminaDrainPerBurst = 0.18f;
+    private const float StaminaDrainPerBurst = FishingCastLogic.StaminaDrainPerBurst;
 
     /// <summary>Minimum stamina multiplier — even an exhausted fish puts up a feeble fight.</summary>
-    private const float StaminaFloor = 0.15f;
+    private const float StaminaFloor = FishingCastLogic.StaminaFloor;
 
     /// <summary>Rod offset for the hooked-rod sprite (same handle position as the cast rod).</summary>
-    private static readonly Vector2 FishingRodHookedOffset = new(17f, -8f);
+    private static readonly Vector2 FishingRodHookedOffset = FishingCastLogic.FishingRodHookedOffset;
 
     /// <summary>Offset from the hooked-rod sprite origin to the bent rod tip.</summary>
-    private static readonly Vector2 HookedRodTipLocalOffset = new(37f, 5f);
+    private static readonly Vector2 HookedRodTipLocalOffset = FishingCastLogic.HookedRodTipLocalOffset;
 
     /// <summary>Offset from the cast-rod sprite origin to the rod tip.</summary>
-    private static readonly Vector2 RodTipLocalOffset = new(42f, 10f);
+    private static readonly Vector2 RodTipLocalOffset = FishingCastLogic.RodTipLocalOffset;
 
     /// <summary>Speed at which line slack is reeled in (sag pixels per second).</summary>
-    private const float ReelSlackSpeed = 35f;
+    private const float ReelSlackSpeed = FishingCastLogic.ReelSlackSpeed;
 
     /// <summary>Speed at which the lure is retrieved toward the rod tip (pixels per second).</summary>
-    private const float ReelLureSpeed = 50f;
+    private const float ReelLureSpeed = FishingCastLogic.ReelLureSpeed;
 
     /// <summary>Distance (px) the lure moves toward the player per twitch/pop.</summary>
-    private const float TwitchDistancePx = 12f;
+    private const float TwitchDistancePx = FishingCastLogic.TwitchDistancePx;
 
     /// <summary>Duration (seconds) of the rod flip-up animation on a twitch.</summary>
-    private const float TwitchDurationSeconds = 0.15f;
+    private const float TwitchDurationSeconds = FishingCastLogic.TwitchDurationSeconds;
 
     /// <summary>Time window (seconds) in which rapid twitches are counted.</summary>
-    private const float RapidTwitchWindowSeconds = 0.8f;
+    private const float RapidTwitchWindowSeconds = FishingCastLogic.RapidTwitchWindowSeconds;
 
     /// <summary>Max twitches within the window before they start spooking fish.</summary>
-    private const int RapidTwitchSafeCount = 2;
+    private const int RapidTwitchSafeCount = FishingCastLogic.RapidTwitchSafeCount;
 
     /// <summary>Rotation (radians) the rod tilts upward during a twitch. Negative = counter-clockwise.</summary>
-    private const float TwitchRotation = -0.25f;
+    private const float TwitchRotation = FishingCastLogic.TwitchRotation;
 
     /// <summary>Offset from the idle-rod sprite origin to the tip (where line attaches).</summary>
     private static readonly Vector2 IdleRodTipLocalOffset = new(40f, 6f);
@@ -299,10 +305,10 @@ public sealed class FishingScreen : IGameScreen
     private const float IdleLineLengthPx = 13f;
 
     /// <summary>Horizontal amplitude (pixels) of the idle lure sway.</summary>
-    private const float IdleSwayAmplitudePx = 1.5f;
+    private const float IdleSwayAmplitudePx = FishingCastLogic.IdleSwayAmplitudePx;
 
     /// <summary>Speed of the idle lure sway (cycles per second).</summary>
-    private const float IdleSwayCyclesPerSecond = 0.6f;
+    private const float IdleSwayCyclesPerSecond = FishingCastLogic.IdleSwayCyclesPerSecond;
 
     /// <summary>Player top-left position on the shore (world pixels).</summary>
     private Vector2 _playerPosition;
@@ -337,55 +343,27 @@ public sealed class FishingScreen : IGameScreen
     private Texture2D _frogLureRest;
     private Texture2D _frogLureActive;
     private FontSystem _fontSystem;
-    private CastState _castState;
-    private float _windupTimer;
-    private float _gaugePhase;
-    private bool _lastCastGood;
-    private float _aimX;
-    private float _aimMaxX;
-    private Vector2 _lureStart;
-    private Vector2 _lureEnd;
-    private Vector2 _lurePosition;
-    private float _lureFlightTime;
-    private float _lineSettleTimer;
-    private float _currentSag;
-    private float _twitchTimer;
-    private float _rapidTwitchWindow;
-    private int _rapidTwitchCount;
-    private float _swayTimer;
-    private float _lureSwayOffset;
 
-    /// <summary>The fish that bit the lure (null when no fish is hooked).</summary>
-    private FishSilhouette _hookedFish;
+    // ── Pure-logic cast state machine ─────────────────────────────────────────
 
-    /// <summary>Current line tension (0 = slack, 1 = snap).</summary>
-    private float _lineTension;
+    /// <summary>
+    /// Pure-data state for the cast / fight state machine.
+    /// All logic lives in <see cref="FishingCastLogic"/>.
+    /// </summary>
+    private readonly FishingCastState _castState = new();
 
-    /// <summary>Countdown until the next fight burst starts.</summary>
-    private float _fightCooldown;
+    // ── Convenience accessors delegating to _castState ────────────────────────
 
-    /// <summary>Remaining duration of the current fight burst (0 = not fighting).</summary>
-    private float _fightBurstTimer;
-
-    /// <summary>Fish stamina (1 = fresh, 0 = exhausted). Decreases with each fight burst.</summary>
-    private float _fishStamina;
-
-    /// <summary>Whether the fish is currently in a fight burst.</summary>
-    private bool IsFighting => _fightBurstTimer > 0f;
+    private CastState CastPhase => _castState.State;
 
     /// <summary>Line color computed each frame from tension.</summary>
     private Color _currentLineColor = LineColor;
 
-    /// <summary>Timer driving the strike animation phases.</summary>
-    private float _strikeTimer;
-
-    /// <summary>Position where the fish was when it struck.</summary>
-    private Vector2 _strikeStartPos;
-
-    /// <summary>Position the fish dives to after breaching (halfway depth).</summary>
-    private Vector2 _hookTarget;
-
     private readonly List<FishSilhouette> _fish = new();
+
+    /// <summary>The fish that bit the lure (null when no fish is hooked).</summary>
+    private FishSilhouette _hookedFish;
+
     private FadeState _fadeState;
     private float _fadeAlpha;
     private float _fadeHoldTimer;
@@ -405,7 +383,6 @@ public sealed class FishingScreen : IGameScreen
 
     // Screen shake state.
     private float _shakeTimer;
-    private float _wiggleTimer;
 
     // Splash particles.
     private readonly List<SplashParticle> _splashParticles = new();
@@ -416,22 +393,19 @@ public sealed class FishingScreen : IGameScreen
     private FishingRippleManager _rippleManager;
     private float _waterElapsedSeconds;
 
+    /// <summary>
+    /// Cached render target that was active when <see cref="Draw"/> was called (set by Game1).
+    /// <c>GetRenderTargets()</c> allocates a new array every call; caching it here means
+    /// we call the GPU API exactly once per frame instead of twice.
+    /// </summary>
+    private RenderTarget2D _previousRenderTarget;
+
     /// <inheritdoc />
     public bool IsTransparent => false;
 
     /// <summary>
     /// Creates a fishing mini-game screen.
     /// </summary>
-    /// <param name="graphicsDevice">Graphics device for rendering.</param>
-    /// <param name="content">Content manager for loading assets.</param>
-    /// <param name="virtualWidth">Virtual resolution width.</param>
-    /// <param name="virtualHeight">Virtual resolution height.</param>
-    /// <param name="screenManager">Screen manager for transitions.</param>
-    /// <param name="requestExit">Callback to request the game exit.</param>
-    /// <param name="returnMapName">Map asset name to return to on exit.</param>
-    /// <param name="returnPosition">Exact world-space position to place the player at when returning.</param>
-    /// <param name="dayNightProgress">Day/night cycle progress to preserve across transitions.</param>
-    /// <param name="fishingMapAsset">TMX map asset name for the fishing scene (defaults to <c>Maps/FishingSpot</c>).</param>
     public FishingScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
@@ -472,27 +446,30 @@ public sealed class FishingScreen : IGameScreen
             Path.Combine(global::System.AppContext.BaseDirectory, _content.RootDirectory, "Fonts", "Nunito.ttf")));
 
         _mapRenderer = new SimpleTiledRenderer(_graphicsDevice, _content, _fishingMapAsset);
-        CalculateCharacterPositions();
 
-        // Aim defaults to the midpoint of the water surface.
-        _aimMaxX = _mapRenderer.MapPixelWidth - AimArrowSize;
-        _aimX = MathHelper.Lerp(AimMinX, _aimMaxX, 0.5f);
+        // Initialise aim bounds from the loaded map.
+        _castState.AimMaxX = _mapRenderer.MapPixelWidth - AimArrowSize;
+        _castState.AimX    = MathHelper.Lerp(AimMinX, _castState.AimMaxX, 0.5f);
 
-        var skyWidth = _mapRenderer.MapPixelWidth;
+        FishingCastLogic.CalculateCharacterPositions(
+            GrassShelfRow, CharacterFramePixels,
+            GrassShelfLeftMarginPx, CharacterSpacingPx,
+            out _followerPosition, out _playerPosition);
+
+        var skyWidth  = _mapRenderer.MapPixelWidth;
         var skyHeight = SkyCloudTileRows * TileHeightPx;
         _skyCloudRenderer = new SkyCloudRenderer(_graphicsDevice, skyWidth, skyHeight);
         _skyCloudRenderer.LoadContent(_content);
 
-        _fishTexture = _content.Load<Texture2D>("Sprites/fish-silhouettes");
-
-        _playerSpriteSheet = _content.Load<Texture2D>("Sprites/generic_character_sheet");
-        _followerSpriteSheet = _content.Load<Texture2D>("Sprites/companion_character_sheet");
-        _fishingRodTexture = _content.Load<Texture2D>("Sprites/fishing_rod");
+        _fishTexture          = _content.Load<Texture2D>("Sprites/fish-silhouettes");
+        _playerSpriteSheet    = _content.Load<Texture2D>("Sprites/generic_character_sheet");
+        _followerSpriteSheet  = _content.Load<Texture2D>("Sprites/companion_character_sheet");
+        _fishingRodTexture    = _content.Load<Texture2D>("Sprites/fishing_rod");
         _fishingRodWindupTexture = _content.Load<Texture2D>("Sprites/fishing_rod_windup");
-        _fishingRodCastTexture = _content.Load<Texture2D>("Sprites/fishing_rod_cast");
+        _fishingRodCastTexture   = _content.Load<Texture2D>("Sprites/fishing_rod_cast");
         _fishingRodHookedTexture = _content.Load<Texture2D>("Sprites/fishing_rod_hooked");
         _frogLureDangle = _content.Load<Texture2D>("Sprites/frog_lure1");
-        _frogLureRest = _content.Load<Texture2D>("Sprites/frog_lure2");
+        _frogLureRest   = _content.Load<Texture2D>("Sprites/frog_lure2");
         _frogLureActive = _content.Load<Texture2D>("Sprites/frog_lure3");
 
         // Load fishing SFX.
@@ -565,25 +542,25 @@ public sealed class FishingScreen : IGameScreen
 
         if (input.IsPressed(InputAction.Cancel))
         {
-            // If a fish is hooked or striking, cancel the hook — fish flees.
-            if (_castState is CastState.FishStrike or CastState.FishHooked)
+            // If a fish is hooked or striking, Cancel releases it — fish flees.
+            if (CastPhase is CastState.FishStrike or CastState.FishHooked)
             {
-                _hookedFish.SetRotation(0f);
-                _hookedFish.Flee();
+                _hookedFish?.SetRotation(0f);
+                _hookedFish?.Flee();
                 _hookedFish = null;
-                _castState = CastState.Idle;
-                _twitchTimer = 0f;
-                _currentSag = 0f;
-                _lineTension = 0f;
+                _castState.State       = CastState.Idle;
+                _castState.TwitchTimer = 0f;
+                _castState.CurrentSag  = 0f;
+                _castState.LineTension = 0f;
                 _currentLineColor = LineColor;
             }
             // If the lure is out, Cancel reels it in instantly.
-            else if (_castState is CastState.LureFlying or CastState.CastComplete
+            else if (CastPhase is CastState.LureFlying or CastState.CastComplete
                 or CastState.ReelingSlack or CastState.ReelingLure)
             {
-                _castState = CastState.Idle;
-                _twitchTimer = 0f;
-                _currentSag = 0f;
+                _castState.State       = CastState.Idle;
+                _castState.TwitchTimer = 0f;
+                _castState.CurrentSag  = 0f;
             }
             else
             {
@@ -592,46 +569,61 @@ public sealed class FishingScreen : IGameScreen
             return;
         }
 
-        UpdateCastState(gameTime, input);
-        UpdateAim(gameTime, input);
+        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+        // Tick the pure-logic cast state machine.
+        FishingCastLogic.Tick(
+            _castState,
+            dt,
+            confirmHeld:          input.IsHeld(InputAction.Confirm),
+            confirmPressed:       input.IsPressed(InputAction.Confirm),
+            moveLeftPressed:      input.IsPressed(InputAction.MoveLeft),
+            moveRightHeld:        input.IsHeld(InputAction.MoveRight),
+            moveLeftHeld:         input.IsHeld(InputAction.MoveLeft),
+            playerPosition:       _playerPosition,
+            virtualWidth:         _virtualWidth,
+            virtualHeight:        _virtualHeight,
+            rng:                  _catchRng,
+            hookedFishCenter:     _hookedFish?.Center ?? Vector2.Zero,
+            hookedFishReelSpeedMultiplier: _hookedFish?.ReelSpeedMultiplier ?? 1f,
+            fishCount:            _fish.Count,
+            getFishAttractionState: i => (int)_fish[i].Attraction,
+            getFishCenter:        i => _fish[i].Center,
+            out var events);
+
+        // Translate events → side effects.
+        ApplyCastEvents(in events, dt);
 
         _skyCloudRenderer.Update(gameTime);
         _rippleManager.Update(gameTime);
+        _waterElapsedSeconds += dt;
 
-        var dt2 = (float)gameTime.ElapsedGameTime.TotalSeconds;
-        _waterElapsedSeconds += dt2;
-
-        // Tick catch toast timer.
+        // Catch toast timer.
         if (_toastTimer > 0f)
-            _toastTimer -= dt2;
+            _toastTimer -= dt;
 
-        // Tick screen shake.
+        // Screen shake.
         if (_shakeTimer > 0f)
-            _shakeTimer -= dt2;
+            _shakeTimer -= dt;
 
-        // Tick reel click cooldown.
+        // Reel click cooldown.
         if (_reelTickCooldown > 0f)
-            _reelTickCooldown -= dt2;
-
-        // Tick wiggle (hooked fish oscillation).
-        if (_castState == CastState.FishHooked)
-            _wiggleTimer += dt2;
-        else
-            _wiggleTimer = 0f;
+            _reelTickCooldown -= dt;
 
         // Update splash particles.
         for (var i = _splashParticles.Count - 1; i >= 0; i--)
         {
-            _splashParticles[i].Life -= dt2;
+            _splashParticles[i].Life -= dt;
             if (_splashParticles[i].Life <= 0f)
             {
                 _splashParticles.RemoveAt(i);
                 continue;
             }
-            _splashParticles[i].Velocity.Y += 120f * dt2; // gravity
-            _splashParticles[i].Position += _splashParticles[i].Velocity * dt2;
+            _splashParticles[i].Velocity.Y += 120f * dt; // gravity
+            _splashParticles[i].Position   += _splashParticles[i].Velocity * dt;
         }
 
+        // Update fish.
         for (var i = _fish.Count - 1; i >= 0; i--)
         {
             _fish[i].Update(gameTime);
@@ -640,7 +632,142 @@ public sealed class FishingScreen : IGameScreen
             if (_fish[i].IsFleeing && _fish[i].Center.X > _virtualWidth + 32)
                 _fish.RemoveAt(i);
         }
+
+        // Feed lure events to fish attraction while lure is in water.
+        if (FishAttractionEnabled &&
+            CastPhase is CastState.CastComplete or CastState.ReelingSlack or CastState.ReelingLure
+            && _castState.LurePosition.Y >= AimY)
+        {
+            var lureEvt = ToEntityLureEvent(events.LureEvent);
+            for (var i = 0; i < _fish.Count; i++)
+                _fish[i].UpdateAttraction(_castState.LurePosition, dt, lureEvt);
+        }
+
+        // Update line color from tension.
+        _currentLineColor = Color.Lerp(LineColor, LineDangerColor, _castState.LineTension);
     }
+
+    // ── Event translation ─────────────────────────────────────────────────────
+
+    private void ApplyCastEvents(in FishingCastEvents events, float dt)
+    {
+        if (events.PlayCastSfx)
+            _castSfx[_sfxRng.Next(CastSfxCount)].Play(CastSfxVolume, 0f, 0f);
+
+        if (events.PlayPlopSfx)
+            _plopSfx[_sfxRng.Next(PlopSfxCount)].Play(PlopSfxVolume, 0f, 0f);
+
+        if (events.PlayTwitchSfx)
+            _twitchSfx[_sfxRng.Next(TwitchSfxCount)].Play(TwitchSfxVolume, 0f, 0f);
+
+        if (events.PlayReelTick)
+            TryPlayReelTick();
+
+        if (events.PlayStrikeSfx)
+            _strikeSfx[_sfxRng.Next(StrikeSfxCount)].Play(StrikeSfxVolume, 0f, 0f);
+
+        if (events.PlayCatchSfx)
+            _catchSfx[_sfxRng.Next(CatchSfxCount)].Play(CatchSfxVolume, 0f, 0f);
+
+        if (events.TriggerShake)
+            _shakeTimer = ShakeDuration;
+
+        // Splash / ripple events.
+        if (events.SpawnLureLandingSplash)
+            SpawnLureLandingSplash(events.SplashPosition.X, events.SplashPosition.Y);
+        else if (events.SpawnBadCastSplash)
+            SpawnBadCastSplash(events.SplashPosition.X, events.SplashPosition.Y);
+        else if (events.SpawnSplash)
+            SpawnSplash(events.SplashPosition.X, events.SplashPosition.Y);
+
+        if (events.SpawnTwitchRipple)
+        {
+            _rippleManager.SpawnRipple(events.SplashPosition);
+            _rippleManager.SpawnSplash(events.SplashPosition);
+        }
+
+        if (events.SpawnSpookRings)
+        {
+            _rippleManager.SpawnRipple(events.SplashPosition);
+            _rippleManager.SpawnSpookRing(events.SplashPosition);
+        }
+
+        if (events.SpawnStrikeSpookRings)
+        {
+            _rippleManager.SpawnSpookRing(events.StrikeRipplePosition);
+            _rippleManager.SpawnSpookRing(new Vector2(events.StrikeRipplePosition.X - 5f, events.StrikeRipplePosition.Y));
+        }
+
+        if (events.SpawnFightSpookRing)
+            _rippleManager.SpawnSpookRing(events.FightRipplePosition);
+
+        // Fish hook.
+        if (events.FishHooked && events.HookedFishIndex < _fish.Count)
+        {
+            _hookedFish = _fish[events.HookedFishIndex];
+            _hookedFish.SetHooked();
+        }
+
+        // Fish position update (fight / reel).
+        if (events.UpdateHookedFishPosition && _hookedFish != null)
+        {
+            _hookedFish.SetPosition(events.HookedFishNewPosition - FishSilhouette.SpriteHalfSize);
+            _hookedFish.SetRotation(events.HookedFishRotation);
+            if (!events.HookedFishFaceLeft)
+                _hookedFish.SetFacingLeft(false);
+            else
+                _hookedFish.SetFacingLeft(true);
+        }
+
+        // Spook fish scattered by a strike.
+        if (events.StrikeSpooked != null)
+        {
+            foreach (var idx in events.StrikeSpooked)
+                if (idx < _fish.Count) _fish[idx].Spook();
+        }
+        if (events.StrikeNearbySpook != null)
+        {
+            foreach (var idx in events.StrikeNearbySpook)
+                if (idx < _fish.Count) _fish[idx].Spook();
+        }
+
+        // Fish fled (line snap or Cancel).
+        if (events.FishFled && _hookedFish != null)
+        {
+            _hookedFish.SetRotation(0f);
+            _hookedFish.Flee();
+            _hookedFish = null;
+            _currentLineColor = LineColor;
+        }
+
+        // Catch!
+        if (events.FishReachedRod && _hookedFish != null)
+        {
+            ShowCatchToast(_hookedFish);
+            SpawnSplash(events.CatchRodTipPosition.X, AimY);
+            _fish.Remove(_hookedFish);
+            _hookedFish = null;
+            _currentLineColor = LineColor;
+        }
+    }
+
+    private void TryPlayReelTick()
+    {
+        if (_reelTickCooldown <= 0f)
+        {
+            _reelSfx[_sfxRng.Next(ReelSfxCount)].Play(ReelSfxVolume, 0f, 0f);
+            _reelTickCooldown = ReelTickIntervalSeconds;
+        }
+    }
+
+    private static FishSilhouette.LureEvent ToEntityLureEvent(FishLureEvent e) => e switch
+    {
+        FishLureEvent.Splash    => FishSilhouette.LureEvent.Splash,
+        FishLureEvent.BadSplash => FishSilhouette.LureEvent.BadSplash,
+        FishLureEvent.Twitch    => FishSilhouette.LureEvent.Twitch,
+        FishLureEvent.ReelTick  => FishSilhouette.LureEvent.ReelTick,
+        _                       => FishSilhouette.LureEvent.None,
+    };
 
     /// <inheritdoc />
     public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
@@ -656,14 +783,17 @@ public sealed class FishingScreen : IGameScreen
         }
         var shakeMatrix = Matrix.CreateTranslation(shakeOffset.X, shakeOffset.Y, 0f);
 
-        // --- Pass 1: Render water layer to render target ---
-        var previousTarget = _graphicsDevice.GetRenderTargets().Length > 0
-            ? _graphicsDevice.GetRenderTargets()[0].RenderTarget as RenderTarget2D
+        // Cache the active render target once per frame (GetRenderTargets() allocates).
+        var bindings = _graphicsDevice.GetRenderTargets();
+        _previousRenderTarget = bindings.Length > 0
+            ? bindings[0].RenderTarget as RenderTarget2D
             : null;
+
+        // --- Pass 1: Render water layer to render target ---
         _graphicsDevice.SetRenderTarget(_waterRenderTarget);
         _graphicsDevice.Clear(Color.Transparent);
         _mapRenderer.DrawLayer("water", Matrix.Identity);
-        _graphicsDevice.SetRenderTarget(previousTarget);
+        _graphicsDevice.SetRenderTarget(_previousRenderTarget);
 
         // --- Pass 2: Composite water with distortion shader ---
         _fishingWaterEffect.Parameters["Time"].SetValue(_waterElapsedSeconds);
@@ -693,40 +823,40 @@ public sealed class FishingScreen : IGameScreen
         _followerAnimator.Draw(spriteBatch, _followerSpriteSheet, _followerPosition);
         _playerAnimator.Draw(spriteBatch, _playerSpriteSheet, _playerPosition);
 
-        var rodTexture = _castState switch
+        var rodTexture = CastPhase switch
         {
-            CastState.WindingUp => _fishingRodWindupTexture,
-            CastState.Charging => _fishingRodWindupTexture,
+            CastState.WindingUp  => _fishingRodWindupTexture,
+            CastState.Charging   => _fishingRodWindupTexture,
             CastState.LureFlying => _fishingRodCastTexture,
-            CastState.CastComplete => _fishingRodCastTexture,
-            CastState.ReelingSlack => _fishingRodCastTexture,
-            CastState.ReelingLure => _fishingRodCastTexture,
-            CastState.FishStrike => _fishingRodHookedTexture,
-            CastState.FishHooked => _fishingRodHookedTexture,
+            CastState.CastComplete  => _fishingRodCastTexture,
+            CastState.ReelingSlack  => _fishingRodCastTexture,
+            CastState.ReelingLure   => _fishingRodCastTexture,
+            CastState.FishStrike    => _fishingRodHookedTexture,
+            CastState.FishHooked    => _fishingRodHookedTexture,
             _ => _fishingRodTexture,
         };
-        var rodOffset = _castState switch
+        var rodOffset = CastPhase switch
         {
-            CastState.WindingUp => FishingRodWindupOffset,
-            CastState.Charging => FishingRodWindupOffset,
+            CastState.WindingUp  => FishingRodWindupOffset,
+            CastState.Charging   => FishingRodWindupOffset,
             CastState.LureFlying => FishingRodCastOffset,
-            CastState.CastComplete => FishingRodCastOffset,
-            CastState.ReelingSlack => FishingRodCastOffset,
-            CastState.ReelingLure => FishingRodCastOffset,
-            CastState.FishStrike => FishingRodHookedOffset,
-            CastState.FishHooked => FishingRodHookedOffset,
+            CastState.CastComplete  => FishingRodCastOffset,
+            CastState.ReelingSlack  => FishingRodCastOffset,
+            CastState.ReelingLure   => FishingRodCastOffset,
+            CastState.FishStrike    => FishingRodHookedOffset,
+            CastState.FishHooked    => FishingRodHookedOffset,
             _ => FishingRodOffset,
         };
-        if (_twitchTimer <= 0f)
+        if (_castState.TwitchTimer <= 0f)
         {
             spriteBatch.Draw(rodTexture, _playerPosition + rodOffset, Color.White);
         }
         else
         {
             // During a twitch, rotate the rod slightly upward around the handle.
-            var twitchT = _twitchTimer / TwitchDurationSeconds;
+            var twitchT  = _castState.TwitchTimer / TwitchDurationSeconds;
             var rotation = TwitchRotation * twitchT;
-            var origin = new Vector2(5f, 30f); // Handle position in the rod sprite.
+            var origin   = new Vector2(5f, 30f); // Handle position in the rod sprite.
             spriteBatch.Draw(
                 rodTexture,
                 _playerPosition + rodOffset + origin,
@@ -740,22 +870,21 @@ public sealed class FishingScreen : IGameScreen
         }
 
         // Draw the power gauge when charging.
-        if (_castState == CastState.Charging)
+        if (CastPhase == CastState.Charging)
         {
             DrawPowerGauge(spriteBatch);
         }
 
         // Draw the fishing line and lure.
-        if (_castState == CastState.Idle)
+        if (CastPhase == CastState.Idle)
         {
             DrawIdleLineAndLure(spriteBatch);
         }
-        else if (_castState is CastState.FishStrike or CastState.FishHooked)
+        else if (CastPhase is CastState.FishStrike or CastState.FishHooked)
         {
-            // Draw taut line from hooked rod tip to hooked fish center, but no lure.
             DrawFishingLine(spriteBatch);
         }
-        else if (_castState is CastState.LureFlying or CastState.CastComplete
+        else if (CastPhase is CastState.LureFlying or CastState.CastComplete
             or CastState.ReelingSlack or CastState.ReelingLure)
         {
             DrawFishingLine(spriteBatch);
@@ -763,7 +892,7 @@ public sealed class FishingScreen : IGameScreen
         }
 
         // Draw the aim arrow when the player can still adjust aim.
-        if (_castState is CastState.Idle or CastState.WindingUp)
+        if (CastPhase is CastState.Idle or CastState.WindingUp)
         {
             DrawAimArrow(spriteBatch);
         }
@@ -774,19 +903,16 @@ public sealed class FishingScreen : IGameScreen
         spriteBatch.Begin(blendState: BlendState.AlphaBlend, samplerState: SamplerState.PointClamp, transformMatrix: shakeMatrix);
 
         for (var i = 0; i < _fish.Count; i++)
-        {
             _fish[i].Draw(spriteBatch, _fishTexture, Color.White);
-        }
 
         // Draw splash particles with varied sizes.
         for (var i = 0; i < _splashParticles.Count; i++)
         {
-            var p = _splashParticles[i];
+            var p     = _splashParticles[i];
             var alpha = MathHelper.Clamp(p.Life / 0.3f, 0f, 1f);
-            var size = p.Size;
-            var tint = Color.Lerp(p.Tint, Color.Transparent, 1f - alpha);
+            var tint  = Color.Lerp(p.Tint, Color.Transparent, 1f - alpha);
             spriteBatch.Draw(_pixelTexture,
-                new Rectangle((int)p.Position.X, (int)p.Position.Y, size, size),
+                new Rectangle((int)p.Position.X, (int)p.Position.Y, p.Size, p.Size),
                 tint);
         }
 
@@ -805,11 +931,9 @@ public sealed class FishingScreen : IGameScreen
     public void DrawOverlay(GameTime gameTime, SpriteBatch spriteBatch, int sceneScale)
     {
         if (_fadeState != FadeState.None)
-        {
             return;
-        }
 
-        var font = _fontSystem.GetFont(HintFontSize * sceneScale);
+        var font     = _fontSystem.GetFont(HintFontSize * sceneScale);
         var textSize = font.MeasureString(HintText);
 
         var viewport = _graphicsDevice.Viewport;
@@ -829,14 +953,13 @@ public sealed class FishingScreen : IGameScreen
         {
             var toastFont = _fontSystem.GetFont(ToastFontSize * sceneScale);
             var toastSize = toastFont.MeasureString(_toastText);
-            var toastPos = new Vector2(
+            var toastPos  = new Vector2(
                 (viewport.Width - toastSize.X) / 2f,
                 (_playerPosition.Y - 12f) * sceneScale);
 
-            // Fade out in the last 0.5s.
             float alpha = _toastTimer < 0.5f ? _toastTimer / 0.5f : 1f;
-            var color = ToastColor * alpha;
-            var shadow = ToastShadowColor * alpha;
+            var color   = ToastColor * alpha;
+            var shadow  = ToastShadowColor * alpha;
 
             spriteBatch.Begin(
                 sortMode: SpriteSortMode.Deferred,
@@ -858,205 +981,12 @@ public sealed class FishingScreen : IGameScreen
         _mapRenderer?.Dispose();
     }
 
+    // ── Fade / screen transition ──────────────────────────────────────────────
+
     private void BeginReturnTransition()
     {
         _fadeState = FadeState.FadingOut;
         _fadeAlpha = 0f;
-    }
-
-    private void ShowCatchToast(FishSilhouette fish)
-    {
-        var name = fish.Species switch
-        {
-            FishSilhouette.FishType.Minnow => "Minnow",
-            FishSilhouette.FishType.Bass => "Bass",
-            FishSilhouette.FishType.Catfish => "Catfish",
-            _ => "Fish",
-        };
-
-        // Weight range by species (in lbs).
-        var (minW, maxW) = fish.Species switch
-        {
-            FishSilhouette.FishType.Minnow => (0.1f, 0.5f),
-            FishSilhouette.FishType.Bass => (1.0f, 6.0f),
-            FishSilhouette.FishType.Catfish => (3.0f, 15.0f),
-            _ => (0.5f, 3.0f),
-        };
-
-        var weight = minW + (float)_catchRng.NextDouble() * (maxW - minW);
-        _toastText = $"{name} — {weight:F1} lbs";
-        _toastTimer = ToastDurationSeconds;
-    }
-
-    private static readonly Color[] SplashTints =
-    {
-        new(200, 230, 255, 220),  // light blue
-        new(180, 220, 255, 200),  // pale cyan
-        new(255, 255, 255, 200),  // white
-        new(160, 210, 240, 180),  // soft blue
-    };
-
-    private void SpawnSplash(float x, float y)
-    {
-        // Spawn CPU particles with varied sizes and tints.
-        for (var i = 0; i < SplashParticleCount; i++)
-        {
-            var angle = -MathHelper.PiOver2 + ((float)_catchRng.NextDouble() - 0.5f) * MathHelper.Pi * 0.8f;
-            var speed = 25f + (float)_catchRng.NextDouble() * 60f;
-            var size = _catchRng.Next(1, 4); // 1–3 px
-            var tint = SplashTints[_catchRng.Next(SplashTints.Length)];
-            _splashParticles.Add(new SplashParticle
-            {
-                Position = new Vector2(x + (float)(_catchRng.NextDouble() * 8 - 4), y),
-                Velocity = new Vector2(MathF.Cos(angle) * speed, MathF.Sin(angle) * speed),
-                Life = 0.35f + (float)_catchRng.NextDouble() * 0.25f,
-                Size = size,
-                Tint = tint,
-            });
-        }
-
-        // Spawn shader ripple distortion and splash highlight ring.
-        var splashPos = new Vector2(x, y);
-        _rippleManager.SpawnRipple(splashPos);
-        _rippleManager.SpawnSplash(splashPos);
-    }
-
-    /// <summary>
-    /// Spawns a heavier splash for the lure landing — more particles, extra
-    /// offset ripples, and multiple highlight rings for stronger visual feedback.
-    /// </summary>
-    private void SpawnLureLandingSplash(float x, float y)
-    {
-        // Base splash particles (reuse shared method for the core burst).
-        SpawnSplash(x, y);
-
-        // Extra wider particles for a bigger plume.
-        for (var i = 0; i < 6; i++)
-        {
-            var angle = -MathHelper.PiOver2 + ((float)_catchRng.NextDouble() - 0.5f) * MathHelper.Pi * 1.0f;
-            var speed = 40f + (float)_catchRng.NextDouble() * 45f;
-            var size = _catchRng.Next(2, 5);
-            var tint = SplashTints[_catchRng.Next(SplashTints.Length)];
-            _splashParticles.Add(new SplashParticle
-            {
-                Position = new Vector2(x + (float)(_catchRng.NextDouble() * 12 - 6), y),
-                Velocity = new Vector2(MathF.Cos(angle) * speed, MathF.Sin(angle) * speed),
-                Life = 0.4f + (float)_catchRng.NextDouble() * 0.3f,
-                Size = size,
-                Tint = tint,
-            });
-        }
-
-        // Secondary ripples offset slightly left/right for a wider disturbance.
-        _rippleManager.SpawnRipple(new Vector2(x - 6f, y));
-        _rippleManager.SpawnRipple(new Vector2(x + 6f, y));
-
-        // Second splash highlight ring for a brighter flash.
-        _rippleManager.SpawnSplash(new Vector2(x, y));
-    }
-
-    private static readonly Color[] BadSplashTints =
-    {
-        new(255, 80, 60, 220),    // red
-        new(255, 120, 80, 200),   // orange-red
-        new(255, 60, 40, 200),    // deep red
-        new(220, 90, 70, 180),    // muted red
-    };
-
-    /// <summary>
-    /// Spawns a red-tinted splash for a bad cast — spook rings + red particles.
-    /// </summary>
-    private void SpawnBadCastSplash(float x, float y)
-    {
-        // Red CPU particles.
-        for (var i = 0; i < SplashParticleCount; i++)
-        {
-            var angle = -MathHelper.PiOver2 + ((float)_catchRng.NextDouble() - 0.5f) * MathHelper.Pi * 0.9f;
-            var speed = 30f + (float)_catchRng.NextDouble() * 55f;
-            var size = _catchRng.Next(1, 4);
-            var tint = BadSplashTints[_catchRng.Next(BadSplashTints.Length)];
-            _splashParticles.Add(new SplashParticle
-            {
-                Position = new Vector2(x + (float)(_catchRng.NextDouble() * 8 - 4), y),
-                Velocity = new Vector2(MathF.Cos(angle) * speed, MathF.Sin(angle) * speed),
-                Life = 0.35f + (float)_catchRng.NextDouble() * 0.25f,
-                Size = size,
-                Tint = tint,
-            });
-        }
-
-        // Shader ripple distortion at impact.
-        var pos = new Vector2(x, y);
-        _rippleManager.SpawnRipple(pos);
-
-        // Red spook rings — the key visual cue.
-        _rippleManager.SpawnSpookRing(pos);
-        _rippleManager.SpawnSpookRing(new Vector2(x - 5f, y));
-        _rippleManager.SpawnSpookRing(new Vector2(x + 5f, y));
-    }
-
-    /// <summary>Plays a reel tick SFX if the cooldown has elapsed.</summary>
-    private void PlayReelTick()
-    {
-        if (_reelTickCooldown <= 0f)
-        {
-            _reelSfx[_sfxRng.Next(ReelSfxCount)].Play(ReelSfxVolume, 0f, 0f);
-            _reelTickCooldown = ReelTickIntervalSeconds;
-        }
-    }
-
-    private void SpawnFish()
-    {
-        var rng = new Random();
-
-        // Prefer polygon swim bounds, fall back to rectangle, then full map.
-        PolygonBounds swimBounds;
-        var polyBounds = _mapRenderer.GetObjectPolygons(SwimBoundsLayerName);
-        if (polyBounds.Count > 0)
-        {
-            swimBounds = polyBounds[0];
-        }
-        else
-        {
-            var rectBounds = _mapRenderer.GetObjectRectangles(SwimBoundsLayerName);
-            swimBounds = rectBounds.Count > 0
-                ? PolygonBounds.FromRectangle(rectBounds[0])
-                : PolygonBounds.FromRectangle(new Rectangle(0, 0, _mapRenderer.MapPixelWidth, _mapRenderer.MapPixelHeight));
-        }
-
-        SpawnSpecies(FishSilhouette.FishType.Minnow, MinnowCount, swimBounds, rng);
-
-        // Larger species prefer deeper water — restrict their vertical range.
-        var bassBounds = swimBounds.SliceHorizontal(0.35f);
-        SpawnSpecies(FishSilhouette.FishType.Bass, BassCount, bassBounds, rng);
-
-        var catfishBounds = swimBounds.SliceHorizontal(0.55f);
-        SpawnSpecies(FishSilhouette.FishType.Catfish, CatfishCount, catfishBounds, rng);
-    }
-
-    private void SpawnSpecies(FishSilhouette.FishType type, int count, PolygonBounds swimBounds, Random rng)
-    {
-        for (var i = 0; i < count; i++)
-        {
-            // RandomPointInside returns a point inside the polygon.
-            // Offset by half-sprite so the fish center sits at that point.
-            var pos = swimBounds.RandomPointInside(rng) - FishSilhouette.SpriteHalfSize;
-            var fish = new FishSilhouette(type, pos, swimBounds, rng);
-            _fish.Add(fish);
-        }
-    }
-
-    private void CalculateCharacterPositions()
-    {
-        // The standing baseline is 1px above the grass row top so
-        //  feet rest on the surface.
-        var standingBaselineY = GrassShelfRow * TileHeightPx + 3f;
-        var characterTopY = standingBaselineY - CharacterFramePixels;
-
-        _followerPosition = new Vector2(GrassShelfLeftMarginPx, characterTopY);
-        _playerPosition = new Vector2(
-            _followerPosition.X + CharacterFramePixels + CharacterSpacingPx,
-            characterTopY);
     }
 
     private void UpdateFade(GameTime gameTime)
@@ -1068,16 +998,15 @@ public sealed class FishingScreen : IGameScreen
             _fadeAlpha = MathHelper.Clamp(_fadeAlpha + fadeStep, 0f, 1f);
             if (_fadeAlpha >= 1f)
             {
-                _fadeState = FadeState.HoldingBlack;
+                _fadeState     = FadeState.HoldingBlack;
                 _fadeHoldTimer = ZoneTransitionBlackHoldSeconds;
             }
-
             return;
         }
 
         if (_fadeState == FadeState.HoldingBlack)
         {
-            _fadeAlpha = 1f;
+            _fadeAlpha      = 1f;
             _fadeHoldTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             if (_fadeHoldTimer <= 0f)
@@ -1094,7 +1023,6 @@ public sealed class FishingScreen : IGameScreen
                     dayNightStartProgress: _dayNightProgress,
                     spawnPosition: _returnPosition));
             }
-
             return;
         }
 
@@ -1102,9 +1030,7 @@ public sealed class FishingScreen : IGameScreen
         {
             _fadeAlpha = MathHelper.Clamp(_fadeAlpha - fadeStep, 0f, 1f);
             if (_fadeAlpha <= 0f)
-            {
                 _fadeState = FadeState.None;
-            }
         }
     }
 
@@ -1116,742 +1042,230 @@ public sealed class FishingScreen : IGameScreen
         FadingIn,
     }
 
-    /// <summary>Simple particle for water splash effects.</summary>
-    private sealed class SplashParticle
+    // ── Fish spawn / population ───────────────────────────────────────────────
+
+    private void SpawnFish()
     {
-        public Vector2 Position;
-        public Vector2 Velocity;
-        public float Life;
-        public int Size;
-        public Color Tint;
-    }
+        var rng = new Random();
 
-    private enum CastState
-    {
-        /// <summary>Rod at rest in front with bobber.</summary>
-        Idle,
-
-        /// <summary>Rod behind head, waiting for delay before gauge.</summary>
-        WindingUp,
-
-        /// <summary>Power gauge oscillating — release to cast.</summary>
-        Charging,
-
-        /// <summary>Lure is flying through the air toward the target.</summary>
-        LureFlying,
-
-        /// <summary>Rod in front with slight droop, lure has landed.</summary>
-        CastComplete,
-
-        /// <summary>Line slack is being reeled in (sag decreasing, lure stationary).</summary>
-        ReelingSlack,
-
-        /// <summary>Line is taut, lure is being retrieved toward the rod tip.</summary>
-        ReelingLure,
-
-        /// <summary>Fish lunging + breach animation.</summary>
-        FishStrike,
-
-        /// <summary>Fish on the line, player reels in.</summary>
-        FishHooked,
-    }
-
-    private void UpdateCastState(GameTime gameTime, IInputManager input)
-    {
-        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        // Track the lure event for this frame (used by fish attraction).
-        var currentLureEvent = FishSilhouette.LureEvent.None;
-
-        switch (_castState)
+        PolygonBounds swimBounds;
+        var polyBounds = _mapRenderer.GetObjectPolygons(SwimBoundsLayerName);
+        if (polyBounds.Count > 0)
         {
-            case CastState.Idle:
-                _swayTimer += dt;
-                if (input.IsHeld(InputAction.Confirm))
-                {
-                    _castState = CastState.WindingUp;
-                    _windupTimer = 0f;
-                    _swayTimer = 0f;
-                    _lureSwayOffset = 0f;
-                }
-                break;
-
-            case CastState.WindingUp:
-                if (!input.IsHeld(InputAction.Confirm))
-                {
-                    // Released too early — return to idle.
-                    _castState = CastState.Idle;
-                    break;
-                }
-
-                _windupTimer += dt;
-                if (_windupTimer >= WindupDelaySeconds)
-                {
-                    _castState = CastState.Charging;
-                    _gaugePhase = 0f;
-                }
-                break;
-
-            case CastState.Charging:
-                _gaugePhase += dt * GaugeSpeedCyclesPerSecond;
-
-                if (!input.IsHeld(InputAction.Confirm))
-                {
-                    // Released — evaluate the gauge position and launch the lure.
-                    var gaugeValue = GaugeValue();
-                    var (greenStart, greenEnd) = GaugeGreenZone();
-                    _lastCastGood = gaugeValue >= greenStart
-                                 && gaugeValue <= greenEnd;
-                    BeginLureFlight(gaugeValue, greenStart, greenEnd);
-                    _castSfx[_sfxRng.Next(CastSfxCount)].Play(CastSfxVolume, 0f, 0f);
-                }
-                break;
-
-            case CastState.LureFlying:
-                _lureFlightTime += dt;
-                if (_lureFlightTime >= LureFlightDurationSeconds)
-                {
-                    _lureFlightTime = LureFlightDurationSeconds;
-                    _lurePosition = _lureEnd;
-                    _lineSettleTimer = 0f;
-                    _castState = CastState.CastComplete;
-                    currentLureEvent = _lastCastGood
-                        ? FishSilhouette.LureEvent.Splash
-                        : FishSilhouette.LureEvent.BadSplash;
-                    _plopSfx[_sfxRng.Next(PlopSfxCount)].Play(PlopSfxVolume, 0f, 0f);
-                    if (_lastCastGood)
-                    {
-                        SpawnLureLandingSplash(_lurePosition.X, AimY);
-                    }
-                    else
-                    {
-                        SpawnBadCastSplash(_lurePosition.X, AimY);
-                    }
-                }
-                else
-                {
-                    var t = _lureFlightTime / LureFlightDurationSeconds;
-                    _lurePosition = Vector2.Lerp(_lureStart, _lureEnd, t);
-                    // Arc: raise the lure above the straight line using a sine curve.
-                    _lurePosition.Y -= LureArcHeight * MathF.Sin(MathF.PI * t);
-                }
-                break;
-
-            case CastState.CastComplete:
-                // Advance the line slack settling animation.
-                if (_lineSettleTimer < LineSettleDurationSeconds)
-                {
-                    _lineSettleTimer += dt;
-                    // Keep _currentSag in sync while settling.
-                    var settleT = MathHelper.Clamp(_lineSettleTimer / LineSettleDurationSeconds, 0f, 1f);
-                    _currentSag = LineMaxSag * (1f - (1f - settleT) * (1f - settleT));
-                }
-
-                // Tick rapid-twitch window.
-                if (_rapidTwitchWindow > 0f)
-                    _rapidTwitchWindow -= dt;
-
-                // Tick twitch timer.
-                if (_twitchTimer > 0f)
-                {
-                    _twitchTimer -= dt;
-                    if (_twitchTimer <= 0f)
-                    {
-                        _twitchTimer = 0f;
-                        // Line relaxes back to a gentle slack after the twitch.
-                        _currentSag = LineRelaxSag;
-                    }
-                }
-
-                // Tap MoveLeft to pop/twitch the lure toward the player.
-                if (input.IsPressed(InputAction.MoveLeft))
-                {
-                    var rodTip = _playerPosition + FishingRodCastOffset + RodTipLocalOffset;
-                    _lurePosition.X = MathHelper.Max(_lurePosition.X - TwitchDistancePx, rodTip.X);
-                    _currentSag = MathHelper.Max(_currentSag - 3f, 0f);
-                    _twitchTimer = TwitchDurationSeconds;
-                    _twitchSfx[_sfxRng.Next(TwitchSfxCount)].Play(TwitchSfxVolume, 0f, 0f);
-
-                    // Track rapid twitches — reset counter if the window expired.
-                    if (_rapidTwitchWindow <= 0f)
-                        _rapidTwitchCount = 0;
-                    _rapidTwitchCount++;
-                    _rapidTwitchWindow = RapidTwitchWindowSeconds;
-
-                    var twitchPos = new Vector2(_lurePosition.X, AimY);
-                    _rippleManager.SpawnRipple(twitchPos);
-
-                    if (_rapidTwitchCount > RapidTwitchSafeCount)
-                    {
-                        // Too many twitches in quick succession — spook!
-                        currentLureEvent = FishSilhouette.LureEvent.BadSplash;
-                        _rippleManager.SpawnSpookRing(twitchPos);
-                    }
-                    else
-                    {
-                        // Normal twitch — white attract ring.
-                        currentLureEvent = FishSilhouette.LureEvent.Twitch;
-                        _rippleManager.SpawnSplash(twitchPos);
-                    }
-
-                    // Check for fish strike — a twitch while a fish is strike-ready triggers a bite.
-                    if (FishAttractionEnabled)
-                    for (int i = 0; i < _fish.Count; i++)
-                    {
-                        if (_fish[i].Attraction == FishSilhouette.AttractionState.StrikeReady)
-                        {
-                            _hookedFish = _fish[i];
-                            _hookedFish.SetHooked();
-                            _strikeStartPos = _hookedFish.Center;
-                            _strikeTimer = 0f;
-                            _twitchTimer = 0f; // Cancel the twitch rotation for the hooked rod.
-                            _hookTarget = new Vector2(_lurePosition.X, AimY + (_virtualHeight - AimY) * 0.5f);
-                            _castState = CastState.FishStrike;
-                            _shakeTimer = ShakeDuration;
-                            SpawnSplash(_lurePosition.X, AimY);
-                            // Red spook rings — the strike scatters nearby fish.
-                            var strikePos = new Vector2(_lurePosition.X, AimY);
-                            _rippleManager.SpawnSpookRing(strikePos);
-                            _rippleManager.SpawnSpookRing(new Vector2(_lurePosition.X - 5f, AimY));
-                            _strikeSfx[_sfxRng.Next(StrikeSfxCount)].Play(StrikeSfxVolume, 0f, 0f);
-
-                            // Scatter all attracted fish — a strike is violent enough
-                            // to reset everything. Unaware fish nearby also scatter.
-                            for (int j = 0; j < _fish.Count; j++)
-                            {
-                                if (_fish[j] != _hookedFish)
-                                {
-                                    var state = _fish[j].Attraction;
-                                    if (state is FishSilhouette.AttractionState.Curious
-                                        or FishSilhouette.AttractionState.Approaching
-                                        or FishSilhouette.AttractionState.StrikeReady)
-                                    {
-                                        _fish[j].Spook();
-                                    }
-                                    else
-                                    {
-                                        var dist = Vector2.Distance(_fish[j].Center, _hookedFish.Center);
-                                        if (dist < 80f)
-                                            _fish[j].Spook();
-                                    }
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-
-                // Sway the lure when it's hanging in the air (past the shoreline).
-                if (_lurePosition.Y < AimY)
-                {
-                    _swayTimer += dt;
-                    _lureSwayOffset = (float)Math.Sin(_swayTimer * IdleSwayCyclesPerSecond * MathHelper.TwoPi) * IdleSwayAmplitudePx;
-                }
-                else
-                {
-                    _lureSwayOffset = 0f;
-                }
-
-                // Hold Confirm to start reeling.
-                if (input.IsHeld(InputAction.Confirm))
-                {
-                    _lureSwayOffset = 0f;
-                    _swayTimer = 0f;
-                    currentLureEvent = FishSilhouette.LureEvent.ReelTick;
-                    _castState = _currentSag > 0f
-                        ? CastState.ReelingSlack
-                        : CastState.ReelingLure;
-                    PlayReelTick();
-                }
-                break;
-
-            case CastState.ReelingSlack:
-                if (!input.IsHeld(InputAction.Confirm))
-                {
-                    // Released — stop reeling, add slight relaxation.
-                    _currentSag = MathHelper.Max(_currentSag, LineRelaxSag);
-                    _castState = CastState.CastComplete;
-                    break;
-                }
-
-                currentLureEvent = FishSilhouette.LureEvent.ReelTick;
-                PlayReelTick();
-
-                // Reduce sag toward zero.
-                _currentSag -= ReelSlackSpeed * dt;
-                if (_currentSag <= 0f)
-                {
-                    _currentSag = 0f;
-                    _castState = CastState.ReelingLure;
-                }
-                break;
-
-            case CastState.ReelingLure:
-            {
-                if (!input.IsHeld(InputAction.Confirm))
-                {
-                    // Released — stop reeling, add slight relaxation.
-                    _currentSag = LineRelaxSag;
-                    _castState = CastState.CastComplete;
-                    break;
-                }
-
-                currentLureEvent = FishSilhouette.LureEvent.ReelTick;
-                PlayReelTick();
-
-                // Drag the lure along the water surface toward the shore,
-                // then up to the rod tip once it reaches the shoreline.
-                var rodTip = _playerPosition + FishingRodCastOffset + RodTipLocalOffset;
-                var shoreX = rodTip.X;
-
-                if (_lurePosition.X > shoreX)
-                {
-                    // Still on the water — slide horizontally at the surface.
-                    _lurePosition.X -= ReelLureSpeed * dt;
-                    _lurePosition.Y = AimY;
-
-                    if (_lurePosition.X <= shoreX)
-                    {
-                        _lurePosition.X = shoreX;
-                    }
-                }
-                else
-                {
-                    // Past the shoreline — reel directly up to the rod tip.
-                    var toTip = rodTip - _lurePosition;
-                    var dist = toTip.Length();
-                    if (dist <= ReelLureSpeed * dt)
-                    {
-                        _lurePosition = rodTip;
-                        _castState = CastState.Idle;
-                    }
-                    else
-                    {
-                        _lurePosition += Vector2.Normalize(toTip) * ReelLureSpeed * dt;
-                    }
-                }
-                break;
-            }
-
-            case CastState.FishStrike:
-            {
-                _strikeTimer += dt;
-
-                if (_strikeTimer < StrikeBreachPeakTime)
-                {
-                    // Phase 1: Fish lunges from start position toward lure, then breaches above surface.
-                    var t = _strikeTimer / StrikeBreachPeakTime;
-                    var breachPos = new Vector2(
-                        MathHelper.Lerp(_strikeStartPos.X, _lurePosition.X, t),
-                        MathHelper.Lerp(_strikeStartPos.Y, AimY - StrikeBreachHeight, t));
-                    _hookedFish.SetPosition(breachPos - FishSilhouette.SpriteHalfSize);
-                }
-                else if (_strikeTimer < StrikeDiveStartTime)
-                {
-                    // Phase 2: Brief pause at peak of breach.
-                    var breachPos = new Vector2(_lurePosition.X, AimY - StrikeBreachHeight);
-                    _hookedFish.SetPosition(breachPos - FishSilhouette.SpriteHalfSize);
-                }
-                else if (_strikeTimer < StrikeDuration)
-                {
-                    // Phase 3: Dive down to hook target (halfway depth).
-                    var t = (_strikeTimer - StrikeDiveStartTime) / (StrikeDuration - StrikeDiveStartTime);
-                    // Ease-out for natural deceleration.
-                    t = 1f - (1f - t) * (1f - t);
-                    var diveStart = new Vector2(_lurePosition.X, AimY - StrikeBreachHeight);
-                    var pos = Vector2.Lerp(diveStart, _hookTarget, t);
-                    _hookedFish.SetPosition(pos - FishSilhouette.SpriteHalfSize);
-                }
-                else
-                {
-                    // Strike animation complete — transition to hooked.
-                    _hookedFish.SetPosition(_hookTarget - FishSilhouette.SpriteHalfSize);
-                    _castState = CastState.FishHooked;
-                    _wiggleTimer = 0f;
-                    _lineTension = 0f;
-                    _fightBurstTimer = 0f;
-                    _fishStamina = 1f;
-                    _fightCooldown = FightCooldownMin
-                        + (float)_catchRng.NextDouble() * (FightCooldownMax - FightCooldownMin);
-                }
-                break;
-            }
-
-            case CastState.FishHooked:
-            {
-                var fishCenter = _hookedFish.Center;
-                var fishInWater = fishCenter.X > AimMinX;
-
-                // --- Fight burst management (only while in the water) ---
-                if (!fishInWater)
-                {
-                    _fightBurstTimer = 0f;
-                }
-                else if (_fightBurstTimer > 0f)
-                {
-                    _fightBurstTimer -= dt;
-                    if (_fightBurstTimer <= 0f)
-                    {
-                        _fightBurstTimer = 0f;
-                        _fightCooldown = FightCooldownMin
-                            + (float)_catchRng.NextDouble() * (FightCooldownMax - FightCooldownMin);
-                    }
-                }
-                else
-                {
-                    _fightCooldown -= dt;
-                    if (_fightCooldown <= 0f)
-                    {
-                        // Scale burst duration by remaining stamina.
-                        var staminaFactor = MathHelper.Max(_fishStamina, StaminaFloor);
-                        _fightBurstTimer = FightBurstDuration * staminaFactor;
-                        _fishStamina = MathHelper.Max(_fishStamina - StaminaDrainPerBurst, 0f);
-                        // Spawn a red spook ring at the fish to signal the fight.
-                        _rippleManager.SpawnSpookRing(_hookedFish.Center);
-                    }
-                }
-
-                fishCenter = _hookedFish.Center;
-                var isReeling = input.IsHeld(InputAction.Confirm);
-
-                // --- Line tension ---
-                if (isReeling)
-                {
-                    _lineTension += (IsFighting ? TensionReelDuringFight : TensionReelNormal) * dt;
-                }
-                else
-                {
-                    _lineTension -= TensionDecay * dt;
-                }
-                _lineTension = MathHelper.Clamp(_lineTension, 0f, TensionSnapThreshold);
-
-                // Update line color based on tension.
-                _currentLineColor = Color.Lerp(LineColor, LineDangerColor, _lineTension);
-
-                // --- Line snap check ---
-                if (_lineTension >= TensionSnapThreshold)
-                {
-                    // Line snapped — fish escapes.
-                    _hookedFish.SetRotation(0f);
-                    _hookedFish.Flee();
-                    _shakeTimer = ShakeDuration;
-                    _hookedFish = null;
-                    _castState = CastState.Idle;
-                    _lineTension = 0f;
-                    _currentLineColor = LineColor;
-                    break;
-                }
-
-                // --- Fight burst: fish pulls hard to the right ---
-                if (IsFighting)
-                {
-                    var staminaFactor = MathHelper.Max(_fishStamina, StaminaFloor);
-                    _hookedFish.SetFacingLeft(false);
-                    // Frantic wiggle during fight — intensity scales with stamina.
-                    var fightWiggle = MathF.Sin(_wiggleTimer * WiggleSpeed * 2.5f) * WiggleAmplitude * 1.8f * staminaFactor;
-                    _hookedFish.SetRotation(fightWiggle);
-
-                    var pullDir = new Vector2(1f, MathF.Sin(_wiggleTimer * 4f) * 0.4f);
-                    pullDir.Normalize();
-                    var newCenter = fishCenter + pullDir * FightPullSpeed * staminaFactor * dt;
-
-                    // Clamp to water bounds.
-                    newCenter.Y = MathHelper.Clamp(newCenter.Y, AimY, _hookTarget.Y);
-                    newCenter.X = MathHelper.Min(newCenter.X, _virtualWidth - 16f);
-
-                    _hookedFish.SetPosition(newCenter - FishSilhouette.SpriteHalfSize);
-
-                    if (isReeling)
-                    {
-                        PlayReelTick();
-                        // Reeling during a fight still moves the fish slightly toward shore,
-                        // but at greatly reduced speed (and at the cost of tension).
-                        var reelSpeed = HookedReelSpeed * _hookedFish.ReelSpeedMultiplier * 0.3f;
-                        newCenter = _hookedFish.Center;
-                        if (newCenter.X > AimMinX)
-                        {
-                            newCenter.X -= reelSpeed * dt;
-                            _hookedFish.SetPosition(newCenter - FishSilhouette.SpriteHalfSize);
-                        }
-                    }
-                }
-                else if (isReeling)
-                {
-                    PlayReelTick();
-                    _hookedFish.SetFacingLeft(true);
-                    // Reel the fish toward shore along the water, then lift to rod tip.
-                    var reelSpeed = HookedReelSpeed * _hookedFish.ReelSpeedMultiplier;
-                    var rodTip = _playerPosition + FishingRodHookedOffset + HookedRodTipLocalOffset;
-                    var shoreX = AimMinX;
-
-                    if (fishCenter.X > shoreX)
-                    {
-                        var newX = fishCenter.X - reelSpeed * dt;
-                        if (newX <= shoreX)
-                            newX = shoreX;
-
-                        var totalDist = _hookTarget.X - shoreX;
-                        var progress = totalDist > 1f
-                            ? 1f - MathHelper.Clamp((newX - shoreX) / totalDist, 0f, 1f)
-                            : 1f;
-                        var newY = MathHelper.Lerp(_hookTarget.Y, AimY, progress);
-                        newY = MathHelper.Max(newY, AimY);
-
-                        var rotTarget = MathHelper.PiOver2;
-                        var wiggle = MathF.Sin(_wiggleTimer * WiggleSpeed) * WiggleAmplitude;
-                        _hookedFish.SetRotation(MathHelper.Lerp(0f, rotTarget, progress) + wiggle);
-
-                        _hookedFish.SetPosition(
-                            new Vector2(newX, newY) - FishSilhouette.SpriteHalfSize);
-                    }
-                    else
-                    {
-                        var airWiggle = MathF.Sin(_wiggleTimer * WiggleSpeed) * WiggleAmplitude;
-                        _hookedFish.SetRotation(MathHelper.PiOver2 + airWiggle);
-                        var toRod = rodTip - fishCenter;
-                        var dist = toRod.Length();
-                        if (dist <= reelSpeed * dt)
-                        {
-                            ShowCatchToast(_hookedFish);
-                            _shakeTimer = ShakeDuration;
-                            SpawnSplash(rodTip.X, AimY);
-                            _catchSfx[_sfxRng.Next(CatchSfxCount)].Play(CatchSfxVolume, 0f, 0f);
-                            _fish.Remove(_hookedFish);
-                            _hookedFish = null;
-                            _castState = CastState.Idle;
-                            _lineTension = 0f;
-                            _currentLineColor = LineColor;
-                        }
-                        else
-                        {
-                            var newCenter = fishCenter + Vector2.Normalize(toRod) * reelSpeed * dt;
-                            _hookedFish.SetPosition(newCenter - FishSilhouette.SpriteHalfSize);
-                        }
-                    }
-                }
-                else
-                {
-                    // Not reeling, not fighting — fish drifts back slowly.
-                    var rodTipIdle = _playerPosition + FishingRodHookedOffset + HookedRodTipLocalOffset;
-
-                    if (fishCenter.X <= rodTipIdle.X)
-                    {
-                        // In the air — just hang.
-                    }
-                    else if (fishCenter.X <= AimMinX)
-                    {
-                        // Between shoreline and rod — no drift.
-                    }
-                    else
-                    {
-                        _hookedFish.SetFacingLeft(false);
-                        _hookedFish.SetRotation(0f);
-                        var driftDir = new Vector2(1f, 0.3f);
-                        driftDir.Normalize();
-                        var newCenter = fishCenter + driftDir * HookedDriftBackSpeed * dt;
-
-                        newCenter.Y = MathHelper.Min(newCenter.Y, _hookTarget.Y);
-                        newCenter.X = MathHelper.Min(newCenter.X, _virtualWidth - 16f);
-
-                        _hookedFish.SetPosition(newCenter - FishSilhouette.SpriteHalfSize);
-                    }
-                }
-                break;
-            }
+            swimBounds = polyBounds[0];
+        }
+        else
+        {
+            var rectBounds = _mapRenderer.GetObjectRectangles(SwimBoundsLayerName);
+            swimBounds = rectBounds.Count > 0
+                ? PolygonBounds.FromRectangle(rectBounds[0])
+                : PolygonBounds.FromRectangle(new Rectangle(0, 0, _mapRenderer.MapPixelWidth, _mapRenderer.MapPixelHeight));
         }
 
-        // Feed lure events to each fish's attraction state machine while the lure is in the water.
-        if (FishAttractionEnabled &&
-            _castState is CastState.CastComplete or CastState.ReelingSlack or CastState.ReelingLure
-            && _lurePosition.Y >= AimY)
+        SpawnSpecies(FishSilhouette.FishType.Minnow, MinnowCount, swimBounds, rng);
+
+        var bassBounds    = swimBounds.SliceHorizontal(0.35f);
+        SpawnSpecies(FishSilhouette.FishType.Bass, BassCount, bassBounds, rng);
+
+        var catfishBounds = swimBounds.SliceHorizontal(0.55f);
+        SpawnSpecies(FishSilhouette.FishType.Catfish, CatfishCount, catfishBounds, rng);
+    }
+
+    private void SpawnSpecies(FishSilhouette.FishType type, int count, PolygonBounds swimBounds, Random rng)
+    {
+        for (var i = 0; i < count; i++)
         {
-            for (int i = 0; i < _fish.Count; i++)
-            {
-                _fish[i].UpdateAttraction(_lurePosition, dt, currentLureEvent);
-            }
+            var pos  = swimBounds.RandomPointInside(rng) - FishSilhouette.SpriteHalfSize;
+            var fish = new FishSilhouette(type, pos, swimBounds, rng);
+            _fish.Add(fish);
         }
     }
 
-    /// <summary>
-    /// Returns the current gauge needle position as a value from 0 to 1.
-    /// The needle oscillates back and forth (ping-pong).
-    /// </summary>
-    private float GaugeValue()
+    // ── Toast ─────────────────────────────────────────────────────────────────
+
+    private void ShowCatchToast(FishSilhouette fish)
     {
-        // Use a triangle wave for smooth ping-pong.
-        var t = _gaugePhase % 1f;
-        return t <= 0.5f ? t * 2f : 2f - t * 2f;
+        var name = fish.Species switch
+        {
+            FishSilhouette.FishType.Minnow  => "Minnow",
+            FishSilhouette.FishType.Bass    => "Bass",
+            FishSilhouette.FishType.Catfish => "Catfish",
+            _                               => "Fish",
+        };
+
+        var (minW, maxW) = fish.Species switch
+        {
+            FishSilhouette.FishType.Minnow  => (0.1f, 0.5f),
+            FishSilhouette.FishType.Bass    => (1.0f, 6.0f),
+            FishSilhouette.FishType.Catfish => (3.0f, 15.0f),
+            _                               => (0.5f, 3.0f),
+        };
+
+        var weight = minW + (float)_catchRng.NextDouble() * (maxW - minW);
+        _toastText  = $"{name} — {weight:F1} lbs";
+        _toastTimer = ToastDurationSeconds;
     }
 
-    /// <summary>
-    /// Returns the green zone start/end based on how far the aim cursor is from shore.
-    /// Close casts are easy (wide green), far casts are hard (narrow green).
-    /// </summary>
-    private (float start, float end) GaugeGreenZone()
+    // ── Splash particles ──────────────────────────────────────────────────────
+
+    private static readonly Color[] SplashTints =
     {
-        var range = _aimMaxX - AimMinX;
-        var distanceFraction = range > 1f
-            ? MathHelper.Clamp((_aimX - AimMinX) / range, 0f, 1f)
-            : 0f;
-        var half = MathHelper.Lerp(GaugeGreenHalfClose, GaugeGreenHalfFar, distanceFraction);
-        return (GaugeGreenCenter - half, GaugeGreenCenter + half);
+        new(200, 230, 255, 220),
+        new(180, 220, 255, 200),
+        new(255, 255, 255, 200),
+        new(160, 210, 240, 180),
+    };
+
+    private void SpawnSplash(float x, float y)
+    {
+        for (var i = 0; i < SplashParticleCount; i++)
+        {
+            var angle = -MathHelper.PiOver2 + ((float)_catchRng.NextDouble() - 0.5f) * MathHelper.Pi * 0.8f;
+            var speed = 25f + (float)_catchRng.NextDouble() * 60f;
+            var size  = _catchRng.Next(1, 4);
+            var tint  = SplashTints[_catchRng.Next(SplashTints.Length)];
+            _splashParticles.Add(new SplashParticle
+            {
+                Position = new Vector2(x + (float)(_catchRng.NextDouble() * 8 - 4), y),
+                Velocity = new Vector2(MathF.Cos(angle) * speed, MathF.Sin(angle) * speed),
+                Life     = 0.35f + (float)_catchRng.NextDouble() * 0.25f,
+                Size     = size,
+                Tint     = tint,
+            });
+        }
+
+        var splashPos = new Vector2(x, y);
+        _rippleManager.SpawnRipple(splashPos);
+        _rippleManager.SpawnSplash(splashPos);
     }
+
+    private void SpawnLureLandingSplash(float x, float y)
+    {
+        SpawnSplash(x, y);
+
+        for (var i = 0; i < 6; i++)
+        {
+            var angle = -MathHelper.PiOver2 + ((float)_catchRng.NextDouble() - 0.5f) * MathHelper.Pi * 1.0f;
+            var speed = 40f + (float)_catchRng.NextDouble() * 45f;
+            var size  = _catchRng.Next(2, 5);
+            var tint  = SplashTints[_catchRng.Next(SplashTints.Length)];
+            _splashParticles.Add(new SplashParticle
+            {
+                Position = new Vector2(x + (float)(_catchRng.NextDouble() * 12 - 6), y),
+                Velocity = new Vector2(MathF.Cos(angle) * speed, MathF.Sin(angle) * speed),
+                Life     = 0.4f + (float)_catchRng.NextDouble() * 0.3f,
+                Size     = size,
+                Tint     = tint,
+            });
+        }
+
+        _rippleManager.SpawnRipple(new Vector2(x - 6f, y));
+        _rippleManager.SpawnRipple(new Vector2(x + 6f, y));
+        _rippleManager.SpawnSplash(new Vector2(x, y));
+    }
+
+    private static readonly Color[] BadSplashTints =
+    {
+        new(255, 80, 60, 220),
+        new(255, 120, 80, 200),
+        new(255, 60, 40, 200),
+        new(220, 90, 70, 180),
+    };
+
+    private void SpawnBadCastSplash(float x, float y)
+    {
+        for (var i = 0; i < SplashParticleCount; i++)
+        {
+            var angle = -MathHelper.PiOver2 + ((float)_catchRng.NextDouble() - 0.5f) * MathHelper.Pi * 0.9f;
+            var speed = 30f + (float)_catchRng.NextDouble() * 55f;
+            var size  = _catchRng.Next(1, 4);
+            var tint  = BadSplashTints[_catchRng.Next(BadSplashTints.Length)];
+            _splashParticles.Add(new SplashParticle
+            {
+                Position = new Vector2(x + (float)(_catchRng.NextDouble() * 8 - 4), y),
+                Velocity = new Vector2(MathF.Cos(angle) * speed, MathF.Sin(angle) * speed),
+                Life     = 0.35f + (float)_catchRng.NextDouble() * 0.25f,
+                Size     = size,
+                Tint     = tint,
+            });
+        }
+
+        var pos = new Vector2(x, y);
+        _rippleManager.SpawnRipple(pos);
+        _rippleManager.SpawnSpookRing(pos);
+        _rippleManager.SpawnSpookRing(new Vector2(x - 5f, y));
+        _rippleManager.SpawnSpookRing(new Vector2(x + 5f, y));
+    }
+
+    // ── Drawing helpers ───────────────────────────────────────────────────────
 
     private void DrawPowerGauge(SpriteBatch spriteBatch)
     {
-        // Position the gauge to the right of the player character.
         var gaugeX = (int)(_playerPosition.X + CharacterFramePixels + GaugeMarginRight);
         var gaugeY = (int)(_playerPosition.Y + (CharacterFramePixels - GaugeHeight) / 2f);
 
-        // Background bar.
         spriteBatch.Draw(_pixelTexture,
             new Rectangle(gaugeX - 1, gaugeY - 1, GaugeWidth + 2, GaugeHeight + 2),
             GaugeBackColor);
 
-        // Red zone (full bar).
         spriteBatch.Draw(_pixelTexture,
             new Rectangle(gaugeX, gaugeY, GaugeWidth, GaugeHeight),
             GaugeRedColor);
 
-        // Green zone overlay — shrinks with cast distance.
-        var (greenStart, greenEnd) = GaugeGreenZone();
+        var (greenStart, greenEnd) = FishingCastLogic.GaugeGreenZone(_castState);
         var greenY = gaugeY + (int)(GaugeHeight * (1f - greenEnd));
         var greenH = (int)(GaugeHeight * (greenEnd - greenStart));
         spriteBatch.Draw(_pixelTexture,
             new Rectangle(gaugeX, greenY, GaugeWidth, greenH),
             GaugeGreenColor);
 
-        // Needle (horizontal line at gauge value position).
-        var needleValue = GaugeValue();
-        var needleY = gaugeY + (int)(GaugeHeight * (1f - needleValue));
+        var needleValue = FishingCastLogic.GaugeValue(_castState);
+        var needleY     = gaugeY + (int)(GaugeHeight * (1f - needleValue));
         spriteBatch.Draw(_pixelTexture,
             new Rectangle(gaugeX - 1, needleY, GaugeWidth + 2, 2),
             GaugeNeedleColor);
     }
 
-    private void UpdateAim(GameTime gameTime, IInputManager input)
-    {
-        // Lock the aim once the power gauge is active or the lure is in flight/reeling.
-        if (_castState is CastState.Charging or CastState.LureFlying or CastState.CastComplete
-            or CastState.ReelingSlack or CastState.ReelingLure
-            or CastState.FishStrike or CastState.FishHooked)
-        {
-            return;
-        }
-
-        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        if (input.IsHeld(InputAction.MoveRight))
-        {
-            _aimX += AimSpeedPxPerSecond * dt;
-        }
-
-        if (input.IsHeld(InputAction.MoveLeft))
-        {
-            _aimX -= AimSpeedPxPerSecond * dt;
-        }
-
-        _aimX = MathHelper.Clamp(_aimX, AimMinX, _aimMaxX);
-    }
-
-    /// <summary>
-    /// Computes the lure start/end positions and transitions to LureFlying.
-    /// Low gauge = lands short, green zone = on target, high gauge = overshoots.
-    /// </summary>
-    private void BeginLureFlight(float gaugeValue, float greenStart, float greenEnd)
-    {
-        // Launch from the rod tip.
-        _lureStart = _playerPosition + FishingRodCastOffset + RodTipLocalOffset;
-
-        var targetX = _aimX + AimArrowSize / 2f;
-
-        if (!_lastCastGood)
-        {
-            float offset;
-            if (gaugeValue < greenStart)
-            {
-                // Below green — cast lands SHORT. Further from green = bigger miss.
-                var miss = 1f - (gaugeValue / greenStart); // 0 at green edge, 1 at bottom
-                offset = -MathHelper.Lerp(BadCastMinOffset, BadCastMaxOffset, miss);
-            }
-            else
-            {
-                // Above green — cast OVERSHOOTS. Further from green = bigger miss.
-                var miss = (gaugeValue - greenEnd) / (1f - greenEnd); // 0 at green edge, 1 at top
-                offset = MathHelper.Lerp(BadCastMinOffset, BadCastMaxOffset, miss);
-            }
-            targetX += offset;
-            targetX = MathHelper.Clamp(targetX, 0f, _aimMaxX + AimArrowSize);
-        }
-
-        _lureEnd = new Vector2(targetX, AimY);
-        _lureFlightTime = 0f;
-        _lurePosition = _lureStart;
-        _castState = CastState.LureFlying;
-    }
-
-    /// <summary>
-    /// Draws the fishing line from the rod tip to the lure.
-    /// During flight the line is taut (straight). After landing it
-    /// transitions to a slack catenary over <see cref="LineSettleDurationSeconds"/>.
-    /// </summary>
     private void DrawFishingLine(SpriteBatch spriteBatch)
     {
         Vector2 rodTip;
         Vector2 end;
-        float sag;
+        float   sag;
 
-        if (_castState is CastState.FishStrike or CastState.FishHooked)
+        if (CastPhase is CastState.FishStrike or CastState.FishHooked)
         {
-            // Taut line from hooked rod tip to fish mouth.
-            rodTip = _playerPosition + FishingRodHookedOffset + HookedRodTipLocalOffset;
-            end = _hookedFish.MouthPosition;
-            sag = 0f;
+            rodTip = FishingCastLogic.GetHookedRodTipPosition(_playerPosition);
+            end    = _hookedFish.MouthPosition;
+            sag    = 0f;
         }
         else
         {
-            rodTip = GetRodTipPosition();
-            end = _lurePosition + new Vector2(_lureSwayOffset, 0f);
+            rodTip = FishingCastLogic.GetCastRodTipPosition(_castState, _playerPosition);
+            end    = _castState.LurePosition + new Vector2(_castState.LureSwayOffset, 0f);
 
-            // Determine the sag factor. Zero during flight, easing in after landing,
-            // then decreasing during reel-in.
             sag = 0f;
-            if (_castState == CastState.CastComplete || _castState == CastState.ReelingSlack)
-            {
-                sag = _currentSag;
-            }
+            if (CastPhase is CastState.CastComplete or CastState.ReelingSlack)
+                sag = _castState.CurrentSag;
         }
 
-        // Draw the line as a series of 1px segments along a quadratic bezier.
-        // Control point sits at the midpoint, displaced downward by the sag.
         var mid = (rodTip + end) * 0.5f;
         mid.Y += sag;
 
         var prev = rodTip;
         for (var i = 1; i <= LineSegments; i++)
         {
-            var st = i / (float)LineSegments;
-            // Quadratic bezier: B(t) = (1-t)^2 * P0 + 2(1-t)t * P1 + t^2 * P2
+            var st  = i / (float)LineSegments;
             var inv = 1f - st;
             var point = inv * inv * rodTip + 2f * inv * st * mid + st * st * end;
-
-            // Plot 1px line between consecutive curve points (Bresenham).
             DrawLinePixels(spriteBatch, prev, point);
-
             prev = point;
         }
     }
 
-    /// <summary>
-    /// Draws a 1px-thick line between two points using Bresenham's algorithm.
-    /// </summary>
     private void DrawLinePixels(SpriteBatch spriteBatch, Vector2 a, Vector2 b)
     {
-        var x0 = (int)a.X;
-        var y0 = (int)a.Y;
-        var x1 = (int)b.X;
-        var y1 = (int)b.Y;
-
+        var x0 = (int)a.X; var y0 = (int)a.Y;
+        var x1 = (int)b.X; var y1 = (int)b.Y;
         var dx = Math.Abs(x1 - x0);
         var dy = Math.Abs(y1 - y0);
         var sx = x0 < x1 ? 1 : -1;
@@ -1861,63 +1275,42 @@ public sealed class FishingScreen : IGameScreen
         while (true)
         {
             spriteBatch.Draw(_pixelTexture, new Rectangle(x0, y0, 1, 1), _currentLineColor);
-
-            if (x0 == x1 && y0 == y1)
-            {
-                break;
-            }
-
+            if (x0 == x1 && y0 == y1) break;
             var e2 = 2 * err;
-            if (e2 > -dy)
-            {
-                err -= dy;
-                x0 += sx;
-            }
-
-            if (e2 < dx)
-            {
-                err += dx;
-                y0 += sy;
-            }
+            if (e2 > -dy) { err -= dy; x0 += sx; }
+            if (e2 < dx)  { err += dx; y0 += sy; }
         }
     }
 
     private void DrawLure(SpriteBatch spriteBatch)
     {
         var pos = new Vector2(
-            _lurePosition.X + _lureSwayOffset,
-            _lurePosition.Y);
+            _castState.LurePosition.X + _castState.LureSwayOffset,
+            _castState.LurePosition.Y);
 
-        if (_castState == CastState.LureFlying)
+        if (CastPhase == CastState.LureFlying)
         {
-            // In flight: active sprite flipped horizontally (facing left toward water).
-            // Eye is at (0,0) which flips to top-right, so origin at (width, 0).
             var origin = new Vector2(_frogLureActive.Width, 0f);
             spriteBatch.Draw(_frogLureActive, pos, null, Color.White,
                 0f, origin, 1f, SpriteEffects.FlipHorizontally, 0f);
         }
-        else if (_castState is CastState.ReelingSlack or CastState.ReelingLure || _twitchTimer > 0f)
+        else if (CastPhase is CastState.ReelingSlack or CastState.ReelingLure || _castState.TwitchTimer > 0f)
         {
-            // Reeling or twitching: eye at line tip, body trails behind.
             spriteBatch.Draw(_frogLureActive, pos, null, Color.White,
                 0f, Vector2.Zero, 1f, SpriteEffects.None, 0f);
         }
         else
         {
-            // At rest in water: eye at line tip, legs dangle below surface.
             spriteBatch.Draw(_frogLureRest, pos, null, Color.White,
                 0f, Vector2.Zero, 1f, SpriteEffects.None, 0f);
         }
     }
 
-    /// <summary>
-    /// Draws a short hanging line and lure from the idle rod tip.
-    /// </summary>
     private void DrawIdleLineAndLure(SpriteBatch spriteBatch)
     {
-        var tip = _playerPosition + FishingRodOffset + IdleRodTipLocalOffset;
-        var swayOffset = (float)Math.Sin(_swayTimer * IdleSwayCyclesPerSecond * MathHelper.TwoPi) * IdleSwayAmplitudePx;
-        var bottom = tip + new Vector2(swayOffset, IdleLineLengthPx);
+        var tip        = _playerPosition + FishingRodOffset + IdleRodTipLocalOffset;
+        var swayOffset = (float)Math.Sin(_castState.SwayTimer * IdleSwayCyclesPerSecond * MathHelper.TwoPi) * IdleSwayAmplitudePx;
+        var bottom     = tip + new Vector2(swayOffset, IdleLineLengthPx);
 
         DrawLinePixels(spriteBatch, tip, bottom);
 
@@ -1926,39 +1319,11 @@ public sealed class FishingScreen : IGameScreen
             0f, origin, 1f, SpriteEffects.None, 0f);
     }
 
-    /// <summary>
-    /// Returns the current rod tip position in world space, accounting for
-    /// twitch rotation so the fishing line stays attached to the tip.
-    /// </summary>
-    private Vector2 GetRodTipPosition()
-    {
-        var handleWorld = _playerPosition + FishingRodCastOffset;
-        var handleOrigin = new Vector2(5f, 30f);
-        var tipLocal = RodTipLocalOffset; // (42, 10) relative to sprite origin.
-
-        if (_twitchTimer <= 0f)
-        {
-            return handleWorld + tipLocal;
-        }
-
-        // Rotate the tip around the handle origin by the current twitch angle.
-        var twitchT = _twitchTimer / TwitchDurationSeconds;
-        var rotation = TwitchRotation * twitchT;
-        var offset = tipLocal - handleOrigin;
-        var cos = MathF.Cos(rotation);
-        var sin = MathF.Sin(rotation);
-        var rotated = new Vector2(
-            offset.X * cos - offset.Y * sin,
-            offset.X * sin + offset.Y * cos);
-        return handleWorld + handleOrigin + rotated;
-    }
-
     private void DrawAimArrow(SpriteBatch spriteBatch)
     {
-        var arrowX = (int)_aimX;
+        var arrowX = (int)_castState.AimX;
         var arrowY = (int)AimY;
 
-        // Draw a small downward-pointing triangle on the water surface.
         for (var row = 0; row < AimArrowSize; row++)
         {
             var halfWidth = AimArrowSize - 1 - row;
@@ -1970,5 +1335,17 @@ public sealed class FishingScreen : IGameScreen
                     AimArrowColor);
             }
         }
+    }
+
+    // ── Nested types ──────────────────────────────────────────────────────────
+
+    /// <summary>Simple particle for water splash effects.</summary>
+    private sealed class SplashParticle
+    {
+        public Vector2 Position;
+        public Vector2 Velocity;
+        public float Life;
+        public int Size;
+        public Color Tint;
     }
 }

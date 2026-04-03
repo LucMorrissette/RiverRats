@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
@@ -13,7 +12,7 @@ namespace RiverRats.Game.World;
 /// <summary>
 /// Wraps MonoGame.Extended tiled map loading and rendering for the world layer.
 /// </summary>
-public sealed class TiledWorldRenderer : IMapCollisionData
+public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
 {
     private const string GrassTerrainType = "Grass";
     private const string WoodFloorTerrainType = "WoodFloor";
@@ -22,21 +21,6 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private const string ShorelineTerrainType = "Shoreline";
     private const string WaterLayerPrefix = "Water/";
     private const string WaterSurfaceLayerName = "Water/surface";
-    private const string PropTypePropertyName = "propType";
-    private const string IsUnderwaterPropertyName = "isUnderwater";
-    private const string ReachesSurfacePropertyName = "reachesSurface";
-    private const string SuppressOcclusionPropertyName = "suppressOcclusion";
-    private const string ColliderLayerName = "Colliders";
-    private const string ZoneTriggerLayerName = "ZoneTriggers";
-    private const string SpawnPointLayerName = "SpawnPoints";
-    private const string FishingZoneLayerName = "FishingZones";
-    private const string TargetMapPropertyName = "targetMap";
-    private const string TargetSpawnIdPropertyName = "targetSpawnId";
-    private const string FacingDirectionPropertyName = "facingDirection";
-    private const uint TiledHorizontalFlipFlag = 0x80000000;
-    private const uint TiledVerticalFlipFlag = 0x40000000;
-    private const uint TiledDiagonalFlipFlag = 0x20000000;
-    private const uint TiledFlipMask = TiledHorizontalFlipFlag | TiledVerticalFlipFlag | TiledDiagonalFlipFlag;
 
     private readonly int _mapWidth;
     private readonly int _mapHeight;
@@ -115,17 +99,17 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         var mapDocument = XDocument.Load(mapPath);
         var mapElement = mapDocument.Element("map") ?? throw new InvalidOperationException("TMX map root element was not found.");
 
-        _mapWidth = GetRequiredIntAttribute(mapElement, "width");
-        _mapHeight = GetRequiredIntAttribute(mapElement, "height");
-        _tileWidth = GetRequiredIntAttribute(mapElement, "tilewidth");
-        _tileHeight = GetRequiredIntAttribute(mapElement, "tileheight");
+        _mapWidth = TmxXmlHelpers.GetRequiredIntAttribute(mapElement, "width");
+        _mapHeight = TmxXmlHelpers.GetRequiredIntAttribute(mapElement, "height");
+        _tileWidth = TmxXmlHelpers.GetRequiredIntAttribute(mapElement, "tilewidth");
+        _tileHeight = TmxXmlHelpers.GetRequiredIntAttribute(mapElement, "tileheight");
 
         var tilesetRefElement = mapElement.Element("tileset") ?? throw new InvalidOperationException("TMX tileset reference was not found.");
-        _tilesetFirstGlobalIdentifier = GetRequiredIntAttribute(tilesetRefElement, "firstgid");
-        var tilesetSource = GetRequiredStringAttribute(tilesetRefElement, "source");
+        _tilesetFirstGlobalIdentifier = TmxXmlHelpers.GetRequiredIntAttribute(tilesetRefElement, "firstgid");
+        var tilesetSource = TmxXmlHelpers.GetRequiredStringAttribute(tilesetRefElement, "source");
         var tilesetPath = Path.GetFullPath(Path.Combine(mapDirectory, tilesetSource));
 
-        var terrainTiles = LoadTerrainTiles(tilesetPath, content);
+        var terrainTiles = TmxTilesetLoader.LoadTerrainTiles(tilesetPath, content);
         _grassVariants = terrainTiles.GrassVariants;
         _woodFloorVariants = terrainTiles.WoodFloorVariants;
         _sandVariants = terrainTiles.SandVariants;
@@ -133,20 +117,20 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         _shorelineVariants = terrainTiles.ShorelineVariants;
         _terrainTiles = terrainTiles.ByLocalIdentifier;
 
-        var propMetadataByGlobalIdentifier = LoadPropMetadataByGlobalIdentifier(mapElement, mapDirectory);
-        _propPlacements = LoadPropPlacements(mapElement, propMetadataByGlobalIdentifier);
-        _colliderBounds = LoadColliderBounds(mapElement);
-        _zoneTriggers = LoadZoneTriggers(mapElement);
-        _spawnPoints = LoadSpawnPoints(mapElement);
-        _fishingZones = LoadFishingZones(mapElement);
+        var propMetadataByGlobalIdentifier = TmxObjectLoader.LoadPropMetadataByGlobalIdentifier(mapElement, mapDirectory);
+        _propPlacements = TmxObjectLoader.LoadPropPlacements(mapElement, propMetadataByGlobalIdentifier);
+        _colliderBounds = TmxObjectLoader.LoadColliderBounds(mapElement);
+        _zoneTriggers = TmxObjectLoader.LoadZoneTriggers(mapElement);
+        _spawnPoints = TmxObjectLoader.LoadSpawnPoints(mapElement);
+        _fishingZones = TmxObjectLoader.LoadFishingZones(mapElement);
 
         var layers = new List<MapLayer>();
         foreach (var layerElement in mapElement.Elements("layer"))
         {
-            var layerName = GetRequiredStringAttribute(layerElement, "name");
+            var layerName = TmxXmlHelpers.GetRequiredStringAttribute(layerElement, "name");
             var dataElement = layerElement.Element("data") ?? throw new InvalidOperationException($"TMX layer '{layerName}' data was not found.");
-            var tileGlobalIds = ParseCsvTileData(dataElement.Value, _mapWidth * _mapHeight);
-            layers.Add(new MapLayer(layerName, tileGlobalIds, IsWaterLayerName(layerName)));
+            var tileGlobalIds = TmxXmlHelpers.ParseCsvTileData(dataElement.Value, _mapWidth * _mapHeight);
+            layers.Add(new MapLayer(layerName, tileGlobalIds, TmxXmlHelpers.IsWaterLayerName(layerName)));
         }
 
         if (layers.Count == 0)
@@ -184,11 +168,11 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                     }
                 }
 
-                _variantIndexByTile[tileIndex] = PickWeightedVariantIndex(x, y);
-                _woodFloorVariantIndexByTile[tileIndex] = PickWoodFloorVariantIndex(x, y, _woodFloorVariants.Length);
-                _sandVariantIndexByTile[tileIndex] = PickSandVariantIndex(x, y);
-                _riverbedVariantIndexByTile[tileIndex] = PickRiverbedVariantIndex(x, y, _riverbedVariants.Length);
-                _shorelineVariantIndexByTile[tileIndex] = PickShorelineVariantIndex(x, y, _shorelineVariants.Length);
+                _variantIndexByTile[tileIndex] = TileVariantPicker.PickGrassVariantIndex(x, y);
+                _woodFloorVariantIndexByTile[tileIndex] = TileVariantPicker.PickWoodFloorVariantIndex(x, y, _woodFloorVariants.Length);
+                _sandVariantIndexByTile[tileIndex] = TileVariantPicker.PickSandVariantIndex(x, y);
+                _riverbedVariantIndexByTile[tileIndex] = TileVariantPicker.PickRiverbedVariantIndex(x, y, _riverbedVariants.Length);
+                _shorelineVariantIndexByTile[tileIndex] = TileVariantPicker.PickShorelineVariantIndex(x, y, _shorelineVariants.Length);
             }
         }
 
@@ -405,6 +389,12 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         return false;
     }
 
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _spriteBatch.Dispose();
+    }
+
     private static string GetMapPath(ContentManager content, string assetName)
     {
         var relativeMapPath = assetName.EndsWith(".tmx", StringComparison.OrdinalIgnoreCase)
@@ -414,434 +404,29 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, content.RootDirectory, relativeMapPath));
     }
 
-    private static int GetRequiredIntAttribute(XElement element, string attributeName)
-    {
-        var value = GetRequiredStringAttribute(element, attributeName);
-        return int.Parse(value, CultureInfo.InvariantCulture);
-    }
-
-    private static string GetRequiredStringAttribute(XElement element, string attributeName)
-    {
-        var attribute = element.Attribute(attributeName);
-        if (attribute is null || string.IsNullOrWhiteSpace(attribute.Value))
-        {
-            throw new InvalidOperationException($"Missing required '{attributeName}' attribute on element '{element.Name}'.");
-        }
-
-        return attribute.Value;
-    }
-
-    internal static bool IsWaterLayerName(string layerName)
-    {
-        return layerName.StartsWith(WaterLayerPrefix, StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static Vector2 GetTileObjectTopLeft(float x, float y, float height)
-    {
-        return new Vector2(
-            MathF.Round(x),
-            MathF.Round(y - height));
-    }
-
-    private static int[] ParseCsvTileData(string csvData, int expectedTileCount)
-    {
-        var values = csvData
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        if (values.Length != expectedTileCount)
-        {
-            throw new InvalidOperationException($"TMX tile data count mismatch. Expected {expectedTileCount}, found {values.Length}.");
-        }
-
-        var tiles = new int[expectedTileCount];
-        for (var i = 0; i < values.Length; i++)
-        {
-            tiles[i] = int.Parse(values[i], CultureInfo.InvariantCulture);
-        }
-
-        return tiles;
-    }
-
-    private static Dictionary<int, PropTileMetadata> LoadPropMetadataByGlobalIdentifier(XElement mapElement, string mapDirectory)
-    {
-        var metadataByGlobalIdentifier = new Dictionary<int, PropTileMetadata>();
-
-        foreach (var tilesetRefElement in mapElement.Elements("tileset"))
-        {
-            var firstGlobalIdentifier = GetRequiredIntAttribute(tilesetRefElement, "firstgid");
-            var tilesetSource = tilesetRefElement.Attribute("source")?.Value;
-            if (string.IsNullOrWhiteSpace(tilesetSource))
-            {
-                continue;
-            }
-
-            var tilesetPath = Path.GetFullPath(Path.Combine(mapDirectory, tilesetSource));
-            var tilesetDocument = XDocument.Load(tilesetPath);
-            var tilesetElement = tilesetDocument.Element("tileset") ?? throw new InvalidOperationException("TSX root element was not found.");
-
-            foreach (var tileElement in tilesetElement.Elements("tile"))
-            {
-                var propType = GetTileProperty(tileElement, PropTypePropertyName);
-                if (string.IsNullOrWhiteSpace(propType))
-                {
-                    continue;
-                }
-
-                var isUnderwater = bool.TryParse(GetTileProperty(tileElement, IsUnderwaterPropertyName), out var parsed) && parsed;
-                var reachesSurface = bool.TryParse(GetTileProperty(tileElement, ReachesSurfacePropertyName), out var parsedSurface) && parsedSurface;
-                var suppressOcclusion = bool.TryParse(GetTileProperty(tileElement, SuppressOcclusionPropertyName), out var parsedSuppress) && parsedSuppress;
-                var localIdentifier = GetRequiredIntAttribute(tileElement, "id");
-                metadataByGlobalIdentifier[firstGlobalIdentifier + localIdentifier] = new PropTileMetadata(propType, isUnderwater, reachesSurface, suppressOcclusion);
-            }
-        }
-
-        return metadataByGlobalIdentifier;
-    }
-
-    private static MapPropPlacement[] LoadPropPlacements(XElement mapElement, Dictionary<int, PropTileMetadata> metadataByGlobalIdentifier)
-    {
-        if (metadataByGlobalIdentifier.Count == 0)
-        {
-            return Array.Empty<MapPropPlacement>();
-        }
-
-        var props = new List<MapPropPlacement>();
-
-        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
-        {
-            foreach (var objectElement in objectGroupElement.Elements("object"))
-            {
-                var gidAttribute = objectElement.Attribute("gid");
-                if (gidAttribute is null)
-                {
-                    continue;
-                }
-
-                if (!uint.TryParse(gidAttribute.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rawGlobalIdentifier))
-                {
-                    continue;
-                }
-
-                var globalIdentifier = (int)(rawGlobalIdentifier & ~TiledFlipMask);
-                if (!metadataByGlobalIdentifier.TryGetValue(globalIdentifier, out var metadata))
-                {
-                    continue;
-                }
-
-                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
-                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
-                var height = objectElement.Attribute("height") is { } heightAttribute
-                    ? float.Parse(heightAttribute.Value, CultureInfo.InvariantCulture)
-                    : 0f;
-                var topLeft = GetTileObjectTopLeft(x, y, height);
-
-                var rotationRadians = 0f;
-                if (objectElement.Attribute("rotation") is { } rotationAttribute
-                    && float.TryParse(rotationAttribute.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var rotationDegrees))
-                {
-                    rotationRadians = MathHelper.ToRadians(rotationDegrees);
-                }
-
-                // Per-object properties in the TMX override tile-level defaults from the TSX.
-                var suppressOcclusion = metadata.SuppressOcclusion;
-                var objectSuppressValue = GetTileProperty(objectElement, SuppressOcclusionPropertyName);
-                if (objectSuppressValue is not null)
-                {
-                    suppressOcclusion = bool.TryParse(objectSuppressValue, out var parsedObjectSuppress) && parsedObjectSuppress;
-                }
-
-                props.Add(new MapPropPlacement(metadata.PropType, topLeft, metadata.IsUnderwater, metadata.ReachesSurface, suppressOcclusion, rotationRadians));
-            }
-        }
-
-        return props.ToArray();
-    }
-
-    private static Rectangle[] LoadColliderBounds(XElement mapElement)
-    {
-        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
-        {
-            var groupName = objectGroupElement.Attribute("name")?.Value;
-            if (!string.Equals(groupName, ColliderLayerName, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var rects = new List<Rectangle>();
-            foreach (var objectElement in objectGroupElement.Elements("object"))
-            {
-                if (objectElement.Attribute("gid") is not null)
-                {
-                    continue;
-                }
-
-                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
-                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
-                var width = float.Parse(GetRequiredStringAttribute(objectElement, "width"), CultureInfo.InvariantCulture);
-                var height = float.Parse(GetRequiredStringAttribute(objectElement, "height"), CultureInfo.InvariantCulture);
-
-                rects.Add(new Rectangle(
-                    (int)MathF.Round(x),
-                    (int)MathF.Round(y),
-                    (int)MathF.Round(width),
-                    (int)MathF.Round(height)));
-            }
-
-            return rects.ToArray();
-        }
-
-        return Array.Empty<Rectangle>();
-    }
-
-    private static ZoneTriggerData[] LoadZoneTriggers(XElement mapElement)
-    {
-        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
-        {
-            var groupName = objectGroupElement.Attribute("name")?.Value;
-            if (!string.Equals(groupName, ZoneTriggerLayerName, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var triggers = new List<ZoneTriggerData>();
-            foreach (var objectElement in objectGroupElement.Elements("object"))
-            {
-                // Zone triggers are plain rectangles (no gid).
-                if (objectElement.Attribute("gid") is not null)
-                {
-                    continue;
-                }
-
-                var targetMap = GetTileProperty(objectElement, TargetMapPropertyName);
-                var targetSpawnId = GetTileProperty(objectElement, TargetSpawnIdPropertyName);
-                if (targetMap is null)
-                {
-                    continue;
-                }
-
-                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
-                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
-                var width = float.Parse(GetRequiredStringAttribute(objectElement, "width"), CultureInfo.InvariantCulture);
-                var height = float.Parse(GetRequiredStringAttribute(objectElement, "height"), CultureInfo.InvariantCulture);
-
-                triggers.Add(new ZoneTriggerData(
-                    new Rectangle(
-                        (int)MathF.Round(x),
-                        (int)MathF.Round(y),
-                        (int)MathF.Round(width),
-                        (int)MathF.Round(height)),
-                    targetMap,
-                    targetSpawnId ?? "default"));
-            }
-
-            return triggers.ToArray();
-        }
-
-        return Array.Empty<ZoneTriggerData>();
-    }
-
-    private static SpawnPointData[] LoadSpawnPoints(XElement mapElement)
-    {
-        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
-        {
-            var groupName = objectGroupElement.Attribute("name")?.Value;
-            if (!string.Equals(groupName, SpawnPointLayerName, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var points = new List<SpawnPointData>();
-            foreach (var objectElement in objectGroupElement.Elements("object"))
-            {
-                // Spawn points are named points (no gid, no width/height required).
-                if (objectElement.Attribute("gid") is not null)
-                {
-                    continue;
-                }
-
-                var name = objectElement.Attribute("name")?.Value;
-                if (name is null)
-                {
-                    continue;
-                }
-
-                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
-                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
-
-                points.Add(new SpawnPointData(name, new Vector2(x, y)));
-            }
-
-            return points.ToArray();
-        }
-
-        return Array.Empty<SpawnPointData>();
-    }
-
-    private static FishingZoneData[] LoadFishingZones(XElement mapElement)
-    {
-        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
-        {
-            var groupName = objectGroupElement.Attribute("name")?.Value;
-            if (!string.Equals(groupName, FishingZoneLayerName, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var zones = new List<FishingZoneData>();
-            foreach (var objectElement in objectGroupElement.Elements("object"))
-            {
-                if (objectElement.Attribute("gid") is not null)
-                {
-                    continue;
-                }
-
-                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
-                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
-                var width = float.Parse(GetRequiredStringAttribute(objectElement, "width"), CultureInfo.InvariantCulture);
-                var height = float.Parse(GetRequiredStringAttribute(objectElement, "height"), CultureInfo.InvariantCulture);
-
-                var facingStr = GetTileProperty(objectElement, FacingDirectionPropertyName);
-                var facing = ParseFacingDirection(facingStr);
-
-                zones.Add(new FishingZoneData(
-                    new Rectangle(
-                        (int)MathF.Round(x),
-                        (int)MathF.Round(y),
-                        (int)MathF.Round(width),
-                        (int)MathF.Round(height)),
-                    facing));
-            }
-
-            return zones.ToArray();
-        }
-
-        return Array.Empty<FishingZoneData>();
-    }
-
-    private static FacingDirection ParseFacingDirection(string value)
-    {
-        if (value is null)
-        {
-            return FacingDirection.Down;
-        }
-
-        return value.ToLowerInvariant() switch
-        {
-            "down" => FacingDirection.Down,
-            "up" => FacingDirection.Up,
-            "left" => FacingDirection.Left,
-            "right" => FacingDirection.Right,
-            _ => FacingDirection.Down,
-        };
-    }
-
-    private static TerrainTilesetData LoadTerrainTiles(string tilesetPath, ContentManager content)
-    {
-        var tilesetDirectory = Path.GetDirectoryName(tilesetPath) ?? throw new InvalidOperationException("Tileset directory is unavailable.");
-        var tilesetDocument = XDocument.Load(tilesetPath);
-        var tilesetElement = tilesetDocument.Element("tileset") ?? throw new InvalidOperationException("TSX root element was not found.");
-
-        var tiles = tilesetElement.Elements("tile");
-        var byLocalIdentifier = new Dictionary<int, TerrainTileInfo>();
-        var grassTextures = new List<Texture2D>();
-        var woodFloorTextures = new List<Texture2D>();
-        var sandTextures = new List<Texture2D>();
-        var riverbedTextures = new List<Texture2D>();
-        var shorelineTextures = new List<Texture2D>();
-
-        foreach (var tileElement in tiles)
-        {
-            var localIdentifier = GetRequiredIntAttribute(tileElement, "id");
-            var imageElement = tileElement.Element("image") ?? throw new InvalidOperationException("Tile image element is missing in TSX.");
-            var imageSource = GetRequiredStringAttribute(imageElement, "source");
-            var textureAssetName = GetContentAssetNameFromImageSource(tilesetDirectory, imageSource, content.RootDirectory);
-            var texture = LoadTexture2D(content, textureAssetName);
-
-            var terrainType = GetTileProperty(tileElement, "terrainType") ?? GrassTerrainType;
-            var blocked = bool.TryParse(GetTileProperty(tileElement, "blocked"), out var parsedBlocked) && parsedBlocked;
-
-            byLocalIdentifier[localIdentifier] = new TerrainTileInfo(terrainType, blocked, texture);
-
-            if (string.Equals(terrainType, GrassTerrainType, StringComparison.OrdinalIgnoreCase))
-            {
-                grassTextures.Add(texture);
-            }
-            else if (string.Equals(terrainType, WoodFloorTerrainType, StringComparison.OrdinalIgnoreCase))
-            {
-                woodFloorTextures.Add(texture);
-            }
-            else if (string.Equals(terrainType, SandTerrainType, StringComparison.OrdinalIgnoreCase))
-            {
-                sandTextures.Add(texture);
-            }
-            else if (string.Equals(terrainType, RiverbedTerrainType, StringComparison.OrdinalIgnoreCase))
-            {
-                riverbedTextures.Add(texture);
-            }
-            else if (string.Equals(terrainType, ShorelineTerrainType, StringComparison.OrdinalIgnoreCase))
-            {
-                shorelineTextures.Add(texture);
-            }
-        }
-
-        if (byLocalIdentifier.Count == 0)
-        {
-            throw new InvalidOperationException("Terrain tileset does not define any tiles.");
-        }
-
-        return new TerrainTilesetData(byLocalIdentifier, grassTextures.ToArray(), woodFloorTextures.ToArray(), sandTextures.ToArray(), riverbedTextures.ToArray(), shorelineTextures.ToArray());
-    }
-
-    private static string GetTileProperty(XElement tileElement, string propertyName)
-    {
-        var propertiesElement = tileElement.Element("properties");
-        if (propertiesElement is null)
-        {
-            return null;
-        }
-
-        foreach (var propertyElement in propertiesElement.Elements("property"))
-        {
-            var nameAttribute = propertyElement.Attribute("name");
-            if (nameAttribute is not null && string.Equals(nameAttribute.Value, propertyName, StringComparison.Ordinal))
-            {
-                return propertyElement.Attribute("value")?.Value;
-            }
-        }
-
-        return null;
-    }
-
-    private static string GetContentAssetNameFromImageSource(string tilesetDirectory, string imageSource, string contentRootDirectoryName)
-    {
-        var fullImagePath = Path.GetFullPath(Path.Combine(tilesetDirectory, imageSource));
-        var fullContentRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, contentRootDirectoryName));
-
-        var relativeImagePath = Path.GetRelativePath(fullContentRoot, fullImagePath)
-            .Replace('\\', '/');
-
-        if (relativeImagePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-        {
-            relativeImagePath = relativeImagePath[..^4];
-        }
-
-        return relativeImagePath;
-    }
-
-    private static Texture2D LoadTexture2D(ContentManager content, string textureAssetName)
-    {
-        try
-        {
-            return content.Load<Texture2D>(textureAssetName);
-        }
-        catch (ContentLoadException)
-        {
-            // MonoGame's TSX image import can emit texture assets with a _0 suffix.
-            return content.Load<Texture2D>($"{textureAssetName}_0");
-        }
-    }
-
-    private readonly record struct TerrainTileInfo(string TerrainType, bool Blocked, Texture2D Texture);
+    /// <summary>
+    /// Returns <c>true</c> when the layer name begins with the "Water/" prefix (case-insensitive).
+    /// </summary>
+    internal static bool IsWaterLayerName(string layerName) =>
+        TmxXmlHelpers.IsWaterLayerName(layerName);
+
+    /// <summary>
+    /// Converts a Tiled tile-object position (bottom-left origin) to world-space top-left.
+    /// </summary>
+    internal static Vector2 GetTileObjectTopLeft(float x, float y, float height) =>
+        TmxXmlHelpers.GetTileObjectTopLeft(x, y, height);
+
+    /// <summary>
+    /// Picks a deterministic riverbed tile variant for the given tile coordinate.
+    /// </summary>
+    internal static int PickRiverbedVariantIndex(int x, int y, int variantCount) =>
+        TileVariantPicker.PickRiverbedVariantIndex(x, y, variantCount);
+
+    /// <summary>
+    /// Picks a deterministic shoreline tile variant for the given tile coordinate.
+    /// </summary>
+    internal static int PickShorelineVariantIndex(int x, int y, int variantCount) =>
+        TileVariantPicker.PickShorelineVariantIndex(x, y, variantCount);
 
     private readonly record struct MapLayer(string Name, int[] TileGlobalIds, bool IsWaterLayer);
 
@@ -854,226 +439,4 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     /// <param name="SuppressOcclusion">When true the reveal lens will not activate when a character walks behind this prop.</param>
     /// <param name="RotationRadians">Clockwise rotation in radians as authored in Tiled (converted from degrees).</param>
     public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion, float RotationRadians = 0f);
-
-    private readonly record struct PropTileMetadata(string PropType, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion);
-
-    private readonly record struct TerrainTilesetData(
-        Dictionary<int, TerrainTileInfo> ByLocalIdentifier,
-        Texture2D[] GrassVariants,
-        Texture2D[] WoodFloorVariants,
-        Texture2D[] SandVariants,
-        Texture2D[] RiverbedVariants,
-        Texture2D[] ShorelineVariants);
-
-    private static int PickWeightedVariantIndex(int x, int y)
-    {
-        // Position-hashed roll: stable for a tile coordinate, varied across the map.
-        var roll = GetDeterministicPercentRoll(x, y);
-
-        if (roll < 32)
-        {
-            return 0;
-        }
-
-        if (roll < 54)
-        {
-            return 1;
-        }
-
-        if (roll < 79)
-        {
-            return 2;
-        }
-
-        if (roll < 98)
-        {
-            return 3;
-        }
-
-        if (roll < 99)
-        {
-            return 4;
-        }
-
-        return 5;
-    }
-
-    private static int GetDeterministicPercentRoll(int x, int y)
-    {
-        unchecked
-        {
-            var hash = ((uint)x * 73856093u) ^ ((uint)y * 19349663u) ^ 0x9E3779B9u;
-            hash ^= hash >> 13;
-            hash *= 1274126177u;
-            hash ^= hash >> 16;
-            return (int)(hash % 100u);
-        }
-    }
-
-    private static int PickSandVariantIndex(int x, int y)
-    {
-        // Different prime seeds from grass to avoid identical patterns.
-        var roll = GetDeterministicSandRoll(x, y);
-        if (roll < 34)
-        {
-            return 0;
-        }
-
-        if (roll < 67)
-        {
-            return 1;
-        }
-
-        return 2;
-    }
-
-    private static int PickWoodFloorVariantIndex(int x, int y, int variantCount)
-    {
-        if (variantCount <= 0)
-        {
-            return 0;
-        }
-
-        unchecked
-        {
-            var hash = ((uint)x * 83492791u) ^ ((uint)y * 2971215073u) ^ 0x7F4A7C15u;
-            hash ^= hash >> 15;
-            hash *= 2246822519u;
-            hash ^= hash >> 13;
-            return (int)(hash % (uint)variantCount);
-        }
-    }
-
-    internal static int PickRiverbedVariantIndex(int x, int y, int variantCount)
-    {
-        if (variantCount <= 0)
-        {
-            return 0;
-        }
-
-        var regionCategory = GetDeterministicRiverbedRegionCategory(x, y);
-        var categoryCount = 4;
-        var localVariantCount = (variantCount + categoryCount - 1) / categoryCount;
-        var preferredVariant = (GetDeterministicRiverbedLocalRoll(x, y) % localVariantCount) * categoryCount;
-        preferredVariant += regionCategory;
-
-        if (preferredVariant >= variantCount)
-        {
-            preferredVariant = regionCategory % variantCount;
-        }
-
-        var accentRoll = GetDeterministicRiverbedAccentRoll(x, y);
-        if (accentRoll < 72)
-        {
-            return preferredVariant;
-        }
-
-        var neighboringCategory = (regionCategory + 1 + (accentRoll % 3)) % categoryCount;
-        var neighboringVariant = (GetDeterministicRiverbedNeighborRoll(x, y) % localVariantCount) * categoryCount;
-        neighboringVariant += neighboringCategory;
-
-        if (neighboringVariant >= variantCount)
-        {
-            neighboringVariant = neighboringCategory % variantCount;
-        }
-
-        return neighboringVariant;
-    }
-
-    internal static int PickShorelineVariantIndex(int x, int y, int variantCount)
-    {
-        if (variantCount <= 0)
-        {
-            return 0;
-        }
-
-        var roll = GetDeterministicShorelineRoll(x, y);
-        return roll % variantCount;
-    }
-
-    private static int GetDeterministicSandRoll(int x, int y)
-    {
-        unchecked
-        {
-            var hash = ((uint)x * 83492791u) ^ ((uint)y * 27644437u) ^ 0x517CC1B7u;
-            hash ^= hash >> 13;
-            hash *= 1274126177u;
-            hash ^= hash >> 16;
-            return (int)(hash % 100u);
-        }
-    }
-
-    private static int GetDeterministicRiverbedRoll(int x, int y)
-    {
-        unchecked
-        {
-            var hash = ((uint)x * 961748927u) ^ ((uint)y * 982451653u) ^ 0x68E31DA4u;
-            hash ^= hash >> 13;
-            hash *= 1274126177u;
-            hash ^= hash >> 16;
-            return (int)(hash % 100u);
-        }
-    }
-
-    private static int GetDeterministicRiverbedRegionCategory(int x, int y)
-    {
-        unchecked
-        {
-            var regionX = x / 4;
-            var regionY = y / 3;
-            var hash = ((uint)regionX * 2246822519u) ^ ((uint)regionY * 3266489917u) ^ 0xC2B2AE35u;
-            hash ^= hash >> 15;
-            hash *= 2246822519u;
-            hash ^= hash >> 13;
-            return (int)(hash % 4u);
-        }
-    }
-
-    private static int GetDeterministicRiverbedLocalRoll(int x, int y)
-    {
-        unchecked
-        {
-            var hash = ((uint)x * 668265263u) ^ ((uint)y * 2147483647u) ^ 0x165667B1u;
-            hash ^= hash >> 13;
-            hash *= 2246822519u;
-            hash ^= hash >> 16;
-            return (int)(hash & 0x7FFFFFFF);
-        }
-    }
-
-    private static int GetDeterministicRiverbedAccentRoll(int x, int y)
-    {
-        unchecked
-        {
-            var hash = ((uint)x * 374761393u) ^ ((uint)y * 1103515245u) ^ 0x85EBCA77u;
-            hash ^= hash >> 15;
-            hash *= 1274126177u;
-            hash ^= hash >> 14;
-            return (int)(hash % 100u);
-        }
-    }
-
-    private static int GetDeterministicRiverbedNeighborRoll(int x, int y)
-    {
-        unchecked
-        {
-            var hash = ((uint)x * 1597334677u) ^ ((uint)y * 3812015801u) ^ 0x27D4EB2Fu;
-            hash ^= hash >> 13;
-            hash *= 3266489917u;
-            hash ^= hash >> 16;
-            return (int)(hash & 0x7FFFFFFF);
-        }
-    }
-
-    private static int GetDeterministicShorelineRoll(int x, int y)
-    {
-        unchecked
-        {
-            var hash = ((uint)x * 2654435761u) ^ ((uint)y * 2246822519u) ^ 0xA136AAABu;
-            hash ^= hash >> 13;
-            hash *= 3266489917u;
-            hash ^= hash >> 16;
-            return (int)(hash & 0x7FFFFFFF);
-        }
-    }
 }

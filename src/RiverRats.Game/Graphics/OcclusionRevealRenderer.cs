@@ -1,11 +1,21 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using RiverRats.Game.Entities;
 
 #nullable enable
 
 namespace RiverRats.Game.Graphics;
+
+/// <summary>
+/// Describes a world prop that can occlude characters, together with its Y-sort anchor offset.
+/// </summary>
+/// <param name="Prop">The world prop to test for occlusion.</param>
+/// <param name="AnchorOffset">Pixels subtracted from <c>Bounds.Bottom</c> before dividing by map height.
+/// Matches the offset used when Y-sorting the prop during the draw pass.</param>
+public readonly record struct OcclusionEntry(IWorldProp Prop, float AnchorOffset = 0f);
 
 /// <summary>
 /// Manages the render target and shader for revealing the player (and optionally the
@@ -140,6 +150,51 @@ public sealed class OcclusionRevealRenderer : IDisposable
             new Rectangle(0, 0, _virtualWidth, _virtualHeight),
             Color.White);
         spriteBatch.End();
+    }
+
+    /// <summary>
+    /// Checks whether any prop in <paramref name="occluders"/> fully contains
+    /// <paramref name="characterBounds"/> and sorts in front of the character.
+    /// This method belongs here because the occlusion reveal renderer owns the
+    /// concept of "which entities can occlude a character" — it is the renderer
+    /// that responds when occlusion is detected.
+    /// </summary>
+    /// <param name="characterBounds">The character's world-space bounding rectangle.</param>
+    /// <param name="characterDepth">The character's Y-sort depth (bottom / mapHeight).</param>
+    /// <param name="occluders">Flat list of all world props that can occlude characters, with their anchor offsets.</param>
+    /// <param name="mapPixelHeight">Map height in pixels — used to normalise sort depth.</param>
+    /// <param name="mapPixelWidth">Map width in pixels — used for X tiebreaker in sort depth.</param>
+    /// <returns><c>true</c> if the character is fully contained by any in-front occluder.</returns>
+    public static bool CheckOcclusion(
+        Rectangle characterBounds,
+        float characterDepth,
+        IReadOnlyList<OcclusionEntry> occluders,
+        float mapPixelHeight,
+        float mapPixelWidth)
+    {
+        for (var i = 0; i < occluders.Count; i++)
+        {
+            var entry = occluders[i];
+            if (entry.Prop.SuppressOcclusion)
+                continue;
+
+            var depth = SortDepth(entry.Prop.Bounds, mapPixelHeight, mapPixelWidth, entry.AnchorOffset);
+            if (depth > characterDepth && entry.Prop.Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        return false;
+    }
+
+    // ── Shared depth helper (mirrors GameplayScreen.SortDepth exactly) ──────
+
+    private static float SortDepth(Rectangle bounds, float mapHeight, float mapWidth, float anchorOffset = 0f)
+    {
+        var yDepth = (bounds.Bottom - anchorOffset) / mapHeight;
+        var tieBreakerRange = 1f / mapHeight;
+        var yScaled = yDepth * (1f - tieBreakerRange);
+        var xTie = bounds.Left / (mapWidth * mapHeight);
+        return MathHelper.Clamp(yScaled + xTie, 0f, 0.9999f);
     }
 
     /// <summary>

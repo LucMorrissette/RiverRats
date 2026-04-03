@@ -7,6 +7,7 @@
 | `IMapCollisionData` | World collision query contract for blocked-tile checks using world-space rectangles. |
 | `TiledWorldRenderer` | TMX/TSX-backed world renderer that draws ordered tile layers, routes `Water/*` layers through the water pass, aggregates tile-property collision across all layers, and exposes TMX object-layer prop placements. Also exposes `ColliderBounds`, `ZoneTriggers`, and `SpawnPoints` parsed from dedicated TMX object layers so gameplay can stay editor-driven. |
 | `WorldCollisionMap` | Collision aggregator that combines terrain blockers with additional placed obstacle bounds. |
+| `SimpleTiledRenderer` | Lightweight TMX/TSX renderer for the fishing mini-game. Draws all tile layers via a single `Draw(Matrix)` call or per-layer via `DrawLayer(string, Matrix)`. Exposes `GetObjectRectangles(layerName)` and `GetObjectPolygons(layerName)` for parsing zone/swim-area object layers into `Rectangle[]` / `PolygonBounds[]`. No terrain-variant system; no water-pass routing. Implements `IDisposable`. |
 
 *(Add entries as world/tilemap classes are created — TileMap, TileMapRenderer, etc.)*
 

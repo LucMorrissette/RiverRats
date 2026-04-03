@@ -12,7 +12,7 @@ namespace RiverRats.Game.Entities;
 /// <summary>
 /// Follower entity that trails behind the leader along a recorded breadcrumb path.
 /// </summary>
-public sealed class FollowerBlock
+public sealed class FollowerBlock : IWorldProp
 {
     private readonly Vector2 _size;
     private readonly Rectangle _worldBounds;
@@ -170,6 +170,13 @@ public sealed class FollowerBlock
     {
         animator.Draw(spriteBatch, spriteSheet, _position, layerDepth, tint);
     }
+
+    /// <summary>
+    /// Not supported — the follower must be drawn via <see cref="Draw(SpriteBatch,SpriteAnimator,Texture2D,float,Color?)"/>,
+    /// which requires an animator and sprite sheet.
+    /// </summary>
+    void IWorldProp.Draw(SpriteBatch spriteBatch, float layerDepth) =>
+        throw new NotSupportedException("FollowerBlock must be drawn via Draw(SpriteBatch, SpriteAnimator, Texture2D, float, Color?).");
 
     private void ClampToBounds()
     {

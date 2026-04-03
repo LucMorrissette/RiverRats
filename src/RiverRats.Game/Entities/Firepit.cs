@@ -12,7 +12,7 @@ namespace RiverRats.Game.Entities;
 /// Interactive world prop rendered from a firepit sprite.
 /// Can compose an attached <see cref="SmallFire"/> and toggle it on or off.
 /// </summary>
-public sealed class Firepit
+public sealed class Firepit : IWorldProp
 {
     private const int InteractionPaddingPixels = 12;
 

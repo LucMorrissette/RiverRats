@@ -23,7 +23,7 @@ public class SlashSystemTests
     // -- Sweep angle progression --
 
     [Fact]
-    public void Sweep_AdvancesAngle_OverTime()
+    public void Sweep__AdvancesAngle__OverTime()
     {
         var system = CreateSystem();
 
@@ -44,7 +44,7 @@ public class SlashSystemTests
     // -- Sweep → cooldown transition --
 
     [Fact]
-    public void Sweep_TransitionsToCooldown_WhenSweepArcComplete()
+    public void Sweep__TransitionsToCooldown__WhenSweepArcComplete()
     {
         var system = CreateSystem();
         var spawner = new GnomeSpawner(0, 99f, 0);
@@ -60,7 +60,7 @@ public class SlashSystemTests
     // -- Cooldown → sweep transition --
 
     [Fact]
-    public void Cooldown_TransitionsToSweep_WhenTimerExpires()
+    public void Cooldown__TransitionsToSweep__WhenTimerExpires()
     {
         var system = CreateSystem();
         var spawner = new GnomeSpawner(0, 99f, 0);
@@ -87,7 +87,7 @@ public class SlashSystemTests
     // -- Wedge hit detection --
 
     [Fact]
-    public void WedgeHitTest_HitsGnomeInWedge()
+    public void WedgeHitTest__HitsGnomeInWedge()
     {
         var owner = new Vector2(100, 100);
         // Place target directly to the right (angle = 0) at distance 20.
@@ -100,7 +100,7 @@ public class SlashSystemTests
     }
 
     [Fact]
-    public void WedgeHitTest_MissesGnomeOutsideWedge()
+    public void WedgeHitTest__MissesGnomeOutsideWedge()
     {
         var owner = new Vector2(100, 100);
         // Place target directly above (angle = -π/2) while wedge points right (angle = 0).
@@ -113,7 +113,7 @@ public class SlashSystemTests
     }
 
     [Fact]
-    public void WedgeHitTest_MissesGnomeOutsideRadius()
+    public void WedgeHitTest__MissesGnomeOutsideRadius()
     {
         var owner = new Vector2(100, 100);
         // Place target directly to the right but far away.
@@ -128,7 +128,7 @@ public class SlashSystemTests
     // -- Hit-once-per-sweep --
 
     [Fact]
-    public void HitOncePerSweep_DoesNotRehitSameGnome()
+    public void HitOncePerSweep__DoesNotRehitSameGnome()
     {
         var system = CreateSystem();
 
@@ -156,7 +156,7 @@ public class SlashSystemTests
     [InlineData(MathF.PI, -MathF.PI, 0f)]
     [InlineData(0f, MathF.PI, MathF.PI)]
     [InlineData(0.1f, MathF.Tau - 0.1f, 0.2f)]
-    public void AngleDiff_ReturnsCorrectAbsoluteDistance(float a, float b, float expected)
+    public void AngleDiff__ReturnsCorrectAbsoluteDistance(float a, float b, float expected)
     {
         var result = SlashSystem.AngleDiff(a, b);
         Assert.InRange(result, expected - 0.01f, expected + 0.01f);
@@ -165,7 +165,7 @@ public class SlashSystemTests
     // -- Follower offset timing --
 
     [Fact]
-    public void Follower_StartsInCooldown_WithOffset()
+    public void Follower__StartsInCooldown__WithOffset()
     {
         var system = CreateSystem();
 

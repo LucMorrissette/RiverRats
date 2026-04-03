@@ -18,6 +18,9 @@ using RiverRats.Game.Systems;
 using RiverRats.Game.UI;
 using RiverRats.Game.World;
 
+// EntityDepthFilter is now in RiverRats.Game.Systems (shared).
+// OcclusionEntry and OcclusionRevealRenderer.CheckOcclusion() replace the old CheckOcclusion method.
+
 namespace RiverRats.Game.Screens;
 
 /// <summary>
@@ -50,22 +53,7 @@ public sealed class GameplayScreen : IGameScreen
     private const float ZoneTransitionBlackHoldSeconds = 0.15f;
     private const float GameplayMusicVolume = 1f;
     private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
-    private static readonly FollowerMovementConfig DefaultFollowerConfig = FollowerMovementConfig.Default;
-    private static readonly FollowerMovementConfig WoodsFollowerConfig = FollowerMovementConfig.Default with
-    {
-        // Forest combat reads cleaner when the follower trails farther behind the player.
-        FollowDistancePixels = 60f,
-    };
     private static readonly EmptyInputManager EmptyInput = new();
-
-    // Forest follower aggression steering toward clustered gnomes.
-    private const int FollowerAttractionMinClusterSize = 3;
-    private const float FollowerAttractionClusterRadius = 48f;
-    private const float FollowerAttractionClusterRadiusSq = FollowerAttractionClusterRadius * FollowerAttractionClusterRadius;
-    private const float FollowerAttractionSearchRadius = 200f;
-    private const float FollowerAttractionSearchRadiusSq = FollowerAttractionSearchRadius * FollowerAttractionSearchRadius;
-    private const float FollowerAttractionStrength = 0.35f;
-    private const float FollowerAttractionMaxOffset = 28f;
 
     private static readonly ParticleProfile FireSmokeProfile = new()
     {
@@ -132,11 +120,7 @@ public sealed class GameplayScreen : IGameScreen
         Gravity = 80f,
     };
 
-    // Explosion effect pool for gnome deaths.
-    private const int MaxExplosions = 16;
-    private const int ExplosionFrameCount = 4;
-    private const int ExplosionCellSize = 32;
-    private const float ExplosionFrameDuration = 0.05f;
+    // Shared combat constants (kept here — still referenced inline below).
     private const float GnomeDeathTrauma = 0.06f;
     private const float PlayerHitTrauma = 0.15f;
     private const float PlayerHitFlashDuration = 0.3f;
@@ -152,32 +136,10 @@ public sealed class GameplayScreen : IGameScreen
     private const float BomberDeathTrauma = 0.12f;
     private const float DoorOpenSfxVolume = 0.48f;
     private const float DoorCloseSfxVolume = 0.42f;
-
-    // Health pickup pool for the forest survival minigame.
-    private const int MaxHealthPickups = 2;
-    private const float HealthPickupSpawnIntervalMin = 15f;
-    private const float HealthPickupSpawnIntervalMax = 25f;
-    private const float HealthPickupCollectionRadiusSq = 16f * 16f;
-    private const int HealthPickupDrawSize = 10;
-    private const float HealthPickupSpawnRadiusMin = 150f;
-    private const float HealthPickupSpawnRadiusMax = 250f;
-    private const int HealthPickupSpawnAttempts = 10;
-    private const int HealthPickupCollisionSize = 16;
-
-    private const int MaxEnergyOrbs = 128;
     private const float EnergyOrbDropChance = 0.75f;
-    private const float RedEnergyOrbChance = 0.10f;
-    private const float EnergyOrbPickupRadius = 14f;
-    private const float EnergyOrbPickupRadiusSq = EnergyOrbPickupRadius * EnergyOrbPickupRadius;
-    private const float EnergyOrbMagnetRadius = 72f;
-    private const float EnergyOrbMagnetRadiusSq = EnergyOrbMagnetRadius * EnergyOrbMagnetRadius;
-    private const float EnergyOrbMagnetForce = 1400f;
-    private const float EnergyOrbDragPerSecond = 2f;
-    private const float EnergyOrbTerminalSpeed = 280f;
-    private const float EnergyOrbPulseSpeed = 6f;
-    private const float EnergyOrbPulseAmount = 0.18f;
-    private const float EnergyOrbBaseScale = 0.70f;
-    private const float EnergyOrbMaxSpawnSpeed = 60f;
+    private const int MaxEnergyOrbs = 128;
+    private const int MaxExplosions = 16;
+    private const int MaxHealthPickups = 2;
 
     private readonly GraphicsDevice _graphicsDevice;
     private readonly ContentManager _content;
@@ -188,7 +150,7 @@ public sealed class GameplayScreen : IGameScreen
     private readonly string _spawnPointId;
     private readonly Vector2? _spawnPosition;
     private readonly bool _fadeInFromBlack;
-    private readonly string _songName;
+    private readonly MapConfig _mapConfig;
 
     private SpriteBatch _worldSpriteBatch;
     private TiledWorldRenderer _worldRenderer;
@@ -268,19 +230,12 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _explosionTexture;
     private Texture2D _energyOrbTexture;
     private Texture2D _energyOrbRedTexture;
-    private readonly Vector2[] _explosionPositions = new Vector2[MaxExplosions];
-    private readonly int[] _explosionFrames = new int[MaxExplosions];
-    private readonly float[] _explosionElapsed = new float[MaxExplosions];
-    private readonly bool[] _explosionActive = new bool[MaxExplosions];
-    private readonly Vector2[] _energyOrbPositions = new Vector2[MaxEnergyOrbs];
-    private readonly Vector2[] _energyOrbVelocities = new Vector2[MaxEnergyOrbs];
-    private readonly float[] _energyOrbAges = new float[MaxEnergyOrbs];
-    private readonly float[] _energyOrbPulseOffsets = new float[MaxEnergyOrbs];
-    private readonly bool[] _energyOrbActive = new bool[MaxEnergyOrbs];
-    private readonly bool[] _energyOrbIsRed = new bool[MaxEnergyOrbs];
-    private HealthPickup[] _healthPickups;
-    private float _healthPickupSpawnTimer;
-    private float _nextHealthPickupInterval;
+    private EnergyOrbSystem _energyOrbSystem;
+    private ExplosionSystem _explosionSystem;
+    private HealthPickupSystem _healthPickupSystem;
+    private FollowerSystem _followerSystem;
+    private CrtTransitionRenderer _crtTransitionRenderer;
+    private readonly List<OcclusionEntry> _occluders = new();
     private float _playerHitFlashTimer;
     private Health _playerHealth;
     private PlayerCombatStats _combatStats;
@@ -302,11 +257,7 @@ public sealed class GameplayScreen : IGameScreen
     private ForestHudRenderer _forestHudRenderer;
     private FontSystem _fontSystem;
     private readonly ScreenManager _screenManager;
-    private readonly bool _hasDayNightCycle;
-    private readonly bool _hasCloudShadows;
-    private readonly bool _hasAmbientFireflies;
     private readonly float _dayNightStartProgress;
-    private readonly FollowerMovementConfig _followerConfig;
     private FadeState _fadeState;
     private float _fadeAlpha;
     private float _fadeHoldTimer;
@@ -356,12 +307,8 @@ public sealed class GameplayScreen : IGameScreen
         _spawnPointId = spawnPointId;
         _spawnPosition = spawnPosition;
         _fadeInFromBlack = fadeInFromBlack;
-        _songName = GetSongForMap(mapAssetName);
-        _hasDayNightCycle = HasDayNightCycle(mapAssetName);
-        _hasCloudShadows = HasCloudShadows(mapAssetName);
-        _hasAmbientFireflies = HasAmbientFireflies(mapAssetName);
+        _mapConfig = MapConfig.ForMap(mapAssetName);
         _dayNightStartProgress = dayNightStartProgress;
-        _followerConfig = GetFollowerConfigForMap(mapAssetName);
     }
 
     /// <inheritdoc />
@@ -452,12 +399,17 @@ public sealed class GameplayScreen : IGameScreen
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
             PlayerAccelerationRate);
 
-        var followerStartPosition = initialPosition + new Vector2(0f, _followerConfig.FollowDistancePixels);
+        _followerSystem = new FollowerSystem(
+            _mapConfig.FollowerConfig,
+            PlayerFramePixels,
+            useClusterAttraction: _mapAssetName == "Maps/WoodsBehindCabin");
+
+        var followerStartPosition = initialPosition + new Vector2(0f, _mapConfig.FollowerConfig.FollowDistancePixels);
         _follower = new FollowerBlock(
             followerStartPosition,
             new Point(PlayerFramePixels, PlayerFramePixels),
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
-            _followerConfig);
+            _mapConfig.FollowerConfig);
 
         _boulders = PropFactory.CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
         _docks = PropFactory.CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
@@ -558,11 +510,9 @@ public sealed class GameplayScreen : IGameScreen
             _waveManager.StartFirstWave();
 
             _forestHudRenderer = new ForestHudRenderer();
-            _healthPickups = new HealthPickup[MaxHealthPickups];
-            for (var i = 0; i < MaxHealthPickups; i++)
-                _healthPickups[i] = new HealthPickup();
-            _nextHealthPickupInterval = HealthPickupSpawnIntervalMin
-                + (float)_sfxRng.NextDouble() * (HealthPickupSpawnIntervalMax - HealthPickupSpawnIntervalMin);
+            _energyOrbSystem = new EnergyOrbSystem(MaxEnergyOrbs);
+            _explosionSystem = new ExplosionSystem(MaxExplosions);
+            _healthPickupSystem = new HealthPickupSystem(MaxHealthPickups, _sfxRng);
         }
 
         if (_mapAssetName == "Maps/WoodsBehindCabin")
@@ -575,9 +525,9 @@ public sealed class GameplayScreen : IGameScreen
         {
             _gnomeSpawner.OnGnomeDied = (pos, enemyType, dropsLoot) =>
             {
-                SpawnExplosion(pos);
+                _explosionSystem?.Spawn(pos);
                 if (dropsLoot && _sfxRng.NextDouble() < EnergyOrbDropChance)
-                    SpawnEnergyOrb(pos);
+                    _energyOrbSystem?.Spawn(pos, _sfxRng);
                 _camera.AddTrauma(GnomeDeathTrauma);
                 _gnomeDeathSfx[_sfxRng.Next(GnomeDeathSfxCount)].Play(GnomeDeathSfxVolume, 0f, 0f);
 
@@ -687,7 +637,7 @@ public sealed class GameplayScreen : IGameScreen
         var radialGradient = _content.Load<Texture2D>("Sprites/RadialGradient");
         _lightingRenderer.LoadContent(radialGradient);
 
-        if (_hasCloudShadows)
+        if (_mapConfig.HasCloudShadows)
         {
             _cloudShadowRenderer = new CloudShadowRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
             _cloudShadowRenderer.LoadContent();
@@ -701,7 +651,7 @@ public sealed class GameplayScreen : IGameScreen
 
         _musicManager.LoadContent(_content);
         _musicManager.SetVolume(_fadeInFromBlack ? 0f : GameplayMusicVolume);
-        _musicManager.PlaySong(_songName, loopDelaySeconds: 5f);
+        _musicManager.PlaySong(_mapConfig.SongName, loopDelaySeconds: 5f);
 
         _fontSystem = new FontSystem(new FontSystemSettings
         {
@@ -714,6 +664,25 @@ public sealed class GameplayScreen : IGameScreen
         _fontSystem.AddFont(File.ReadAllBytes(
             Path.Combine(global::System.AppContext.BaseDirectory, _content.RootDirectory, "Fonts", "Nunito.ttf")));
         _hudRenderer = new HudRenderer();
+
+        // Build flat occluder list for OcclusionRevealRenderer.CheckOcclusion().
+        _occluders.Clear();
+        foreach (var c in _cozyLakeCabins)  _occluders.Add(new OcclusionEntry(c, CabinSortAnchorOffsetPixels));
+        foreach (var d in _frontDoors)      _occluders.Add(new OcclusionEntry(d));
+        foreach (var t in _pineTrees)       _occluders.Add(new OcclusionEntry(t, PineTreeSortAnchorOffsetPixels));
+        foreach (var t in _birchTrees)      _occluders.Add(new OcclusionEntry(t, BirchTreeSortAnchorOffsetPixels));
+        foreach (var t in _deadTrees)       _occluders.Add(new OcclusionEntry(t, DeadTreeSortAnchorOffsetPixels));
+        foreach (var t in _deciduousTrees)  _occluders.Add(new OcclusionEntry(t, DeciduousTreeSortAnchorOffsetPixels));
+        foreach (var b in _bushes)          _occluders.Add(new OcclusionEntry(b, BushSortAnchorOffsetPixels));
+        foreach (var b in _boulders)        _occluders.Add(new OcclusionEntry(b));
+        foreach (var c in _couches)         _occluders.Add(new OcclusionEntry(c));
+        foreach (var t in _oldTvs)          _occluders.Add(new OcclusionEntry(t));
+        foreach (var g in _gameConsoles)    _occluders.Add(new OcclusionEntry(g));
+        foreach (var p in _pottedPlants1)   _occluders.Add(new OcclusionEntry(p));
+        foreach (var e in _entertainmentShelves) _occluders.Add(new OcclusionEntry(e));
+        foreach (var l in _sunkenLogs)      _occluders.Add(new OcclusionEntry(l));
+
+        _crtTransitionRenderer = new CrtTransitionRenderer(_pixelTexture);
     }
 
     /// <inheritdoc />
@@ -798,7 +767,11 @@ public sealed class GameplayScreen : IGameScreen
             TryToggleNearbyFirepit();
         }
 
-        _follower.Update(gameTime, GetFollowerLeaderTargetPosition(), _player.Facing, GetFollowerRestPosition());
+        _follower.Update(gameTime,
+            _followerSystem.GetLeaderTargetPosition(_player, _follower, _gnomeSpawner),
+            _player.Facing,
+            _followerSystem.GetRestPosition(_player, _follower, _collisionMap,
+                _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight));
         UpdateFrontDoors();
 
         _flowField?.Update(_player.Center);
@@ -818,7 +791,14 @@ public sealed class GameplayScreen : IGameScreen
             _slashSystem.Update(gameTime, _player.Center, _follower.Center,
                 _player.Facing, _follower.Facing, _gnomeSpawner);
 
-        UpdateHealthPickups((float)gameTime.ElapsedGameTime.TotalSeconds);
+        _healthPickupSystem?.Update(
+            (float)gameTime.ElapsedGameTime.TotalSeconds,
+            _player.Center,
+            _playerHealth,
+            _collisionMap,
+            _worldRenderer.MapPixelWidth,
+            _worldRenderer.MapPixelHeight,
+            _sfxRng);
 
         UpdateWorldPresentation(gameTime, input, animateCharacters: true);
     }
@@ -835,8 +815,18 @@ public sealed class GameplayScreen : IGameScreen
             _playerHitFlashTimer = Math.Max(0f, _playerHitFlashTimer - (float)gameTime.ElapsedGameTime.TotalSeconds);
         if (_levelUpFlashTimer > 0f)
             _levelUpFlashTimer = Math.Max(0f, _levelUpFlashTimer - (float)gameTime.ElapsedGameTime.TotalSeconds);
-        _isPlayerOccluded = CheckOcclusion(_player.Bounds, SortDepth(_player.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
-        _isFollowerOccluded = CheckOcclusion(_follower.Bounds, SortDepth(_follower.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
+        _isPlayerOccluded = OcclusionRevealRenderer.CheckOcclusion(
+            _player.Bounds,
+            SortDepth(_player.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth),
+            _occluders,
+            _worldRenderer.MapPixelHeight,
+            _worldRenderer.MapPixelWidth);
+        _isFollowerOccluded = OcclusionRevealRenderer.CheckOcclusion(
+            _follower.Bounds,
+            SortDepth(_follower.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth),
+            _occluders,
+            _worldRenderer.MapPixelHeight,
+            _worldRenderer.MapPixelWidth);
         _worldRenderer.Update(gameTime);
         for (var i = 0; i < _gardenGnomes.Length; i++)
         {
@@ -845,7 +835,7 @@ public sealed class GameplayScreen : IGameScreen
 
         _playerInFishingZone = IsPlayerInFishingZone();
 
-        if (_hasDayNightCycle)
+        if (_mapConfig.HasDayNightCycle)
             _dayNightCycle.Update(gameTime);
         var activeFireLightCount = 0;
         for (var i = 0; i < _firepits.Length; i++)
@@ -862,21 +852,29 @@ public sealed class GameplayScreen : IGameScreen
             (int)(_camera.Position.Y - _virtualHeight / 2f),
             _virtualWidth,
             _virtualHeight);
-        if (_hasAmbientFireflies)
+        if (_mapConfig.HasAmbientFireflies)
         {
             _fireflyManager.Update(gameTime, _dayNightCycle.NightStrength, cameraWorldBounds);
         }
 
         // Combine fire + firefly lights into one array for the lighting renderer.
         Array.Copy(_fireLightData, 0, _combinedLightData, 0, activeFireLightCount);
-        var fireflyLightCount = _hasAmbientFireflies
+        var fireflyLightCount = _mapConfig.HasAmbientFireflies
             ? _fireflyManager.WriteLightData(_combinedLightData, activeFireLightCount)
             : 0;
         _lightingRenderer.SetLights(_combinedLightData, activeFireLightCount + fireflyLightCount);
         _particleManager.Update(gameTime);
-        UpdateExplosions((float)gameTime.ElapsedGameTime.TotalSeconds);
-        UpdateEnergyOrbs((float)gameTime.ElapsedGameTime.TotalSeconds);
-        if (_hasCloudShadows)
+        _explosionSystem?.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+        _energyOrbSystem?.Update(
+            (float)gameTime.ElapsedGameTime.TotalSeconds,
+            _player.Center,
+            _xpSystem,
+            _orbCollectVariationSfx,
+            _redOrbCollectVariationSfx,
+            OrbCollectSfxVolume,
+            RedOrbCollectSfxVolume,
+            _sfxRng);
+        if (_mapConfig.HasCloudShadows)
         {
             _cloudShadowRenderer.Update(gameTime);
         }
@@ -1163,14 +1161,14 @@ public sealed class GameplayScreen : IGameScreen
             blendState: BlendState.Additive,
             samplerState: SamplerState.LinearClamp,
             transformMatrix: worldMatrix);
-        if (_hasAmbientFireflies)
+        if (_mapConfig.HasAmbientFireflies)
         {
             _fireflyManager.Draw(_worldSpriteBatch, _smokeTexture);
         }
         _worldSpriteBatch.End();
 
         // --- Pass 5: Cloud shadows (multiply blend, half-res for soft edges) ---
-        if (_hasCloudShadows)
+        if (_mapConfig.HasCloudShadows)
         {
             _cloudShadowRenderer.Draw(
                 _worldSpriteBatch,
@@ -1243,7 +1241,7 @@ public sealed class GameplayScreen : IGameScreen
         // sceneScale converts virtual pixels to window pixels.
         var scaledFont = _fontSystem.GetFont(HudFontSize * sceneScale);
 
-        if (_hasDayNightCycle)
+        if (_mapConfig.HasDayNightCycle)
         {
             spriteBatch.Begin(
                 sortMode: SpriteSortMode.Deferred,
@@ -1273,7 +1271,7 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         var viewport = _graphicsDevice.Viewport;
-        DrawCrtPowerTransition(spriteBatch, viewport);
+        _crtTransitionRenderer.Draw(spriteBatch, viewport, _fadeAlpha);
     }
 
     /// <inheritdoc />
@@ -1421,131 +1419,6 @@ public sealed class GameplayScreen : IGameScreen
         }
     }
 
-    private Vector2? GetFollowerRestPosition()
-    {
-        if (_player.IsMoving || _follower is null || _collisionMap is null)
-        {
-            return null;
-        }
-
-        var (firstOffset, secondOffset) = GetRestOffsetsForFacing(_player.Facing);
-        var firstPosition = _player.Position + firstOffset;
-        var secondPosition = _player.Position + secondOffset;
-        var firstOpen = IsFollowerRestPositionOpen(firstPosition);
-        var secondOpen = IsFollowerRestPositionOpen(secondPosition);
-
-        if (!firstOpen && !secondOpen)
-        {
-            return null;
-        }
-
-        if (firstOpen && secondOpen)
-        {
-            var firstDistance = Vector2.DistanceSquared(_follower.Position, firstPosition);
-            var secondDistance = Vector2.DistanceSquared(_follower.Position, secondPosition);
-            return firstDistance <= secondDistance ? firstPosition : secondPosition;
-        }
-
-        return firstOpen ? firstPosition : secondPosition;
-    }
-
-    private Vector2 GetFollowerLeaderTargetPosition()
-    {
-        if (_mapAssetName != "Maps/WoodsBehindCabin" || _gnomeSpawner == null)
-            return _player.Position;
-
-        var gnomes = _gnomeSpawner.Gnomes;
-        if (gnomes.Count < FollowerAttractionMinClusterSize)
-            return _player.Position;
-
-        var followerCenter = _follower.Center;
-        var bestScore = 0f;
-        var bestClusterCenter = Vector2.Zero;
-        var foundCluster = false;
-
-        for (var i = 0; i < gnomes.Count; i++)
-        {
-            var origin = gnomes[i].Position + new Vector2(8f, 8f);
-            var followerDistanceSq = Vector2.DistanceSquared(followerCenter, origin);
-            if (followerDistanceSq > FollowerAttractionSearchRadiusSq)
-                continue;
-
-            var clusterSum = origin;
-            var clusterSize = 1;
-            for (var j = 0; j < gnomes.Count; j++)
-            {
-                if (i == j)
-                    continue;
-
-                var other = gnomes[j].Position + new Vector2(8f, 8f);
-                if (Vector2.DistanceSquared(origin, other) <= FollowerAttractionClusterRadiusSq)
-                {
-                    clusterSum += other;
-                    clusterSize++;
-                }
-            }
-
-            if (clusterSize < FollowerAttractionMinClusterSize)
-                continue;
-
-            var proximity = 1f - MathHelper.Clamp(followerDistanceSq / FollowerAttractionSearchRadiusSq, 0f, 1f);
-            var score = clusterSize * proximity;
-            if (score <= bestScore)
-                continue;
-
-            bestScore = score;
-            bestClusterCenter = clusterSum / clusterSize;
-            foundCluster = true;
-        }
-
-        if (!foundCluster)
-            return _player.Position;
-
-        var toCluster = bestClusterCenter - _player.Center;
-        var distance = toCluster.Length();
-        if (distance <= 0.001f)
-            return _player.Position;
-
-        var offsetDistance = Math.Min(distance * FollowerAttractionStrength, FollowerAttractionMaxOffset);
-        var offset = toCluster / distance * offsetDistance;
-        return _player.Position + offset;
-    }
-
-    private (Vector2 FirstOffset, Vector2 SecondOffset) GetRestOffsetsForFacing(FacingDirection facing)
-    {
-        var sideOffset = _followerConfig.SideRestOffsetPixels;
-
-        return facing switch
-        {
-            FacingDirection.Left or FacingDirection.Right =>
-                (new Vector2(0f, -sideOffset), new Vector2(0f, sideOffset)),
-            _ =>
-                (new Vector2(-sideOffset, 0f), new Vector2(sideOffset, 0f))
-        };
-    }
-
-    private bool IsFollowerRestPositionOpen(Vector2 candidatePosition)
-    {
-        var candidateBounds = new Rectangle(
-            (int)MathF.Round(candidatePosition.X),
-            (int)MathF.Round(candidatePosition.Y),
-            PlayerFramePixels,
-            PlayerFramePixels);
-        var worldBounds = new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight);
-
-        if (!worldBounds.Contains(candidateBounds))
-        {
-            return false;
-        }
-
-        if (candidateBounds.Intersects(_player.Bounds))
-        {
-            return false;
-        }
-
-        return !_collisionMap.IsWorldRectangleBlocked(candidateBounds);
-    }
-
     private void OnPlayerDied()
     {
         _playerDead = true;
@@ -1632,52 +1505,6 @@ public sealed class GameplayScreen : IGameScreen
                 _musicManager.SetVolume(GameplayMusicVolume);
             }
         }
-    }
-
-    private static string GetSongForMap(string mapAssetName)
-    {
-        return mapAssetName switch
-        {
-            "Maps/WoodsBehindCabin" => "WoodsBehindCabinTheme",
-            "Maps/CabinIndoors" => "CabinIndoorsTheme",
-            _ => "GameplayTheme",
-        };
-    }
-
-    private static FollowerMovementConfig GetFollowerConfigForMap(string mapAssetName)
-    {
-        return mapAssetName switch
-        {
-            "Maps/WoodsBehindCabin" => WoodsFollowerConfig,
-            _ => DefaultFollowerConfig,
-        };
-    }
-
-    private static bool HasDayNightCycle(string mapAssetName)
-    {
-        return mapAssetName switch
-        {
-            "Maps/WoodsBehindCabin" => false,
-            _ => true,
-        };
-    }
-
-    private static bool HasCloudShadows(string mapAssetName)
-    {
-        return mapAssetName switch
-        {
-            "Maps/CabinIndoors" => false,
-            _ => true,
-        };
-    }
-
-    private static bool HasAmbientFireflies(string mapAssetName)
-    {
-        return mapAssetName switch
-        {
-            "Maps/CabinIndoors" => false,
-            _ => true,
-        };
     }
 
     private static Vector2? FindSpawnPosition(IReadOnlyList<SpawnPointData> spawnPoints, string spawnPointId)
@@ -1810,104 +1637,12 @@ public sealed class GameplayScreen : IGameScreen
         _fadeAlpha = 0f;
     }
 
-    /// <summary>Depth filter mode for <see cref="DrawWorldEntities"/>.</summary>
-    private enum EntityDepthFilter { All, BehindOrAtPlayer, InFrontOfPlayer }
-
     private enum FadeState
     {
         None,
         FadingOut,
         HoldingBlack,
         FadingIn,
-    }
-
-    /// <summary>
-    /// Draws a CRT power-off/on transition. During power-off the image squeezes
-    /// vertically into a bright horizontal line, then the line shrinks to a dot.
-    /// Power-on reverses the sequence.
-    /// </summary>
-    private void DrawCrtPowerTransition(SpriteBatch spriteBatch, Viewport viewport)
-    {
-        // Remap _fadeAlpha (0–1) into two phases:
-        //   Phase 1 (0.0–0.6): Vertical squeeze — bars close from top/bottom.
-        //   Phase 2 (0.6–1.0): Horizontal shrink — line contracts to a dot and fades.
-        const float phaseOneBoundary = 0.6f;
-        const int lineThickness = 3;
-        var crtDark = new Color(30, 30, 40);
-
-        var screenW = viewport.Width;
-        var screenH = viewport.Height;
-        var centerY = screenH / 2;
-        var centerX = screenW / 2;
-
-        if (_fadeAlpha < phaseOneBoundary)
-        {
-            // Phase 1: Black bars close from top and bottom.
-            var phaseProgress = _fadeAlpha / phaseOneBoundary; // 0→1
-            var halfGap = (int)((1f - phaseProgress) * centerY);
-            if (halfGap < lineThickness / 2)
-            {
-                halfGap = lineThickness / 2;
-            }
-
-            var topBarHeight = centerY - halfGap;
-            var bottomBarY = centerY + halfGap;
-
-            spriteBatch.Begin(
-                sortMode: SpriteSortMode.Deferred,
-                blendState: BlendState.AlphaBlend,
-                samplerState: SamplerState.PointClamp);
-
-            // Top bar.
-            if (topBarHeight > 0)
-            {
-                spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, screenW, topBarHeight), crtDark);
-            }
-
-            // Bottom bar.
-            if (bottomBarY < screenH)
-            {
-                spriteBatch.Draw(_pixelTexture, new Rectangle(0, bottomBarY, screenW, screenH - bottomBarY), crtDark);
-            }
-
-            // Phosphor glow on the remaining strip — brighter as it gets thinner.
-            var glowAlpha = phaseProgress * 0.4f;
-            spriteBatch.Draw(
-                _pixelTexture,
-                new Rectangle(0, topBarHeight, screenW, bottomBarY - topBarHeight),
-                Color.White * glowAlpha);
-
-            spriteBatch.End();
-        }
-        else
-        {
-            // Phase 2: Full vertical squeeze done — now shrink the line horizontally.
-            var phaseProgress = (_fadeAlpha - phaseOneBoundary) / (1f - phaseOneBoundary); // 0→1
-            var halfWidth = (int)((1f - phaseProgress) * centerX);
-            var lineTop = centerY - lineThickness / 2;
-
-            spriteBatch.Begin(
-                sortMode: SpriteSortMode.Deferred,
-                blendState: BlendState.AlphaBlend,
-                samplerState: SamplerState.PointClamp);
-
-            // Full dark background.
-            spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, screenW, screenH), crtDark);
-
-            // Bright shrinking line/dot.
-            if (halfWidth > 0)
-            {
-                var dotAlpha = 1f - phaseProgress * 0.5f;
-                var lineX = centerX - halfWidth;
-                var lineW = halfWidth * 2;
-                spriteBatch.Draw(
-                    _pixelTexture,
-                    new Rectangle(lineX, lineTop, lineW, lineThickness),
-                    Color.White * dotAlpha);
-            }
-
-            spriteBatch.End();
-        }
     }
 
     private readonly record struct ZoneTransitionRequest(string TargetMap, string TargetSpawnId);
@@ -2077,12 +1812,12 @@ public sealed class GameplayScreen : IGameScreen
             }
         }
 
-                DrawEnergyOrbs(_worldSpriteBatch, mapHeight, mapWidth, playerDepth, filter);
+                _energyOrbSystem?.Draw(_worldSpriteBatch, _energyOrbTexture, _energyOrbRedTexture, mapHeight, mapWidth, playerDepth, filter);
 
-        DrawHealthPickups(_worldSpriteBatch, mapHeight, mapWidth, playerDepth, filter);
+        _healthPickupSystem?.Draw(_worldSpriteBatch, _pixelTexture, mapHeight, mapWidth, playerDepth, filter);
 
         if (filter == EntityDepthFilter.All || filter == EntityDepthFilter.InFrontOfPlayer)
-            DrawExplosions(_worldSpriteBatch, mapHeight, mapWidth);
+            _explosionSystem?.Draw(_worldSpriteBatch, _explosionTexture, mapHeight, mapWidth);
     }
 
     private static bool PassesDepthFilter(float depth, float playerDepth, EntityDepthFilter filter)
@@ -2113,403 +1848,6 @@ public sealed class GameplayScreen : IGameScreen
         var xTie = bounds.Left / (mapWidth * mapHeight);
 
         return MathHelper.Clamp(yScaled + xTie, 0f, 0.9999f);
-    }
-
-    /// <summary>
-    /// Checks whether any world entity that sorts in front of <paramref name="characterBounds"/>
-    /// fully conceals those bounds. Used to activate the reveal lens for the player or follower.
-    /// </summary>
-    /// <param name="characterBounds">The character's world-space bounding rectangle.</param>
-    /// <param name="characterDepth">The character's sort depth (bottom / mapHeight).</param>
-    private bool CheckOcclusion(Rectangle characterBounds, float characterDepth)
-    {
-        var mapHeight = (float)_worldRenderer.MapPixelHeight;
-        var mapWidth = (float)_worldRenderer.MapPixelWidth;
-
-        for (var i = 0; i < _cozyLakeCabins.Length; i++)
-        {
-            if (_cozyLakeCabins[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_cozyLakeCabins[i].Bounds, mapHeight, mapWidth, CabinSortAnchorOffsetPixels);
-            if (depth > characterDepth && _cozyLakeCabins[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _frontDoors.Length; i++)
-        {
-            if (_frontDoors[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_frontDoors[i].Bounds, mapHeight, mapWidth);
-            if (depth > characterDepth && _frontDoors[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _pineTrees.Length; i++)
-        {
-            if (_pineTrees[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_pineTrees[i].Bounds, mapHeight, mapWidth, PineTreeSortAnchorOffsetPixels);
-            if (depth > characterDepth && _pineTrees[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _birchTrees.Length; i++)
-        {
-            if (_birchTrees[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_birchTrees[i].Bounds, mapHeight, mapWidth, BirchTreeSortAnchorOffsetPixels);
-            if (depth > characterDepth && _birchTrees[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _deadTrees.Length; i++)
-        {
-            if (_deadTrees[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_deadTrees[i].Bounds, mapHeight, mapWidth, DeadTreeSortAnchorOffsetPixels);
-            if (depth > characterDepth && _deadTrees[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _deciduousTrees.Length; i++)
-        {
-            if (_deciduousTrees[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_deciduousTrees[i].Bounds, mapHeight, mapWidth, DeciduousTreeSortAnchorOffsetPixels);
-            if (depth > characterDepth && _deciduousTrees[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _bushes.Length; i++)
-        {
-            if (_bushes[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_bushes[i].Bounds, mapHeight, mapWidth, BushSortAnchorOffsetPixels);
-            if (depth > characterDepth && _bushes[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _boulders.Length; i++)
-        {
-            if (_boulders[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_boulders[i].Bounds, mapHeight, mapWidth);
-            if (depth > characterDepth && _boulders[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _couches.Length; i++)
-        {
-            if (_couches[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_couches[i].Bounds, mapHeight, mapWidth);
-            if (depth > characterDepth && _couches[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _oldTvs.Length; i++)
-        {
-            if (_oldTvs[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_oldTvs[i].Bounds, mapHeight, mapWidth);
-            if (depth > characterDepth && _oldTvs[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _gameConsoles.Length; i++)
-        {
-            if (_gameConsoles[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_gameConsoles[i].Bounds, mapHeight, mapWidth);
-            if (depth > characterDepth && _gameConsoles[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _pottedPlants1.Length; i++)
-        {
-            if (_pottedPlants1[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_pottedPlants1[i].Bounds, mapHeight, mapWidth);
-            if (depth > characterDepth && _pottedPlants1[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _entertainmentShelves.Length; i++)
-        {
-            if (_entertainmentShelves[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_entertainmentShelves[i].Bounds, mapHeight, mapWidth);
-            if (depth > characterDepth && _entertainmentShelves[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        for (var i = 0; i < _sunkenLogs.Length; i++)
-        {
-            if (_sunkenLogs[i].SuppressOcclusion) continue;
-            var depth = SortDepth(_sunkenLogs[i].Bounds, mapHeight, mapWidth);
-            if (depth > characterDepth && _sunkenLogs[i].Bounds.Contains(characterBounds))
-                return true;
-        }
-
-        return false;
-    }
-
-    private void SpawnExplosion(Vector2 centre)
-    {
-        for (var i = 0; i < MaxExplosions; i++)
-        {
-            if (!_explosionActive[i])
-            {
-                _explosionActive[i] = true;
-                _explosionPositions[i] = centre;
-                _explosionFrames[i] = 0;
-                _explosionElapsed[i] = 0f;
-                return;
-            }
-        }
-    }
-
-    private void SpawnEnergyOrb(Vector2 centre)
-    {
-        for (var i = 0; i < MaxEnergyOrbs; i++)
-        {
-            if (_energyOrbActive[i])
-                continue;
-
-            var angle = (float)(_sfxRng.NextDouble() * MathHelper.TwoPi);
-            var speed = (float)_sfxRng.NextDouble() * EnergyOrbMaxSpawnSpeed;
-            _energyOrbActive[i] = true;
-            _energyOrbPositions[i] = centre;
-            _energyOrbVelocities[i] = new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * speed;
-            _energyOrbAges[i] = 0f;
-            _energyOrbPulseOffsets[i] = (float)(_sfxRng.NextDouble() * MathHelper.TwoPi);
-            _energyOrbIsRed[i] = _sfxRng.NextDouble() < RedEnergyOrbChance;
-            return;
-        }
-    }
-
-    private void UpdateExplosions(float dt)
-    {
-        for (var i = 0; i < MaxExplosions; i++)
-        {
-            if (!_explosionActive[i]) continue;
-
-            _explosionElapsed[i] += dt;
-            if (_explosionElapsed[i] >= ExplosionFrameDuration)
-            {
-                _explosionElapsed[i] -= ExplosionFrameDuration;
-                _explosionFrames[i]++;
-                if (_explosionFrames[i] >= ExplosionFrameCount)
-                    _explosionActive[i] = false;
-            }
-        }
-    }
-
-    private void UpdateEnergyOrbs(float dt)
-    {
-        if (_energyOrbTexture == null)
-            return;
-
-        var playerCenter = _player.Center;
-        for (var i = 0; i < MaxEnergyOrbs; i++)
-        {
-            if (!_energyOrbActive[i])
-                continue;
-
-            _energyOrbAges[i] += dt;
-            var toPlayer = playerCenter - _energyOrbPositions[i];
-            var distanceSq = toPlayer.LengthSquared();
-
-            if (distanceSq <= EnergyOrbPickupRadiusSq)
-            {
-                if (_energyOrbIsRed[i] && _redOrbCollectVariationSfx[0] != null)
-                {
-                    var redCandidate = _redOrbCollectVariationSfx[_sfxRng.Next(RedOrbCollectVariationSfxCount)];
-                    redCandidate.Play(RedOrbCollectSfxVolume, 0f, 0f);
-                }
-                else if (_orbCollectVariationSfx[0] != null)
-                {
-                    var candidate = _orbCollectVariationSfx[_sfxRng.Next(OrbCollectVariationSfxCount)];
-                    candidate.Play(OrbCollectSfxVolume, 0f, 0f);
-                }
-                _xpSystem?.AddXp(_energyOrbIsRed[i] ? 5 : 1);
-                _energyOrbActive[i] = false;
-                _energyOrbIsRed[i] = false;
-                continue;
-            }
-
-            if (distanceSq <= EnergyOrbMagnetRadiusSq && distanceSq > 0.001f)
-            {
-                var distance = MathF.Sqrt(distanceSq);
-                var direction = toPlayer / distance;
-                var pullStrength = 1f - MathHelper.Clamp(distance / EnergyOrbMagnetRadius, 0f, 1f);
-                _energyOrbVelocities[i] += direction * (EnergyOrbMagnetForce * pullStrength * dt);
-            }
-
-            var drag = MathF.Exp(-EnergyOrbDragPerSecond * dt);
-            _energyOrbVelocities[i] *= drag;
-            var speed = _energyOrbVelocities[i].Length();
-            if (speed > EnergyOrbTerminalSpeed)
-                _energyOrbVelocities[i] = _energyOrbVelocities[i] / speed * EnergyOrbTerminalSpeed;
-            _energyOrbPositions[i] += _energyOrbVelocities[i] * dt;
-        }
-    }
-
-    private void UpdateHealthPickups(float dt)
-    {
-        if (_healthPickups == null || _playerHealth == null || !_playerHealth.IsAlive)
-            return;
-
-        _healthPickupSpawnTimer += dt;
-        if (_healthPickupSpawnTimer >= _nextHealthPickupInterval)
-        {
-            _healthPickupSpawnTimer = 0f;
-            _nextHealthPickupInterval = HealthPickupSpawnIntervalMin
-                + (float)_sfxRng.NextDouble() * (HealthPickupSpawnIntervalMax - HealthPickupSpawnIntervalMin);
-
-            // Find an inactive slot.
-            int freeSlot = -1;
-            for (var i = 0; i < MaxHealthPickups; i++)
-            {
-                if (!_healthPickups[i].IsActive)
-                {
-                    freeSlot = i;
-                    break;
-                }
-            }
-
-            if (freeSlot >= 0)
-            {
-                var spawnPos = TryFindWalkablePosition(_player.Center,
-                    HealthPickupSpawnRadiusMin, HealthPickupSpawnRadiusMax);
-                if (spawnPos.HasValue)
-                    _healthPickups[freeSlot].Spawn(spawnPos.Value);
-            }
-        }
-
-        var playerCenter = _player.Center;
-        for (var i = 0; i < MaxHealthPickups; i++)
-        {
-            _healthPickups[i].Update(dt);
-
-            if (!_healthPickups[i].IsActive)
-                continue;
-
-            var toPlayer = playerCenter - _healthPickups[i].Position;
-            if (toPlayer.LengthSquared() <= HealthPickupCollectionRadiusSq)
-            {
-                _healthPickups[i].Deactivate();
-                _playerHealth.Heal(1);
-            }
-        }
-    }
-
-    private Vector2? TryFindWalkablePosition(Vector2 center, float minRadius, float maxRadius)
-    {
-        for (var attempt = 0; attempt < HealthPickupSpawnAttempts; attempt++)
-        {
-            var angle = (float)(_sfxRng.NextDouble() * MathHelper.TwoPi);
-            var radius = minRadius + (float)_sfxRng.NextDouble() * (maxRadius - minRadius);
-            var candidate = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
-            var bounds = new Rectangle(
-                (int)candidate.X - HealthPickupCollisionSize / 2,
-                (int)candidate.Y - HealthPickupCollisionSize / 2,
-                HealthPickupCollisionSize,
-                HealthPickupCollisionSize);
-            var worldBounds = new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight);
-            if (worldBounds.Contains(bounds) && !_collisionMap.IsWorldRectangleBlocked(bounds))
-                return candidate;
-        }
-
-        return null;
-    }
-
-    private void DrawHealthPickups(SpriteBatch spriteBatch, float mapHeight, float mapWidth, float playerDepth, EntityDepthFilter filter)
-    {
-        if (_healthPickups == null)
-            return;
-
-        int halfSize = HealthPickupDrawSize / 2;
-        for (var i = 0; i < MaxHealthPickups; i++)
-        {
-            if (!_healthPickups[i].IsActive)
-                continue;
-
-            var pos = _healthPickups[i].Position;
-            var sortBounds = new Rectangle((int)(pos.X - halfSize), (int)(pos.Y - halfSize),
-                HealthPickupDrawSize, HealthPickupDrawSize);
-            var depth = SortDepth(sortBounds, mapHeight, mapWidth);
-            if (!PassesDepthFilter(depth, playerDepth, filter))
-                continue;
-
-            spriteBatch.Draw(
-                _pixelTexture,
-                sortBounds,
-                null,
-                Color.LimeGreen * _healthPickups[i].Opacity,
-                0f,
-                Vector2.Zero,
-                SpriteEffects.None,
-                depth);
-        }
-    }
-
-    private void DrawEnergyOrbs(SpriteBatch spriteBatch, float mapHeight, float mapWidth, float playerDepth, EntityDepthFilter filter)
-    {
-        if (_energyOrbTexture == null)
-            return;
-
-        for (var i = 0; i < MaxEnergyOrbs; i++)
-        {
-            if (!_energyOrbActive[i])
-                continue;
-
-            var orbTexture = _energyOrbIsRed[i] ? _energyOrbRedTexture ?? _energyOrbTexture : _energyOrbTexture;
-            if (orbTexture == null)
-                continue;
-
-            var position = _energyOrbPositions[i];
-            var halfOrbW = orbTexture.Width * 0.5f;
-            var halfOrbH = orbTexture.Height * 0.5f;
-            var bounds = new Rectangle((int)(position.X - halfOrbW), (int)(position.Y - halfOrbH), orbTexture.Width, orbTexture.Height);
-            var depth = SortDepth(bounds, mapHeight, mapWidth);
-            if (!PassesDepthFilter(depth, playerDepth, filter))
-                continue;
-
-            var pulse = MathF.Sin(_energyOrbAges[i] * EnergyOrbPulseSpeed + _energyOrbPulseOffsets[i]);
-            var scale = EnergyOrbBaseScale + ((pulse * 0.5f) + 0.5f) * EnergyOrbPulseAmount;
-            var alpha = 0.78f + ((pulse * 0.5f) + 0.5f) * 0.22f;
-
-            spriteBatch.Draw(
-                orbTexture,
-                position,
-                null,
-                Color.White * alpha,
-                0f,
-                new Vector2(halfOrbW, halfOrbH),
-                scale,
-                SpriteEffects.None,
-                depth);
-        }
-    }
-
-    private void DrawExplosions(SpriteBatch spriteBatch, float mapHeight, float mapWidth)
-    {
-        if (_explosionTexture == null) return;
-
-        var half = ExplosionCellSize * 0.5f;
-        var origin = new Vector2(half, half);
-
-        for (var i = 0; i < MaxExplosions; i++)
-        {
-            if (!_explosionActive[i]) continue;
-
-            var sourceRect = new Rectangle(
-                _explosionFrames[i] * ExplosionCellSize, 0,
-                ExplosionCellSize, ExplosionCellSize);
-
-            var pos = _explosionPositions[i];
-            var sortBounds = new Rectangle((int)(pos.X - half), (int)(pos.Y - half), ExplosionCellSize, ExplosionCellSize);
-            var depth = SortDepth(sortBounds, mapHeight, mapWidth);
-
-            spriteBatch.Draw(
-                _explosionTexture,
-                pos,
-                sourceRect,
-                Color.White,
-                0f,
-                origin,
-                1f,
-                SpriteEffects.None,
-                depth);
-        }
     }
 
     /// <summary>
