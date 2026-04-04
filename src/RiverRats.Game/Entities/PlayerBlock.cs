@@ -75,6 +75,24 @@ public sealed class PlayerBlock : IWorldProp
     /// <summary>Whether the entity moved this frame.</summary>
     public bool IsMoving => _isMoving;
 
+    /// <summary>
+    /// Directly sets the player's world position. Used by scripted sequences
+    /// (e.g., couch sitting) that bypass normal movement input.
+    /// </summary>
+    internal void SetPosition(Vector2 position)
+    {
+        _position = position;
+    }
+
+    /// <summary>
+    /// Sets the player's facing direction without requiring input.
+    /// Used by scripted sequences.
+    /// </summary>
+    internal void SetFacing(FacingDirection facing)
+    {
+        _facing = facing;
+    }
+
     /// <summary>Current AABB in world-space pixels.</summary>
     public Rectangle Bounds => new(
         (int)_position.X,
@@ -148,6 +166,51 @@ public sealed class PlayerBlock : IWorldProp
         {
             _currentSpeedFraction = 0f;
         }
+    }
+
+    /// <summary>
+    /// Applies externally-driven movement such as a scripted dash while preserving
+    /// the player's collision footprint and world-bounds clamping.
+    /// </summary>
+    /// <param name="movementDelta">World-space movement delta in pixels for this frame.</param>
+    /// <param name="mapCollisionData">Collision source used for axis-separated resolution.</param>
+    /// <param name="updateFacingFromMovement">True to update facing from the supplied delta.</param>
+    internal bool ApplyExternalMovement(Vector2 movementDelta, IMapCollisionData mapCollisionData, bool updateFacingFromMovement = true)
+    {
+        if (movementDelta == Vector2.Zero)
+        {
+            _isMoving = false;
+            return false;
+        }
+
+        if (updateFacingFromMovement)
+        {
+            UpdateFacing(movementDelta);
+        }
+
+        var previousPosition = _position;
+
+        if (movementDelta.X != 0f)
+        {
+            TryMoveOnAxis(new Vector2(movementDelta.X, 0f), mapCollisionData);
+        }
+
+        if (movementDelta.Y != 0f)
+        {
+            TryMoveOnAxis(new Vector2(0f, movementDelta.Y), mapCollisionData);
+        }
+
+        _isMoving = _position != previousPosition;
+        return _isMoving;
+    }
+
+    /// <summary>
+    /// Clears transient movement state when movement is driven by a non-standard sequence.
+    /// </summary>
+    internal void ClearMovementState()
+    {
+        _isMoving = false;
+        _currentSpeedFraction = 0f;
     }
 
     /// <summary>

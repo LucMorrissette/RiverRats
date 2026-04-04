@@ -44,3 +44,6 @@
 | `Unit/PauseScreenTests.cs` | `IsTransparent` is `true`, dims music volume on `LoadContent`, restores music volume on `UnloadContent`, pops itself from `ScreenManager` on `InputAction.Pause` press, no-ops when `Pause` is not pressed. |
 | `Unit/FrontDoorTests.cs` | Authored initial state, auto-open only at very close range for the player, confirm follower proximity alone does not open the door, and auto-close when the player is not nearby. |
 | `Unit/GardenGnomeTests.cs` | Hides quickly when the player enters the reduced proximity radius, reappears slowly once the player leaves, and stays at home when the player remains outside that range. |
+| `Unit/DashRollSequenceTests.cs` | Dash start rules, facing lock, immediate invulnerability, frame progression, cooldown timing, and blocked-start cancellation. |
+| `Unit/PlayerCollapseSequenceTests.cs` | Collapse start state, player lock-in during the sequence, transform squash/rotation progression, and completion timing. |
+| `Integration/DashRollSequenceIntegrationTests.cs` | Multi-frame dash movement halts before world obstacles and exits the roll cleanly after collision. |

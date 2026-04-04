@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="37" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="38" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -233,6 +233,24 @@
     <properties>
       <property name="propType" value="entertainment-shelf"/>
     </properties>
-    <image source="../Sprites/entertainment-shelf.png" width="87" height="54"/>
+    <image source="../Sprites/entertainment-shelf.png" width="64" height="40"/> 
+  </tile>
+  <tile id="37">
+    <properties>
+      <property name="propType" value="speaker-tower-a"/>
+    </properties>
+    <image source="../Sprites/speaker-tower-a.png" width="20" height="32"/>
+  </tile>
+  <tile id="38">
+    <properties>
+      <property name="propType" value="speaker-tower-b"/>
+    </properties>
+    <image source="../Sprites/speaker-tower-b.png" width="15" height="32"/>
+  </tile>
+  <tile id="39">
+    <properties>
+      <property name="propType" value="speaker-tower-c"/>
+    </properties>
+    <image source="../Sprites/speaker-tower-c.png" width="20" height="32"/>
   </tile>
 </tileset>

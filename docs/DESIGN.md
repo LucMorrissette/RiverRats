@@ -30,6 +30,8 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Occlusion reveal** | Entities in front of the player are drawn to a separate render target and composited with the `OcclusionReveal` shader, which creates a circular alpha-fade lens around the player centre | Lets the player remain visible behind tall props (trees, cabins) without breaking Y-sort or requiring per-entity transparency logic. |
 | **CRT post-process filter** | Optional full-screen shader (barrel distortion + scanlines + vignette) applied during the final scene blit, toggled at runtime via `InputAction.ToggleCrtFilter` (F9) | Adds retro CRT aesthetic without affecting the HUD overlay pass or gameplay logic. |
 | **Fishing water shader** | `FishingWater.fx` post-process renders the water tile layer to a render target and composites with UV wave distortion, event-driven concentric ripples, expanding splash highlight rings, red spook rings for bad casts, and procedural underwater caustics | Adds visual juice to the side-view fishing scene without coupling effects to tile definitions or CPU particle logic. |
+| **Forest dodge roll** | `InputAction.Confirm` triggers a short dash roll on `Maps/WoodsBehindCabin`, granting brief invulnerability and starting a 4-second world-space cooldown gauge under the player | Adds an active defense to the survival map without adding a separate HUD widget or bypassing the input abstraction layer. |
+| **Player death collapse** | `GameplayScreen` holds on the world view briefly after `Health.OnDied`, playing a bottom-anchored collapse squash before replacing itself with `DeathScreen` | Preserves spatial context for failure feedback instead of hard-cutting directly from live control to the failure overlay. |
 
 ---
 

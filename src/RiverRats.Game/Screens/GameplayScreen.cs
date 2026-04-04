@@ -49,6 +49,7 @@ public sealed class GameplayScreen : IGameScreen
     private const float DeadTreeSortAnchorOffsetPixels = 10f;
     private const float DeciduousTreeSortAnchorOffsetPixels = 10f;
     private const float BushSortAnchorOffsetPixels = 4f;
+    private const int EntertainmentShelfWidthTiles = 2;
     private const float ZoneTransitionFadeDurationSeconds = 0.4f;
     private const float ZoneTransitionBlackHoldSeconds = 0.15f;
     private const float GameplayMusicVolume = 1f;
@@ -177,8 +178,12 @@ public sealed class GameplayScreen : IGameScreen
     private GardenGnome[] _gardenGnomes;
     private Boulder[] _welcomeMats;
     private Boulder[] _areaRugs;
-    private Boulder[] _couches;
+    private Couch[] _couches;
+    private CouchSitSequence _couchSitSequence;
     private Boulder[] _oldTvs;
+    private Boulder[] _speakerTowersA;
+    private Boulder[] _speakerTowersB;
+    private Boulder[] _speakerTowersC;
     private Boulder[] _gameConsoles;
     private Boulder[] _pottedPlants1;
     private Boulder[] _entertainmentShelves;
@@ -226,6 +231,8 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _projectileArrowTexture;
     private ProjectileSystem _projectileSystem;
     private SlashSystem _slashSystem;
+    private DashRollSequence _dashRollSequence;
+    private PlayerCollapseSequence _playerCollapseSequence;
     private Texture2D _hatchetTexture;
     private Texture2D _explosionTexture;
     private Texture2D _energyOrbTexture;
@@ -455,10 +462,20 @@ public sealed class GameplayScreen : IGameScreen
         _welcomeMats = PropFactory.CreateWelcomeMats(_content.Load<Texture2D>("Sprites/welcome-mat"), _worldRenderer.PropPlacements);
         _areaRugs = PropFactory.CreateAreaRugs(_content.Load<Texture2D>("Sprites/area-rug"), _worldRenderer.PropPlacements);
         _couches = PropFactory.CreateCouches(_content.Load<Texture2D>("Sprites/old-couch"), _worldRenderer.PropPlacements);
+        _couchSitSequence = new CouchSitSequence(PlayerFramePixels, PlayerFramePixels);
         _oldTvs = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/old-tv"), _worldRenderer.PropPlacements, "old-tv", isUnderwater: false);
+        _speakerTowersA = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/speaker-tower-a"), _worldRenderer.PropPlacements, "speaker-tower-a", isUnderwater: false);
+        _speakerTowersB = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/speaker-tower-b"), _worldRenderer.PropPlacements, "speaker-tower-b", isUnderwater: false);
+        _speakerTowersC = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/speaker-tower-c"), _worldRenderer.PropPlacements, "speaker-tower-c", isUnderwater: false);
         _gameConsoles = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/game-console"), _worldRenderer.PropPlacements, "game-console", isUnderwater: false);
         _pottedPlants1 = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/potted-plant-1"), _worldRenderer.PropPlacements, "potted-plant-1", isUnderwater: false);
-        _entertainmentShelves = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/entertainment-shelf"), _worldRenderer.PropPlacements, "entertainment-shelf", isUnderwater: false, collisionHeightPixels: 32);
+        _entertainmentShelves = PropFactory.CreatePropsByType(
+            _content.Load<Texture2D>("Sprites/entertainment-shelf"),
+            _worldRenderer.PropPlacements,
+            "entertainment-shelf",
+            isUnderwater: false,
+            collisionHeightPixels: 32,
+            targetWidthPixels: _worldRenderer.TileWidthPixels * EntertainmentShelfWidthTiles);
 
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _hookIconTexture = _content.Load<Texture2D>("Sprites/hook-icon");
@@ -510,6 +527,7 @@ public sealed class GameplayScreen : IGameScreen
             _waveManager.StartFirstWave();
 
             _forestHudRenderer = new ForestHudRenderer();
+            _dashRollSequence = new DashRollSequence();
             _energyOrbSystem = new EnergyOrbSystem(MaxEnergyOrbs);
             _explosionSystem = new ExplosionSystem(MaxExplosions);
             _healthPickupSystem = new HealthPickupSystem(MaxHealthPickups, _sfxRng);
@@ -568,8 +586,11 @@ public sealed class GameplayScreen : IGameScreen
             _firepits[i].AttachSparkEmitter(new ParticleEmitter(_particleManager, FireSparkProfile));
         }
         var propObstacleBounds = PropFactory.MergeRectangleArrays(PropFactory.GetBoulderBounds(_boulders), PropFactory.GetFirepitBounds(_firepits));
-        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_couches));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetCouchBounds(_couches));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_oldTvs));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_speakerTowersA));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_speakerTowersB));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_speakerTowersC));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_gameConsoles));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_pottedPlants1));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_entertainmentShelves));
@@ -677,6 +698,9 @@ public sealed class GameplayScreen : IGameScreen
         foreach (var b in _boulders)        _occluders.Add(new OcclusionEntry(b));
         foreach (var c in _couches)         _occluders.Add(new OcclusionEntry(c));
         foreach (var t in _oldTvs)          _occluders.Add(new OcclusionEntry(t));
+        foreach (var s in _speakerTowersA)  _occluders.Add(new OcclusionEntry(s));
+        foreach (var s in _speakerTowersB)  _occluders.Add(new OcclusionEntry(s));
+        foreach (var s in _speakerTowersC)  _occluders.Add(new OcclusionEntry(s));
         foreach (var g in _gameConsoles)    _occluders.Add(new OcclusionEntry(g));
         foreach (var p in _pottedPlants1)   _occluders.Add(new OcclusionEntry(p));
         foreach (var e in _entertainmentShelves) _occluders.Add(new OcclusionEntry(e));
@@ -705,6 +729,7 @@ public sealed class GameplayScreen : IGameScreen
 
         if (_playerDead)
         {
+            _playerCollapseSequence?.Update(gameTime, _player);
             _deathDelayTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
             if (_deathDelayTimer <= 0f)
             {
@@ -741,10 +766,44 @@ public sealed class GameplayScreen : IGameScreen
             _debugOverlayMode = (_debugOverlayMode + 1) % 3;
         }
 
-        _player.Update(gameTime, input, _collisionMap);
+        // --- Couch sit sequence: when active, skip normal movement and delegate to the sequence ---
+        if (_couchSitSequence.IsActive)
+        {
+            _couchSitSequence.Update(gameTime, input, _player, _follower);
+            UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
 
         if (_combatStats != null)
             _player.SpeedMultiplier = _combatStats.SpeedMultiplier;
+
+        var actionPressed = input.IsPressed(InputAction.Confirm);
+        var playerMovementHandledByDash = false;
+
+        if (_dashRollSequence != null)
+        {
+            if (_combatStats != null)
+            {
+                _dashRollSequence.CooldownMultiplier = _combatStats.CooldownMultiplier;
+            }
+
+            _dashRollSequence.Update(gameTime, _player, _collisionMap, _playerHealth);
+
+            if (_dashRollSequence.IsActive)
+            {
+                playerMovementHandledByDash = true;
+            }
+            else if (actionPressed && _dashRollSequence.TryBegin(GetMovementInputVector(input), _player, _playerHealth))
+            {
+                _dashRollSequence.Update(gameTime, _player, _collisionMap, _playerHealth);
+                playerMovementHandledByDash = true;
+            }
+        }
+
+        if (!playerMovementHandledByDash)
+        {
+            _player.Update(gameTime, input, _collisionMap);
+        }
 
         // Check zone transition triggers after player movement.
         for (var i = 0; i < _worldRenderer.ZoneTriggers.Count; i++)
@@ -757,9 +816,14 @@ public sealed class GameplayScreen : IGameScreen
             }
         }
 
-        if (input.IsPressed(InputAction.Confirm))
+        if (actionPressed && _dashRollSequence == null)
         {
             if (TryStartFishing())
+            {
+                return;
+            }
+
+            if (TrySitOnCouch())
             {
                 return;
             }
@@ -806,7 +870,8 @@ public sealed class GameplayScreen : IGameScreen
     private void UpdateWorldPresentation(GameTime gameTime, IInputManager input, bool animateCharacters)
     {
         _playerAnimator.Direction = _player.Facing;
-        _playerAnimator.Update(gameTime, animateCharacters && _player.IsMoving);
+        var playerShouldAnimate = animateCharacters && _player.IsMoving && !(_dashRollSequence?.IsActive ?? false);
+        _playerAnimator.Update(gameTime, playerShouldAnimate);
         _followerAnimator.Direction = _follower.Facing;
         _followerAnimator.Update(gameTime, animateCharacters && _follower.IsMoving);
         _camera.LookAt(_player.Center);
@@ -1046,7 +1111,7 @@ public sealed class GameplayScreen : IGameScreen
         var followerDepth = SortDepth(_follower.Bounds, mapHeight, mapWidth);
         var anyOccluded = _isPlayerOccluded || _isFollowerOccluded;
 
-        if (anyOccluded)
+        if (anyOccluded && !_couchSitSequence.IsActive)
         {
             // The cutoff depth for the "behind" pass is the shallowest (smallest) of
             // whichever characters are occluded, so all occluded characters are drawn
@@ -1062,8 +1127,7 @@ public sealed class GameplayScreen : IGameScreen
                 samplerState: SamplerState.PointClamp,
                 transformMatrix: worldMatrix);
             DrawWorldEntities(mapHeight, mapWidth, behindCutoff, EntityDepthFilter.BehindOrAtPlayer);
-            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
-            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth, playerTint);
+            DrawActiveCharacters(playerDepth, followerDepth, playerTint);
             _worldSpriteBatch.End();
 
             // --- Pass 4b: Entities in front of shallowest occluded character → occluder render target ---
@@ -1092,8 +1156,16 @@ public sealed class GameplayScreen : IGameScreen
                 samplerState: SamplerState.PointClamp,
                 transformMatrix: worldMatrix);
             DrawWorldEntities(mapHeight, mapWidth, playerDepth, EntityDepthFilter.All);
-            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
-            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth, playerTint);
+            if (_couchSitSequence.IsActive)
+            {
+                _couchSitSequence.Draw(
+                    _worldSpriteBatch, _playerSpriteSheet, _followerSpriteSheet,
+                    mapHeight, mapWidth);
+            }
+            else
+            {
+                DrawActiveCharacters(playerDepth, followerDepth, playerTint);
+            }
             _worldSpriteBatch.End();
         }
 
@@ -1320,6 +1392,19 @@ public sealed class GameplayScreen : IGameScreen
             _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _oldTvs[i].Bounds, Color.Red);
         }
 
+        for (var i = 0; i < _speakerTowersA.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _speakerTowersA[i].Bounds, Color.Red);
+        }
+        for (var i = 0; i < _speakerTowersB.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _speakerTowersB[i].Bounds, Color.Red);
+        }
+        for (var i = 0; i < _speakerTowersC.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _speakerTowersC[i].Bounds, Color.Red);
+        }
+
         for (var i = 0; i < _gameConsoles.Length; i++)
         {
             _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _gameConsoles[i].Bounds, Color.Red);
@@ -1422,7 +1507,9 @@ public sealed class GameplayScreen : IGameScreen
     private void OnPlayerDied()
     {
         _playerDead = true;
-        _deathDelayTimer = 1.0f;
+        _playerCollapseSequence ??= new PlayerCollapseSequence();
+        _playerCollapseSequence.Begin(_player);
+        _deathDelayTimer = PlayerCollapseSequence.DurationSeconds;
     }
 
     private void OnAllWavesComplete()
@@ -1555,6 +1642,40 @@ public sealed class GameplayScreen : IGameScreen
         }
     }
 
+    private bool TrySitOnCouch()
+    {
+        var playerFootBounds = _player.FootBounds;
+        var playerFacing = _player.Facing;
+        var playerCenter = new Vector2(playerFootBounds.Center.X, playerFootBounds.Center.Y);
+
+        var nearestIndex = -1;
+        var nearestDistanceSquared = float.MaxValue;
+
+        for (var i = 0; i < _couches.Length; i++)
+        {
+            if (!_couches[i].CanInteract(playerFootBounds, playerFacing))
+            {
+                continue;
+            }
+
+            var couchCenter = new Vector2(_couches[i].Bounds.Center.X, _couches[i].Bounds.Center.Y);
+            var distanceSquared = Vector2.DistanceSquared(playerCenter, couchCenter);
+            if (distanceSquared < nearestDistanceSquared)
+            {
+                nearestDistanceSquared = distanceSquared;
+                nearestIndex = i;
+            }
+        }
+
+        if (nearestIndex < 0)
+        {
+            return false;
+        }
+
+        _couchSitSequence.Begin(_couches[nearestIndex], _player, _follower);
+        return true;
+    }
+
     private bool TryStartFishing()
     {
         var fishingBounds = GetFishingInteractionBounds();
@@ -1682,6 +1803,27 @@ public sealed class GameplayScreen : IGameScreen
             var depth = SortDepth(_oldTvs[i].Bounds, mapHeight, mapWidth);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _oldTvs[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _speakerTowersA.Length; i++)
+        {
+            var depth = SortDepth(_speakerTowersA[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _speakerTowersA[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _speakerTowersB.Length; i++)
+        {
+            var depth = SortDepth(_speakerTowersB[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _speakerTowersB[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _speakerTowersC.Length; i++)
+        {
+            var depth = SortDepth(_speakerTowersC[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _speakerTowersC[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _gameConsoles.Length; i++)
@@ -1848,6 +1990,60 @@ public sealed class GameplayScreen : IGameScreen
         var xTie = bounds.Left / (mapWidth * mapHeight);
 
         return MathHelper.Clamp(yScaled + xTie, 0f, 0.9999f);
+    }
+
+    private void DrawActiveCharacters(float playerDepth, float followerDepth, Color? playerTint)
+    {
+        _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
+
+        if (_playerCollapseSequence?.IsActive ?? false)
+        {
+            _playerCollapseSequence.Draw(_worldSpriteBatch, _playerSpriteSheet, _player, playerDepth, playerTint);
+        }
+        else if (_dashRollSequence?.IsActive ?? false)
+        {
+            _dashRollSequence.DrawRoll(_worldSpriteBatch, _playerSpriteSheet, _player, playerDepth, playerTint);
+        }
+        else
+        {
+            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth, playerTint);
+        }
+
+        if (!(_playerCollapseSequence?.IsActive ?? false))
+        {
+            _dashRollSequence?.DrawCooldownGauge(
+                _worldSpriteBatch,
+                _pixelTexture,
+                _player,
+                Math.Min(playerDepth + 0.0002f, 0.9999f));
+        }
+    }
+
+    private static Vector2 GetMovementInputVector(IInputManager input)
+    {
+        var direction = Vector2.Zero;
+
+        if (input.IsHeld(InputAction.MoveLeft))
+        {
+            direction.X -= 1f;
+        }
+
+        if (input.IsHeld(InputAction.MoveRight))
+        {
+            direction.X += 1f;
+        }
+
+        if (input.IsHeld(InputAction.MoveUp))
+        {
+            direction.Y -= 1f;
+        }
+
+        if (input.IsHeld(InputAction.MoveDown))
+        {
+            direction.Y += 1f;
+        }
+
+        return direction;
     }
 
     /// <summary>

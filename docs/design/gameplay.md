@@ -21,6 +21,9 @@
 | **Pre-wave countdown** | A configurable countdown phase precedes each wave's Active phase | Gives the player a visual warning before enemies begin spawning. Displayed as a centered integer countdown. |
 | **Wave intermission** | A configurable pause phase follows each cleared wave before the next countdown begins | Provides time for orb collection and repositioning between waves. Duration is a tunable constant. |
 | **Enemy variant system** | `GnomeEnemy` accepts an `EnemyType` that parameterizes tint, scale, speed, HP, and on-death behavior | Enables visually and mechanically distinct enemy variants without separate entity classes. The `WaveConfig` spawn-weight mix controls which types appear each wave. |
+| **Forest dodge roll** | On `Maps/WoodsBehindCabin`, `InputAction.Confirm` triggers a short dash in the player's current movement direction, grants dash-length invulnerability, and starts a 4-second cooldown | Adds an explicit reactive defense to the survival map without altering overworld interaction behavior. |
+| **Forest cooldown feedback** | Dash cooldown is rendered as a shrinking world-space gauge under the player's feet | Keeps the timing cue anchored to the avatar instead of spending persistent HUD space. |
+| **Death transition staging** | Player death holds on `GameplayScreen` for a short collapse sequence before pushing `DeathScreen` | Gives the defeat state a readable physical payoff while keeping failure presentation screen-owned. |
 
 *(Add entries as movement speed, hitbox sizing, terrain modifiers, combat, and other gameplay systems are designed.)*
 
@@ -28,5 +31,8 @@
 
 | Decision | Value | Rationale |
 |---|---|---|
+| **Character sheet layout** | Rows 0-3 = walk directions, row 4 = sitting poses, row 5 = four-frame commando roll loop, rows 6-9 = four-frame collapse strips for Down/Left/Right/Up | Keeps contextual animations additive without changing the walk animator contract. |
+| **Dash roll orientation** | Roll frames are authored once as a compact spinning bundle and rotated at draw time to match the dash vector | Supports diagonal dashes without multiplying sprite-sheet rows for each direction. |
+| **Collapse animation source** | Player death collapse uses dedicated four-frame directional strips that read as buckle -> knees -> tip -> flat | Gives the death transition a readable physical sequence without relying on runtime squashing. |
 
 *(Add entries for character sprite sizes, origins, animation system, spritesheet layout, walk cycles, directional priority, etc.)*

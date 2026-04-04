@@ -462,9 +462,14 @@ public static class FishingCastLogic
                     state.StrikeStartPos = getFishCenter(i);
                     state.StrikeTimer   = 0f;
                     state.TwitchTimer   = 0f;
+                    // Scale dive depth by how far from shore the lure is,
+                    // so fish near the diagonal slope don't clip into ground.
+                    var depthFraction = MathHelper.Clamp(
+                        (state.LurePosition.X - AimMinX) / (state.AimMaxX - AimMinX), 0f, 1f);
+                    var groundAtX = AimY + (virtualHeight - AimY) * depthFraction;
                     state.HookTarget    = new Vector2(
                         state.LurePosition.X,
-                        AimY + (virtualHeight - AimY) * 0.5f);
+                        AimY + (groundAtX - AimY) * 0.5f);
 
                     events.FishHooked         = true;
                     events.HookedFishIndex    = i;
@@ -697,6 +702,13 @@ public static class FishingCastLogic
                 if (newCenter.X > AimMinX)
                 {
                     newCenter.X -= reelSpeed * dt;
+                    // Snap to shore surface when crossing the shoreline so the
+                    // fish doesn't end up underground while fighting mid-reel.
+                    if (newCenter.X <= AimMinX)
+                    {
+                        newCenter.X = AimMinX;
+                        newCenter.Y = AimY;
+                    }
                     events.HookedFishNewPosition = newCenter;
                 }
             }
@@ -751,6 +763,8 @@ public static class FishingCastLogic
                 else
                 {
                     var newCenter = hookedFishCenter + Vector2.Normalize(toRod) * reelSpeed * dt;
+                    // Fish is airborne above shore — keep it at or above the water surface.
+                    newCenter.Y = MathHelper.Min(newCenter.Y, AimY);
                     events.UpdateHookedFishPosition = true;
                     events.HookedFishNewPosition    = newCenter;
                     events.HookedFishRotation       = MathHelper.PiOver2 + airWiggle;

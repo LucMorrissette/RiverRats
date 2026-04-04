@@ -64,6 +64,24 @@ public sealed class FollowerBlock : IWorldProp
     /// <summary>Whether the follower advanced along the trail this frame.</summary>
     public bool IsMoving => _isMoving;
 
+    /// <summary>
+    /// Directly sets the follower's world position. Used by scripted sequences
+    /// (e.g., couch sitting) that bypass normal trail following.
+    /// </summary>
+    internal void SetPosition(Vector2 position)
+    {
+        _position = position;
+    }
+
+    /// <summary>
+    /// Sets the follower's facing direction without requiring movement.
+    /// Used by scripted sequences.
+    /// </summary>
+    internal void SetFacing(FacingDirection facing)
+    {
+        _facing = facing;
+    }
+
     /// <summary>Current AABB in world-space pixels.</summary>
     public Rectangle Bounds => new(
         (int)_position.X,

@@ -18,6 +18,26 @@ internal static class PropFactory
     internal const float FirepitAttachDistancePixels = 24f;
     internal const float FirepitAttachDistanceSquared = FirepitAttachDistancePixels * FirepitAttachDistancePixels;
 
+    internal static float CalculateUniformScale(int sourceWidthPixels, int targetWidthPixels)
+    {
+        if (sourceWidthPixels <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sourceWidthPixels), "Source width must be greater than zero.");
+        }
+
+        if (targetWidthPixels == 0)
+        {
+            return 1f;
+        }
+
+        if (targetWidthPixels < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetWidthPixels), "Target width cannot be negative.");
+        }
+
+        return targetWidthPixels / (float)sourceWidthPixels;
+    }
+
     /// <summary>
     /// Collision boxes for pine trees relative to the 80×128 sprite.
     /// Multiple rectangles hug the trunk shape from the narrow mid-section
@@ -312,9 +332,11 @@ internal static class PropFactory
         string propType,
         bool isUnderwater,
         bool reachesSurface = false,
-        int collisionHeightPixels = 0)
+        int collisionHeightPixels = 0,
+        int targetWidthPixels = 0)
     {
         var props = new List<Boulder>(placements.Count);
+        var scale = CalculateUniformScale(texture.Width, targetWidthPixels);
         for (var i = 0; i < placements.Count; i++)
         {
             var placement = placements[i];
@@ -333,7 +355,12 @@ internal static class PropFactory
                 continue;
             }
 
-            props.Add(new Boulder(placement.Position, texture, rotationRadians: placement.RotationRadians, collisionHeightPixels: collisionHeightPixels));
+            props.Add(new Boulder(
+                placement.Position,
+                texture,
+                rotationRadians: placement.RotationRadians,
+                collisionHeightPixels: collisionHeightPixels,
+                scale: scale));
         }
 
         return props.ToArray();
@@ -460,14 +487,14 @@ internal static class PropFactory
     }
 
     /// <summary>
-    /// Creates old couch solid props from placements with propType "old-couch".
-    /// Blocks movement via full-texture collision bounds and participates in Y-sorting.
+    /// Creates interactable couch props from placements with propType "old-couch".
+    /// Blocks movement via full-texture collision bounds and supports a sit interaction.
     /// </summary>
-    internal static Boulder[] CreateCouches(
+    internal static Couch[] CreateCouches(
         Texture2D texture,
         IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
     {
-        var couches = new List<Boulder>(placements.Count);
+        var couches = new List<Couch>(placements.Count);
         for (var i = 0; i < placements.Count; i++)
         {
             var placement = placements[i];
@@ -476,7 +503,7 @@ internal static class PropFactory
                 continue;
             }
 
-            couches.Add(new Boulder(placement.Position, texture, suppressOcclusion: false, rotationRadians: placement.RotationRadians));
+            couches.Add(new Couch(placement.Position, texture, placement.RotationRadians));
         }
 
         return couches.ToArray();
@@ -573,6 +600,17 @@ internal static class PropFactory
         for (var i = 0; i < boulders.Length; i++)
         {
             bounds[i] = boulders[i].Bounds;
+        }
+
+        return bounds;
+    }
+
+    internal static Rectangle[] GetCouchBounds(Couch[] couches)
+    {
+        var bounds = new Rectangle[couches.Length];
+        for (var i = 0; i < couches.Length; i++)
+        {
+            bounds[i] = couches[i].Bounds;
         }
 
         return bounds;

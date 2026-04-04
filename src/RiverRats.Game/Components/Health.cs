@@ -99,8 +99,13 @@ public sealed class Health
     /// <param name="seconds">Duration in seconds.</param>
     public void SetInvincibleForDuration(float seconds)
     {
+        if (seconds <= 0f)
+        {
+            return;
+        }
+
         IsInvincible = true;
-        _invincibilityTimer = seconds;
+        _invincibilityTimer = Math.Max(_invincibilityTimer, seconds);
     }
 
     /// <summary>
