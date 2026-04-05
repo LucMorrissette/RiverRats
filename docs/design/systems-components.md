@@ -16,6 +16,8 @@
 | `FishingRippleManager` | Manages event-driven water ripples, splash highlights, and spook rings for the fishing scene. Tracks up to 8 concentric distortion ripples, 4 expanding splash highlight rings, and 4 red spook rings. Ripples are spawned by gameplay events (lure splash, fish strike, catch, twitch, bad cast) rather than player input. Writes aged position and size data to `FishingWater.fx` shader parameters each frame. |
 | `RippleSystem` | Manages click-spawned water ripples in the overworld water shader. Spawns a new ripple on mouse click, ages existing ripples, culls expired ones, and writes the active ripple set as UV-space `Vector3` shader data (xy = position, z = age/frequency) to the water distortion shader parameters. |
 | `XpLevelSystem` | Tracks XP accumulation and handles level-ups by modifying `PlayerCombatStats`. Fires `OnLevelUp` (an `event Action<int>`) with the new level number after calling `PlayerCombatStats.ApplyLevelUp()`. Increases `Health.MaxHp` on level-up. |
+| `QuestCompletionSequence` | Queues short quest-completion HUD states so completed quests stay visible long enough to read before the tracker falls back to the next active quest or the no-active placeholder. Also exposes timed impact, flash, badge-pop, and shimmer values for the HUD renderer. |
+| `QuestManager` | Owns quest runtime state for the current play session. Loads linear quest definitions, auto-starts configured quests, starts triggered quests from `GameEventBus` payloads, advances objective counters, tracks which started quest is pinned to the HUD, and marks quests complete while surviving `GameplayScreen` replacement through `GameSessionServices`. |
 
 *(Add entries as systems are created — CollisionSystem, NpcManager, etc.)*
 
@@ -34,6 +36,8 @@
 | `SpriteAnimator` | Animates a multi-row sprite sheet organized as directions × walk frames. Handles idle/walk frame cycling based on movement state. `Draw()` accepts an optional `layerDepth` for Y-sorting. |
 | `FrameTimer` | Value-type (`struct`) reusable frame-timing helper for sprite animations. Tracks elapsed time and advances a `CurrentFrame` counter with wrapping. Used internally by `LoopAnimator` and other animation components that need frame-rate-independent frame cycling. |
 | `Health` | Tracks hit points, invincibility frames, and raises `OnDamaged` (`event Action<int>`) and `OnDied` (`event Action`) events. `TakeDamage(int)` is ignored while `IsInvincible` is set. `SetInvincibleForDuration(...)` is additive so dash i-frames and post-hit i-frames do not truncate each other. `MaxHp` can be updated at runtime for level-ups. Reusable by any entity that needs health (player, enemies, etc.). |
+
+| `IndoorNavigator` | Reusable graph-navigation component for indoor NPCs. Accepts an `IndoorNavGraph`, picks random destination nodes, computes A* routes, tracks progress through the route, pauses at destinations, and repaths when the entity reports being stuck. Does not move the entity — exposes `CurrentTargetPosition` for the owner to steer toward. Any indoor NPC can compose this component for autonomous patrolling. |
 
 *(Add entries as components are created.)*
 

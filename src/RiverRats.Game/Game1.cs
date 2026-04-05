@@ -1,8 +1,12 @@
 ﻿using System;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using RiverRats.Game.Core;
+using RiverRats.Game.Data;
 using RiverRats.Game.Input;
 using RiverRats.Game.Screens;
+using RiverRats.Game.Systems;
 #if WINDOWS
 using System.Threading;
 using Clipboard = System.Windows.Forms.Clipboard;
@@ -22,6 +26,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
     private const int StartupScale = 3;
 
     private readonly GraphicsDeviceManager _graphics;
+    private readonly GameSessionServices _gameSessionServices;
     private readonly IInputManager _inputManager;
     private readonly ScreenManager _screenManager;
 
@@ -51,6 +56,8 @@ public class Game1 : Microsoft.Xna.Framework.Game
 
         _inputManager = new InputManager();
         _screenManager = new ScreenManager();
+        var eventBus = new GameEventBus();
+        _gameSessionServices = new GameSessionServices(eventBus, new QuestManager(eventBus));
 
         _graphics.PreferredBackBufferWidth = VirtualWidth * StartupScale;
         _graphics.PreferredBackBufferHeight = VirtualHeight * StartupScale;
@@ -79,12 +86,19 @@ public class Game1 : Microsoft.Xna.Framework.Game
 
         _crtEffect = Content.Load<Effect>("Effects/CrtEffect");
 
+        if (!_gameSessionServices.Quests.IsInitialized)
+        {
+            var questDefinitionPath = Path.Combine(AppContext.BaseDirectory, Content.RootDirectory, "Quests", "quests.json");
+            _gameSessionServices.Quests.LoadDefinitions(QuestDefinitionLoader.LoadFromFile(questDefinitionPath));
+        }
+
         var gameplayScreen = new GameplayScreen(
             GraphicsDevice,
             Content,
             VirtualWidth,
             VirtualHeight,
             _screenManager,
+            _gameSessionServices,
             Exit);
         _screenManager.Push(gameplayScreen);
     }

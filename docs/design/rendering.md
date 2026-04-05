@@ -84,6 +84,7 @@ When the player walks behind a tall prop (tree, cabin, boulder), a circular alph
 |---|---|---|
 | **CPU particle system** | Pre-allocated struct pool with free-index stack; each particle has position, velocity, rotation, scale, color lerp, gravity, and lifetime | Zero-allocation hot loop, proven pattern from Trashsquatch, individual particle sprites produce natural-looking effects. |
 | **Fire ambience effects** | Small fires can attach smoke and spark particle emitters while separately contributing a point light to the night lighting pass | Keeps atmospheric visual effects composable: particles stay in the particle system and lighting stays in the rendering pipeline. |
+| **Quest discovery glints** | Quest discovery HUD uses a dedicated screen-space particle pass with pooled additive glints triggered from banner activation | Gives quest-start feedback a separate burst layer without coupling UI juice to world-space particles or adding hot-loop allocations. |
 
 *(Add entries as particle and visual effect systems are built.)*
 

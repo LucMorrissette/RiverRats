@@ -1,15 +1,18 @@
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 
 namespace RiverRats.Game.World;
 
 /// <summary>
-/// Aggregates terrain collision with additional static world-space obstacle bounds.
+/// Aggregates terrain collision with additional static world-space obstacle bounds
+/// and runtime-mutable dynamic obstacles (e.g. NPCs).
 /// </summary>
 public sealed class WorldCollisionMap : IMapCollisionData
 {
     private readonly IMapCollisionData _terrainCollisionData;
     private readonly Rectangle[] _staticObstacleBounds;
     private readonly Rectangle[] _walkableOverrideBounds;
+    private readonly List<Rectangle> _dynamicObstacles = new();
 
     /// <summary>
     /// Creates a shared collision source for terrain and placed world obstacles.
@@ -50,7 +53,41 @@ public sealed class WorldCollisionMap : IMapCollisionData
             }
         }
 
+        for (var i = 0; i < _dynamicObstacles.Count; i++)
+        {
+            if (_dynamicObstacles[i].Intersects(worldBounds))
+            {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    /// <summary>
+    /// Adds a dynamic obstacle that can move each frame (e.g. an NPC).
+    /// Returns the index used to update or remove it later.
+    /// </summary>
+    public int AddDynamicObstacle(Rectangle bounds)
+    {
+        _dynamicObstacles.Add(bounds);
+        return _dynamicObstacles.Count - 1;
+    }
+
+    /// <summary>
+    /// Updates the bounds of a previously-added dynamic obstacle.
+    /// </summary>
+    public void UpdateDynamicObstacle(int index, Rectangle bounds)
+    {
+        _dynamicObstacles[index] = bounds;
+    }
+
+    /// <summary>
+    /// Removes all dynamic obstacles.
+    /// </summary>
+    public void ClearDynamicObstacles()
+    {
+        _dynamicObstacles.Clear();
     }
 
     private bool IsWithinWalkableOverride(Rectangle worldBounds)

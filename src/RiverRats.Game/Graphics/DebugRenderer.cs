@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -60,5 +61,39 @@ internal sealed class DebugRenderer
         spriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Left, rectangle.Top, thickness, rectangle.Height), color);
         spriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Right - thickness, rectangle.Top, thickness, rectangle.Height), color);
         spriteBatch.Draw(_pixelTexture, new Rectangle(rectangle.Left, rectangle.Bottom - thickness, rectangle.Width, thickness), color);
+    }
+
+    /// <summary>
+    /// Draws a line between two world-space points.
+    /// Must be called inside an active SpriteBatch session.
+    /// </summary>
+    public void DrawLine(SpriteBatch spriteBatch, Vector2 start, Vector2 end, Color color, int thickness = 1)
+    {
+        var edge = end - start;
+        var angle = MathF.Atan2(edge.Y, edge.X);
+        var length = edge.Length();
+
+        spriteBatch.Draw(
+            _pixelTexture,
+            start,
+            null,
+            color,
+            angle,
+            Vector2.Zero,
+            new Vector2(length, thickness),
+            SpriteEffects.None,
+            0f);
+    }
+
+    /// <summary>
+    /// Draws a small cross marker at the specified position.
+    /// Must be called inside an active SpriteBatch session.
+    /// </summary>
+    public void DrawCross(SpriteBatch spriteBatch, Vector2 position, Color color, int size = 4, int thickness = 1)
+    {
+        spriteBatch.Draw(_pixelTexture,
+            new Rectangle((int)(position.X - size), (int)position.Y, size * 2, thickness), color);
+        spriteBatch.Draw(_pixelTexture,
+            new Rectangle((int)position.X, (int)(position.Y - size), thickness, size * 2), color);
     }
 }

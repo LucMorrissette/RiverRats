@@ -9,6 +9,7 @@ using Microsoft.Xna.Framework.Content;
 using RiverRats.Components;
 using RiverRats.Data;
 using RiverRats.Game.Components;
+using RiverRats.Game.Core;
 using RiverRats.Game.Data;
 using RiverRats.Game.Entities;
 using RiverRats.Game.Graphics;
@@ -28,6 +29,8 @@ namespace RiverRats.Game.Screens;
 /// </summary>
 public sealed class GameplayScreen : IGameScreen
 {
+    private const string MomNpcQuestTargetId = "mom";
+    private const string GrandpaNpcQuestTargetId = "grandpa";
     private const float FrontDoorInvitationTileScale = 0.0125f;
     private const int PlayerFramePixels = 32;
     private const float PlayerMoveSpeedPixelsPerSecond = 96f;
@@ -53,6 +56,9 @@ public sealed class GameplayScreen : IGameScreen
     private const float ZoneTransitionFadeDurationSeconds = 0.4f;
     private const float ZoneTransitionBlackHoldSeconds = 0.15f;
     private const float GameplayMusicVolume = 1f;
+    private const int QuestTrackerForestOffsetPixels = 40;
+    private const int QuestTrackerHudOffsetPixels = 30;
+    private const int QuestTrackerDefaultOffsetPixels = 4;
     private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
     private static readonly EmptyInputManager EmptyInput = new();
 
@@ -137,6 +143,8 @@ public sealed class GameplayScreen : IGameScreen
     private const float BomberDeathTrauma = 0.12f;
     private const float DoorOpenSfxVolume = 0.48f;
     private const float DoorCloseSfxVolume = 0.42f;
+    private const float QuestDiscoveryCueSfxVolume = 0.78f;
+    private const float QuestCompleteCueSfxVolume = 0.84f;
     private const float EnergyOrbDropChance = 0.75f;
     private const int MaxEnergyOrbs = 128;
     private const int MaxExplosions = 16;
@@ -144,6 +152,7 @@ public sealed class GameplayScreen : IGameScreen
 
     private readonly GraphicsDevice _graphicsDevice;
     private readonly ContentManager _content;
+    private readonly GameSessionServices _gameSessionServices;
     private readonly int _virtualWidth;
     private readonly int _virtualHeight;
     private readonly Action _requestExit;
@@ -162,6 +171,14 @@ public sealed class GameplayScreen : IGameScreen
     private FollowerBlock _follower;
     private SpriteAnimator _followerAnimator;
     private Texture2D _followerSpriteSheet;
+    private MomNpc _momNpc;
+    private int _momObstacleIndex = -1;
+    private SpriteAnimator _momAnimator;
+    private Texture2D _momSpriteSheet;
+    private GrandpaNpc _grandpaNpc;
+    private int _grandpaObstacleIndex = -1;
+    private SpriteAnimator _grandpaAnimator;
+    private Texture2D _grandpaSpriteSheet;
     private Texture2D _boulderTexture;
     private Texture2D _dockTexture;
     private Texture2D _frontDoorClosedTexture;
@@ -233,6 +250,7 @@ public sealed class GameplayScreen : IGameScreen
     private SlashSystem _slashSystem;
     private DashRollSequence _dashRollSequence;
     private PlayerCollapseSequence _playerCollapseSequence;
+    private readonly QuestDiscoverySequence _questDiscoverySequence = new();
     private Texture2D _hatchetTexture;
     private Texture2D _explosionTexture;
     private Texture2D _energyOrbTexture;
@@ -256,12 +274,16 @@ public sealed class GameplayScreen : IGameScreen
     private readonly SoundEffect[] _redOrbCollectVariationSfx = new SoundEffect[RedOrbCollectVariationSfxCount];
     private SoundEffect _doorOpenSfx;
     private SoundEffect _doorCloseSfx;
+    private SoundEffect _questDiscoveryCueSfx;
+    private SoundEffect _questCompleteCueSfx;
+    private string _activeQuestDiscoveryId;
     private readonly Random _sfxRng = new Random();
     private readonly IMusicManager _musicManager = new MusicManager();
     private Texture2D _hookIconTexture;
     private bool _playerInFishingZone;
     private HudRenderer _hudRenderer;
     private ForestHudRenderer _forestHudRenderer;
+    private readonly QuestTrackerRenderer _questTrackerRenderer = new();
     private FontSystem _fontSystem;
     private readonly ScreenManager _screenManager;
     private readonly float _dayNightStartProgress;
@@ -270,6 +292,20 @@ public sealed class GameplayScreen : IGameScreen
     private float _fadeHoldTimer;
     private ZoneTransitionRequest? _pendingZoneTransition;
     private bool _pendingFishingTransition;
+
+    // ── Dialog system ────────────────────────────────────────────────────────
+    private const int DialogLetterTickSfxCount = 4;
+    private const float DialogTickSfxVolume = 0.38f;
+    private static readonly DialogScript FishingStartDialog =
+        new(new DialogLine("Player", "Alright. Let's go fishing."));
+    private readonly SoundEffect[] _dialogTickSfx = new SoundEffect[DialogLetterTickSfxCount];
+    private DialogSequence _dialogSequence;
+    private DialogBoxRenderer _dialogBoxRenderer;
+    private readonly QuestDiscoveryBannerRenderer _questDiscoveryBannerRenderer = new();
+    private readonly QuestDiscoveryGlintPass _questDiscoveryGlintPass = new();
+    private readonly QuestCompletionSequence _questCompletionSequence = new();
+    private Texture2D _dialogBoxTexture;
+    private bool _pendingFishingFromDialog;
 
     /// <inheritdoc />
     public bool IsTransparent => false;
@@ -291,12 +327,13 @@ public sealed class GameplayScreen : IGameScreen
     /// <param name="fadeInFromBlack">When true, the screen starts fully black and fades in.</param>
     /// <param name="dayNightStartProgress">Starting cycle progress (0–1). Pass the previous zone's progress to preserve time across transitions.</param>
     /// <param name="spawnPosition">Exact world-space position to place the player at. Overrides spawnPointId when set.</param>
-    public GameplayScreen(
+    internal GameplayScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
         int virtualWidth,
         int virtualHeight,
         ScreenManager screenManager,
+        GameSessionServices gameSessionServices,
         Action requestExit,
         string mapAssetName = "Maps/StarterMap",
         string spawnPointId = null,
@@ -309,6 +346,7 @@ public sealed class GameplayScreen : IGameScreen
         _virtualWidth = virtualWidth;
         _virtualHeight = virtualHeight;
         _screenManager = screenManager;
+        _gameSessionServices = gameSessionServices;
         _requestExit = requestExit;
         _mapAssetName = mapAssetName;
         _spawnPointId = spawnPointId;
@@ -336,12 +374,21 @@ public sealed class GameplayScreen : IGameScreen
 
         _playerSpriteSheet = _content.Load<Texture2D>("Sprites/generic_character_sheet");
         _followerSpriteSheet = _content.Load<Texture2D>("Sprites/companion_character_sheet");
+        if (_mapAssetName == "Maps/CabinIndoors")
+            _momSpriteSheet = _content.Load<Texture2D>("Sprites/mom_character_sheet");
+        if (_mapAssetName == "Maps/StarterMap")
+            _grandpaSpriteSheet = _content.Load<Texture2D>("Sprites/grandpa_character_sheet");
         _boulderTexture = _content.Load<Texture2D>("Sprites/boulder");
         _dockTexture = _content.Load<Texture2D>("Sprites/wooden-dock");
         _frontDoorClosedTexture = _content.Load<Texture2D>("Sprites/front-door-closed");
         _frontDoorOpenTexture = _content.Load<Texture2D>("Sprites/front-door-open");
         _doorOpenSfx = _content.Load<SoundEffect>("Audio/SFX/door_open_creak");
         _doorCloseSfx = _content.Load<SoundEffect>("Audio/SFX/door_close_clunk");
+        _questDiscoveryCueSfx = _content.Load<SoundEffect>("Audio/SFX/quest_discovery_sting");
+        _questCompleteCueSfx = _content.Load<SoundEffect>("Audio/SFX/quest_complete_jingle");
+        for (var i = 0; i < DialogLetterTickSfxCount; i++)
+            _dialogTickSfx[i] = _content.Load<SoundEffect>($"Audio/SFX/dialog_letter_tick_{i:D2}");
+        _dialogBoxTexture = _content.Load<Texture2D>("Sprites/dialog_box_9slice");
         _dockLegLeftTexture = _content.Load<Texture2D>("Tilesets/wooden-dock-leg-left");
         _sunkenLogTexture = _content.Load<Texture2D>("Sprites/sunken-log");
         _sunkenChestTexture = _content.Load<Texture2D>("Sprites/sunken-chest");
@@ -392,6 +439,14 @@ public sealed class GameplayScreen : IGameScreen
         _followerAnimator = new SpriteAnimator(
             PlayerFramePixels, PlayerFramePixels,
             WalkFramesPerDirection, WalkFrameDuration);
+        if (_momSpriteSheet != null)
+            _momAnimator = new SpriteAnimator(
+                PlayerFramePixels, PlayerFramePixels,
+                WalkFramesPerDirection, WalkFrameDuration);
+        if (_grandpaSpriteSheet != null)
+            _grandpaAnimator = new SpriteAnimator(
+                PlayerFramePixels, PlayerFramePixels,
+                WalkFramesPerDirection, WalkFrameDuration);
 
         var initialPosition = _spawnPosition
             ?? FindSpawnPosition(_worldRenderer.SpawnPoints, _spawnPointId)
@@ -418,6 +473,21 @@ public sealed class GameplayScreen : IGameScreen
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
             _mapConfig.FollowerConfig);
 
+        if (_momSpriteSheet != null)
+        {
+            var navGraph = _worldRenderer.NavGraph;
+            if (navGraph != null && navGraph.Nodes.Count >= 2)
+            {
+                // Start Mom at a random nav node each time the player enters.
+                var startNode = navGraph.Nodes[_sfxRng.Next(navGraph.Nodes.Count)];
+
+                _momNpc = new MomNpc(
+                    startNode.Position,
+                    new Point(PlayerFramePixels, PlayerFramePixels),
+                    navGraph);
+            }
+        }
+
         _boulders = PropFactory.CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
         _docks = PropFactory.CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
         _frontDoors = PropFactory.CreateFrontDoors(_frontDoorClosedTexture, _frontDoorOpenTexture, _worldRenderer.PropPlacements);
@@ -434,6 +504,33 @@ public sealed class GameplayScreen : IGameScreen
         _seaweeds = PropFactory.CreateSeaweeds(seaweedTextures, _worldRenderer.PropPlacements);
         _firepits = PropFactory.CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
         _cozyLakeCabins = PropFactory.CreateCabins(_cozyLakeCabinTexture, PropFactory.CozyCabinCollisionBoxes, _worldRenderer.PropPlacements, "cozy-lake-cabin");
+
+        // Create Grandpa on the outdoor StarterMap, patrolling near the cabin.
+        if (_grandpaSpriteSheet != null && _cozyLakeCabins.Length > 0)
+        {
+            var cabinBounds = _cozyLakeCabins[0].Bounds;
+            float cx = cabinBounds.Center.X;
+            float bottom = cabinBounds.Bottom;
+            var waypoints = new IndoorNavNode[]
+            {
+                new(1, new Vector2(cx - 40, bottom + 20), "front-left", null),
+                new(2, new Vector2(cx + 40, bottom + 20), "front-right", null),
+                new(3, new Vector2(cx + 50, bottom + 50), "side-right", null),
+                new(4, new Vector2(cx - 50, bottom + 50), "side-left", null),
+            };
+            var links = new IndoorNavLink[]
+            {
+                new(1, 2), new(2, 3), new(3, 4), new(4, 1),
+                new(1, 3), new(2, 4),
+            };
+            var grandpaGraph = new IndoorNavGraph(waypoints, links);
+            var startNode = waypoints[_sfxRng.Next(waypoints.Length)];
+            _grandpaNpc = new GrandpaNpc(
+                startNode.Position,
+                new Point(PlayerFramePixels, PlayerFramePixels),
+                grandpaGraph);
+        }
+
         _pineTrees = PropFactory.CreateTrees(pineTreeTexture, PropFactory.PineTreeCollisionBoxes, _worldRenderer.PropPlacements, "pine-tree");
         _birchTrees = PropFactory.CreateTrees(birchTreeTexture, PropFactory.BirchTreeCollisionBoxes, _worldRenderer.PropPlacements, "birch-tree");
         _deadTrees = PropFactory.CreateVariantTrees(deadTreeTextures, deadTreeCollisionBoxes, _worldRenderer.PropPlacements, "dead-tree");
@@ -502,6 +599,7 @@ public sealed class GameplayScreen : IGameScreen
             _xpSystem = new XpLevelSystem(_combatStats, _playerHealth);
             _xpSystem.OnLevelUp += level =>
             {
+                _gameSessionServices.EventBus.Publish(GameEventType.LevelReached, level.ToString(), 1);
                 _levelUpFlashTimer = LevelUpFlashDuration;
                 if (_redOrbCollectVariationSfx[0] != null)
                     _redOrbCollectVariationSfx[0].Play(0.9f, 0.3f, 0f);
@@ -522,7 +620,10 @@ public sealed class GameplayScreen : IGameScreen
                 trailParticleManager: _particleManager,
                 trailParticleProfile: ArrowTrailSparkProfile);
             _waveManager = new WaveManager(_gnomeSpawner);
-            _waveManager.OnWaveCleared += waveNum => { /* future: banner display */ };
+            _waveManager.OnWaveCleared += waveNum =>
+            {
+                _gameSessionServices.EventBus.Publish(GameEventType.WaveCleared, waveNum.ToString(), 1);
+            };
             _waveManager.OnAllWavesComplete += OnAllWavesComplete;
             _waveManager.StartFirstWave();
 
@@ -543,6 +644,11 @@ public sealed class GameplayScreen : IGameScreen
         {
             _gnomeSpawner.OnGnomeDied = (pos, enemyType, dropsLoot) =>
             {
+                if (dropsLoot)
+                {
+                    _gameSessionServices.EventBus.Publish(GameEventType.EnemyKilled, enemyType.ToString(), 1);
+                }
+
                 _explosionSystem?.Spawn(pos);
                 if (dropsLoot && _sfxRng.NextDouble() < EnergyOrbDropChance)
                     _energyOrbSystem?.Spawn(pos, _sfxRng);
@@ -602,8 +708,19 @@ public sealed class GameplayScreen : IGameScreen
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetCabinCollisionBounds(_cozyLakeCabins));
         _collisionMap = new WorldCollisionMap(_worldRenderer, PropFactory.MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds), PropFactory.GetDockBounds(_docks));
 
+        // Validate nav links against collision BEFORE adding Mom as a dynamic
+        // obstacle — otherwise her starting foot bounds block links at the entry node.
+        if (_worldRenderer.NavGraph != null)
+            _worldRenderer.NavGraph.PruneBlockedLinks(_collisionMap, new Point(_momNpc?.FootBounds.Width ?? 19, _momNpc?.FootBounds.Height ?? 8));
+
+        if (_momNpc != null)
+            _momObstacleIndex = _collisionMap.AddDynamicObstacle(_momNpc.FootBounds);
+
+        if (_grandpaNpc != null)
+            _grandpaObstacleIndex = _collisionMap.AddDynamicObstacle(_grandpaNpc.FootBounds);
+
         if (_mapAssetName == "Maps/WoodsBehindCabin")
-            _flowField = new FlowField(_worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight, _collisionMap, agentRadius: 8);
+            _flowField = new FlowField(_worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight, _collisionMap, agentRadius: 5); // Half-width of gnome foot bounds (10px wide)
 
         _camera.LookAt(_player.Center);
 
@@ -686,6 +803,17 @@ public sealed class GameplayScreen : IGameScreen
             Path.Combine(global::System.AppContext.BaseDirectory, _content.RootDirectory, "Fonts", "Nunito.ttf")));
         _hudRenderer = new HudRenderer();
 
+        _gameSessionServices.Quests.QuestStarted -= OnQuestStarted;
+        _gameSessionServices.Quests.QuestStarted += OnQuestStarted;
+        _gameSessionServices.Quests.QuestCompleted -= OnQuestCompleted;
+        _gameSessionServices.Quests.QuestCompleted += OnQuestCompleted;
+
+        _dialogSequence = new DialogSequence(_dialogTickSfx, _sfxRng)
+        {
+            TickVolume = DialogTickSfxVolume
+        };
+        _dialogBoxRenderer = new DialogBoxRenderer(_dialogBoxTexture, _pixelTexture);
+
         // Build flat occluder list for OcclusionRevealRenderer.CheckOcclusion().
         _occluders.Clear();
         foreach (var c in _cozyLakeCabins)  _occluders.Add(new OcclusionEntry(c, CabinSortAnchorOffsetPixels));
@@ -707,6 +835,8 @@ public sealed class GameplayScreen : IGameScreen
         foreach (var l in _sunkenLogs)      _occluders.Add(new OcclusionEntry(l));
 
         _crtTransitionRenderer = new CrtTransitionRenderer(_pixelTexture);
+
+        _gameSessionServices.EventBus.Publish(GameEventType.ZoneEntered, _mapAssetName, 1);
     }
 
     /// <inheritdoc />
@@ -726,6 +856,10 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         _playerHealth?.Update(gameTime);
+        _questDiscoverySequence.Update(gameTime);
+        _questDiscoveryGlintPass.Update(gameTime);
+        UpdateQuestDiscoveryPresentation();
+        _questCompletionSequence.Update(gameTime);
 
         if (_playerDead)
         {
@@ -739,6 +873,7 @@ public sealed class GameplayScreen : IGameScreen
                     _virtualWidth,
                     _virtualHeight,
                     _screenManager,
+                    _gameSessionServices,
                     _requestExit,
                     _musicManager,
                     _dayNightCycle?.CycleProgress ?? 0f));
@@ -754,6 +889,7 @@ public sealed class GameplayScreen : IGameScreen
             _screenManager.Push(new PauseScreen(
                 _screenManager,
                 _musicManager,
+                _gameSessionServices.Quests,
                 _graphicsDevice,
                 _content,
                 _virtualWidth,
@@ -766,10 +902,40 @@ public sealed class GameplayScreen : IGameScreen
             _debugOverlayMode = (_debugOverlayMode + 1) % 3;
         }
 
+        // --- Dialog sequence: when active, delegate input to the dialog and freeze movement ---
+        if (_dialogSequence != null && _dialogSequence.IsActive)
+        {
+            _dialogSequence.Update(gameTime, input);
+            UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
+
+        if (_pendingFishingFromDialog)
+        {
+            _pendingFishingFromDialog = false;
+            BeginFishingTransition();
+            UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
+
         // --- Couch sit sequence: when active, skip normal movement and delegate to the sequence ---
         if (_couchSitSequence.IsActive)
         {
             _couchSitSequence.Update(gameTime, input, _player, _follower);
+
+            // Keep Mom simulation running while the player/follower are in the
+            // couch sequence so indoor NPC behavior remains alive.
+            if (_momNpc != null)
+            {
+                if (_momObstacleIndex >= 0)
+                    _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, Rectangle.Empty);
+
+                _momNpc.Update(gameTime, _collisionMap);
+
+                if (_momObstacleIndex >= 0)
+                    _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, _momNpc.FootBounds);
+            }
+
             UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
             return;
         }
@@ -779,6 +945,31 @@ public sealed class GameplayScreen : IGameScreen
 
         var actionPressed = input.IsPressed(InputAction.Confirm);
         var playerMovementHandledByDash = false;
+
+        // Update Mom before player so her foot bounds are current in the collision map.
+        // Clear her own obstacle first so she doesn't collide with herself.
+        if (_momNpc != null)
+        {
+            if (_momObstacleIndex >= 0)
+                _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, Rectangle.Empty);
+
+            _momNpc.Update(gameTime, _collisionMap);
+
+            if (_momObstacleIndex >= 0)
+                _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, _momNpc.FootBounds);
+        }
+
+        // Update Grandpa the same way.
+        if (_grandpaNpc != null)
+        {
+            if (_grandpaObstacleIndex >= 0)
+                _collisionMap.UpdateDynamicObstacle(_grandpaObstacleIndex, Rectangle.Empty);
+
+            _grandpaNpc.Update(gameTime, _collisionMap);
+
+            if (_grandpaObstacleIndex >= 0)
+                _collisionMap.UpdateDynamicObstacle(_grandpaObstacleIndex, _grandpaNpc.FootBounds);
+        }
 
         if (_dashRollSequence != null)
         {
@@ -818,6 +1009,11 @@ public sealed class GameplayScreen : IGameScreen
 
         if (actionPressed && _dashRollSequence == null)
         {
+            if (TryTalkToNearbyNpc())
+            {
+                return;
+            }
+
             if (TryStartFishing())
             {
                 return;
@@ -874,6 +1070,16 @@ public sealed class GameplayScreen : IGameScreen
         _playerAnimator.Update(gameTime, playerShouldAnimate);
         _followerAnimator.Direction = _follower.Facing;
         _followerAnimator.Update(gameTime, animateCharacters && _follower.IsMoving);
+        if (_momNpc != null && _momAnimator != null)
+        {
+            _momAnimator.Direction = _momNpc.Facing;
+            _momAnimator.Update(gameTime, animateCharacters && _momNpc.IsMoving);
+        }
+        if (_grandpaNpc != null && _grandpaAnimator != null)
+        {
+            _grandpaAnimator.Direction = _grandpaNpc.Facing;
+            _grandpaAnimator.Update(gameTime, animateCharacters && _grandpaNpc.IsMoving);
+        }
         _camera.LookAt(_player.Center);
         _camera.UpdateShake((float)gameTime.ElapsedGameTime.TotalSeconds);
         if (_playerHitFlashTimer > 0f)
@@ -1161,6 +1367,7 @@ public sealed class GameplayScreen : IGameScreen
                 _couchSitSequence.Draw(
                     _worldSpriteBatch, _playerSpriteSheet, _followerSpriteSheet,
                     mapHeight, mapWidth);
+                DrawMomNpc(mapHeight, mapWidth);
             }
             else
             {
@@ -1337,6 +1544,98 @@ public sealed class GameplayScreen : IGameScreen
             spriteBatch.End();
         }
 
+        var shouldDrawQuestTracker = _questCompletionSequence.IsActive
+            || _gameSessionServices.Quests.TrackedQuest is not null
+            || _gameSessionServices.Quests.AvailableQuests.Count > 0;
+
+        if (shouldDrawQuestTracker)
+        {
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+
+            if (_questCompletionSequence.IsActive && _questCompletionSequence.CurrentQuest is { } completedQuest)
+            {
+                _questTrackerRenderer.DrawCompletedQuest(
+                    spriteBatch,
+                    scaledFont,
+                    _pixelTexture,
+                    completedQuest,
+                    _questCompletionSequence.Pulse,
+                    _questCompletionSequence.PanelOffset,
+                    _questCompletionSequence.FlashIntensity,
+                    _questCompletionSequence.BadgeScale,
+                    _questCompletionSequence.ShimmerProgress,
+                    sceneScale,
+                    GetQuestTrackerTopOffset(sceneScale));
+            }
+            else if (_gameSessionServices.Quests.TrackedQuest is { } trackedQuest)
+            {
+                _questTrackerRenderer.DrawTrackedQuest(
+                    spriteBatch,
+                    scaledFont,
+                    _pixelTexture,
+                    trackedQuest,
+                    sceneScale,
+                    GetQuestTrackerTopOffset(sceneScale));
+            }
+            else
+            {
+                _questTrackerRenderer.DrawEmptyState(
+                    spriteBatch,
+                    scaledFont,
+                    _pixelTexture,
+                    sceneScale,
+                    GetQuestTrackerTopOffset(sceneScale));
+            }
+
+            spriteBatch.End();
+        }
+
+        // Dialog box overlay — drawn on top of all HUD elements, screen-space.
+        if (_dialogSequence != null && _dialogSequence.IsActive && _dialogBoxRenderer != null)
+        {
+            var dialogFont = _fontSystem.GetFont(HudFontSize * sceneScale);
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+            _dialogBoxRenderer.Draw(spriteBatch, _dialogSequence, dialogFont,
+                _virtualWidth, _virtualHeight, sceneScale);
+            spriteBatch.End();
+        }
+
+        if (_questDiscoverySequence.IsActive)
+        {
+            var discoveryTitleFont = _fontSystem.GetFont((HudFontSize + 4f) * sceneScale);
+            var discoveryBodyFont = _fontSystem.GetFont((HudFontSize - 1f) * sceneScale);
+            var discoveryViewport = _graphicsDevice.Viewport;
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+            _questDiscoveryBannerRenderer.Draw(
+                spriteBatch,
+                discoveryTitleFont,
+                discoveryBodyFont,
+                _pixelTexture,
+                _questDiscoverySequence,
+                discoveryViewport,
+                sceneScale);
+            spriteBatch.End();
+        }
+
+        if (_questDiscoveryGlintPass.HasActiveParticles)
+        {
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.Additive,
+                samplerState: SamplerState.LinearClamp);
+            _questDiscoveryGlintPass.Draw(spriteBatch, _smokeTexture);
+            spriteBatch.End();
+        }
+
         if (_fadeAlpha <= 0f)
         {
             return;
@@ -1346,9 +1645,69 @@ public sealed class GameplayScreen : IGameScreen
         _crtTransitionRenderer.Draw(spriteBatch, viewport, _fadeAlpha);
     }
 
+    private int GetQuestTrackerTopOffset(int sceneScale)
+    {
+        if (_forestHudRenderer != null)
+        {
+            return QuestTrackerForestOffsetPixels * sceneScale;
+        }
+
+        if (_mapConfig.HasDayNightCycle)
+        {
+            return QuestTrackerHudOffsetPixels * sceneScale;
+        }
+
+        return QuestTrackerDefaultOffsetPixels * sceneScale;
+    }
+
+    private void UpdateQuestDiscoveryPresentation()
+    {
+        if (!_questDiscoverySequence.IsActive || _questDiscoverySequence.CurrentQuest is null)
+        {
+            _activeQuestDiscoveryId = null;
+            return;
+        }
+
+        var currentQuestId = _questDiscoverySequence.CurrentQuest.Id;
+        if (string.Equals(_activeQuestDiscoveryId, currentQuestId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _activeQuestDiscoveryId = currentQuestId;
+        var sceneScale = GetSceneScale();
+        var panelRect = QuestDiscoveryBannerRenderer.CalculatePanelRectangle(
+            _questDiscoverySequence,
+            _graphicsDevice.Viewport,
+            sceneScale);
+        _questDiscoveryGlintPass.Trigger(panelRect, sceneScale);
+        _questDiscoveryCueSfx?.Play(QuestDiscoveryCueSfxVolume, 0.08f, 0f);
+    }
+
+    private int GetSceneScale()
+    {
+        var viewport = _graphicsDevice.Viewport;
+        var scaleX = viewport.Width / _virtualWidth;
+        var scaleY = viewport.Height / _virtualHeight;
+        return Math.Max(1, Math.Min(scaleX, scaleY));
+    }
+
+    private void OnQuestStarted(QuestState questState)
+    {
+        _questDiscoverySequence.Enqueue(questState.Definition);
+    }
+
+    private void OnQuestCompleted(QuestState questState)
+    {
+        _questCompletionSequence.Enqueue(questState.Definition);
+        _questCompleteCueSfx.Play(QuestCompleteCueSfxVolume, 0f, 0f);
+    }
+
     /// <inheritdoc />
     public void UnloadContent()
     {
+        _gameSessionServices.Quests.QuestStarted -= OnQuestStarted;
+        _gameSessionServices.Quests.QuestCompleted -= OnQuestCompleted;
         _occlusionRevealRenderer?.UnloadContent();
         _cloudShadowRenderer?.UnloadContent();
         _lightingRenderer?.UnloadContent();
@@ -1478,6 +1837,54 @@ public sealed class GameplayScreen : IGameScreen
         {
             _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, colliderBounds[i], Color.Magenta);
         }
+
+        // --- Nav graph overlay ---
+        var navGraph = _worldRenderer.NavGraph;
+        if (navGraph != null)
+        {
+            // Draw links as cyan lines
+            for (var i = 0; i < navGraph.Links.Count; i++)
+            {
+                var link = navGraph.Links[i];
+                var nodeA = navGraph.GetNode(link.NodeIdA);
+                var nodeB = navGraph.GetNode(link.NodeIdB);
+                if (nodeA != null && nodeB != null)
+                {
+                    _debugRenderer.DrawLine(_worldSpriteBatch, nodeA.Position, nodeB.Position, Color.Cyan);
+                }
+            }
+
+            // Draw nodes as white crosses
+            for (var i = 0; i < navGraph.Nodes.Count; i++)
+            {
+                _debugRenderer.DrawCross(_worldSpriteBatch, navGraph.Nodes[i].Position, Color.White, size: 5);
+            }
+
+            // Draw Mom's current route and target
+            if (_momNpc != null && _momNpc.CurrentRoute.Count > 0)
+            {
+                var route = _momNpc.CurrentRoute;
+                var routeIdx = _momNpc.RouteNodeIndex;
+
+                // Draw remaining route segments in yellow
+                for (var i = Math.Max(0, routeIdx - 1); i < route.Count - 1; i++)
+                {
+                    _debugRenderer.DrawLine(_worldSpriteBatch, route[i].Position, route[i + 1].Position, Color.Yellow);
+                }
+
+                // Highlight current target node in green
+                if (routeIdx < route.Count)
+                {
+                    _debugRenderer.DrawCross(_worldSpriteBatch, route[routeIdx].Position, Color.Lime, size: 7);
+                }
+
+                // Highlight final destination in orange
+                if (route.Count > 0)
+                {
+                    _debugRenderer.DrawCross(_worldSpriteBatch, route[route.Count - 1].Position, Color.Orange, size: 7);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -1559,6 +1966,7 @@ public sealed class GameplayScreen : IGameScreen
                     _virtualWidth,
                     _virtualHeight,
                     _screenManager,
+                    _gameSessionServices,
                     _requestExit,
                     _mapAssetName,
                     _player.Position,
@@ -1572,6 +1980,7 @@ public sealed class GameplayScreen : IGameScreen
                     _virtualWidth,
                     _virtualHeight,
                     _screenManager,
+                    _gameSessionServices,
                     _requestExit,
                     transition.TargetMap,
                     transition.TargetSpawnId,
@@ -1676,6 +2085,32 @@ public sealed class GameplayScreen : IGameScreen
         return true;
     }
 
+    private bool TryTalkToNearbyNpc()
+    {
+        if (_dialogSequence == null) return false;
+
+        var playerFootBounds = _player.FootBounds;
+        var playerCenter = _player.Center;
+
+        if (_momNpc != null && playerFootBounds.Intersects(_momNpc.InteractionBounds))
+        {
+            _momNpc.FaceToward(playerCenter);
+            _dialogSequence.Begin(_momNpc.GetDialog());
+            _gameSessionServices.EventBus.Publish(GameEventType.NpcTalkedTo, MomNpcQuestTargetId, 1);
+            return true;
+        }
+
+        if (_grandpaNpc != null && playerFootBounds.Intersects(_grandpaNpc.InteractionBounds))
+        {
+            _grandpaNpc.FaceToward(playerCenter);
+            _dialogSequence.Begin(_grandpaNpc.GetDialog());
+            _gameSessionServices.EventBus.Publish(GameEventType.NpcTalkedTo, GrandpaNpcQuestTargetId, 1);
+            return true;
+        }
+
+        return false;
+    }
+
     private bool TryStartFishing()
     {
         var fishingBounds = GetFishingInteractionBounds();
@@ -1686,20 +2121,16 @@ public sealed class GameplayScreen : IGameScreen
             var zone = _worldRenderer.FishingZones[i];
             if (fishingBounds.Intersects(zone.Bounds) && playerFacing == zone.FacingDirection)
             {
-                _screenManager.Push(new ConfirmationScreen(
-                    _screenManager,
-                    _graphicsDevice,
-                    _content,
-                    "Fish here?",
-                    new[] { "Yes", "No" },
-                    onSelect: selectedIndex =>
-                    {
-                        if (selectedIndex == 0)
-                        {
-                            BeginFishingTransition();
-                        }
-                    },
-                    defaultSelection: 1));
+                if (_dialogSequence != null)
+                {
+                    _dialogSequence.Begin(FishingStartDialog);
+                    _pendingFishingFromDialog = true;
+                }
+                else
+                {
+                    BeginFishingTransition();
+                }
+
                 return true;
             }
         }
@@ -1995,6 +2426,10 @@ public sealed class GameplayScreen : IGameScreen
     private void DrawActiveCharacters(float playerDepth, float followerDepth, Color? playerTint)
     {
         _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
+        var mapHeight = (float)_worldRenderer.MapPixelHeight;
+        var mapWidth = (float)_worldRenderer.MapPixelWidth;
+        DrawMomNpc(mapHeight, mapWidth);
+        DrawGrandpaNpc(mapHeight, mapWidth);
 
         if (_playerCollapseSequence?.IsActive ?? false)
         {
@@ -2017,6 +2452,24 @@ public sealed class GameplayScreen : IGameScreen
                 _player,
                 Math.Min(playerDepth + 0.0002f, 0.9999f));
         }
+    }
+
+    private void DrawMomNpc(float mapHeight, float mapWidth)
+    {
+        if (_momNpc == null || _momAnimator == null || _momSpriteSheet == null)
+            return;
+
+        var momDepth = SortDepth(_momNpc.Bounds, mapHeight, mapWidth);
+        _momNpc.Draw(_worldSpriteBatch, _momAnimator, _momSpriteSheet, momDepth);
+    }
+
+    private void DrawGrandpaNpc(float mapHeight, float mapWidth)
+    {
+        if (_grandpaNpc == null || _grandpaAnimator == null || _grandpaSpriteSheet == null)
+            return;
+
+        var depth = SortDepth(_grandpaNpc.Bounds, mapHeight, mapWidth);
+        _grandpaNpc.Draw(_worldSpriteBatch, _grandpaAnimator, _grandpaSpriteSheet, depth);
     }
 
     private static Vector2 GetMovementInputVector(IInputManager input)

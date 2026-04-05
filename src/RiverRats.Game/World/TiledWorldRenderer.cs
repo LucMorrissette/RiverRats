@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -46,6 +47,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
     private readonly ZoneTriggerData[] _zoneTriggers;
     private readonly SpawnPointData[] _spawnPoints;
     private readonly FishingZoneData[] _fishingZones;
+    private readonly IndoorNavGraph? _navGraph;
     private float _waterElapsedSeconds;
 
     /// <summary>Total map width in pixels (tile columns × tile pixel width).</summary>
@@ -86,6 +88,11 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
     public IReadOnlyList<FishingZoneData> FishingZones => _fishingZones;
 
     /// <summary>
+    /// Indoor navigation graph for this map, or <c>null</c> if the map does not define navigation data.
+    /// </summary>
+    public IndoorNavGraph? NavGraph => _navGraph;
+
+    /// <summary>
     /// Initializes a world renderer from a tiled map asset in the content pipeline.
     /// </summary>
     /// <param name="graphicsDevice">The graphics device used for rendering.</param>
@@ -123,6 +130,13 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
         _zoneTriggers = TmxObjectLoader.LoadZoneTriggers(mapElement);
         _spawnPoints = TmxObjectLoader.LoadSpawnPoints(mapElement);
         _fishingZones = TmxObjectLoader.LoadFishingZones(mapElement);
+
+        var navNodes = TmxObjectLoader.LoadNavNodes(mapElement);
+        if (navNodes.Length > 0)
+        {
+            var navLinks = TmxObjectLoader.LoadNavLinks(mapElement, navNodes);
+            _navGraph = new IndoorNavGraph(navNodes, navLinks);
+        }
 
         var layers = new List<MapLayer>();
         foreach (var layerElement in mapElement.Elements("layer"))

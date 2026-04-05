@@ -12,6 +12,7 @@
 | **Pause volume dimming** | `PauseScreen` sets volume to 20% on enter, restores to 100% on exit | Keeps music audible during pause without full silence. Volume levels are named constants in `PauseScreen`. |
 | **Content format** | MP3 via Content Pipeline | MP3 files processed by `Mp3Importer` + `SongProcessor`, accessed as `Song` objects via `content.Load<Song>()`. |
 | **One-shot SFX triggering** | Gameplay code edge-triggers `SoundEffect` playback when world state changes | Keeps one-shot sounds deterministic and avoids replaying the same SFX every frame while a state remains active. |
+| **Quest UI stings** | Quest discovery and completion use separate one-shot `SoundEffect` cues triggered when their HUD sequences become active | Keeps quest-start and quest-complete feedback distinct while preserving deterministic, event-driven playback. |
 
 ## Audio Classes
 

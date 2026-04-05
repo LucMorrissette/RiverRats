@@ -33,6 +33,9 @@
     <None Update="Content\Fonts\Nunito.ttf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Content\Quests\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Content\Tilesets\Props.tsx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

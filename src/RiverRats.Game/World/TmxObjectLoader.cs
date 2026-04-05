@@ -26,6 +26,9 @@ internal static class TmxObjectLoader
     private const string TargetMapPropertyName = "targetMap";
     private const string TargetSpawnIdPropertyName = "targetSpawnId";
     private const string FacingDirectionPropertyName = "facingDirection";
+    private const string NavNodeLayerName = "NavNodes";
+    private const string NavLinkLayerName = "NavLinks";
+    private const string TagsPropertyName = "tags";
 
     /// <summary>Combined Tiled flip-bit mask (horizontal | vertical | diagonal).</summary>
     private const uint TiledFlipMask = 0xE0000000u;
@@ -324,6 +327,129 @@ internal static class TmxObjectLoader
         }
 
         return Array.Empty<FishingZoneData>();
+    }
+
+    // ── Nav nodes ─────────────────────────────────────────────────────────────
+
+    internal static IndoorNavNode[] LoadNavNodes(XElement mapElement)
+    {
+        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
+        {
+            var groupName = objectGroupElement.Attribute("name")?.Value;
+            if (!string.Equals(groupName, NavNodeLayerName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var nodes = new List<IndoorNavNode>();
+            foreach (var objectElement in objectGroupElement.Elements("object"))
+            {
+                if (objectElement.Attribute("gid") is not null)
+                {
+                    continue;
+                }
+
+                var id = TmxXmlHelpers.GetRequiredIntAttribute(objectElement, "id");
+                var x = float.Parse(TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
+                var y = float.Parse(TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
+                var name = objectElement.Attribute("name")?.Value;
+                var tags = TmxXmlHelpers.GetTileProperty(objectElement, TagsPropertyName);
+
+                nodes.Add(new IndoorNavNode(id, new Vector2(x, y), name, tags));
+            }
+
+            return nodes.ToArray();
+        }
+
+        return Array.Empty<IndoorNavNode>();
+    }
+
+    // ── Nav links ─────────────────────────────────────────────────────────────
+
+    internal static IndoorNavLink[] LoadNavLinks(XElement mapElement, IReadOnlyList<IndoorNavNode> nodes)
+    {
+        const float toleranceSquared = 2f * 2f;
+
+        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
+        {
+            var groupName = objectGroupElement.Attribute("name")?.Value;
+            if (!string.Equals(groupName, NavLinkLayerName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var links = new List<IndoorNavLink>();
+            foreach (var objectElement in objectGroupElement.Elements("object"))
+            {
+                if (objectElement.Attribute("gid") is not null)
+                {
+                    continue;
+                }
+
+                var polylineElement = objectElement.Element("polyline");
+                if (polylineElement is null)
+                {
+                    continue;
+                }
+
+                var originX = float.Parse(TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
+                var originY = float.Parse(TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
+
+                var pointsStr = polylineElement.Attribute("points")?.Value;
+                if (string.IsNullOrWhiteSpace(pointsStr))
+                {
+                    continue;
+                }
+
+                var pointPairs = pointsStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (pointPairs.Length < 2)
+                {
+                    continue;
+                }
+
+                var firstParts = pointPairs[0].Split(',');
+                var lastParts = pointPairs[pointPairs.Length - 1].Split(',');
+
+                var startWorld = new Vector2(
+                    originX + float.Parse(firstParts[0], CultureInfo.InvariantCulture),
+                    originY + float.Parse(firstParts[1], CultureInfo.InvariantCulture));
+                var endWorld = new Vector2(
+                    originX + float.Parse(lastParts[0], CultureInfo.InvariantCulture),
+                    originY + float.Parse(lastParts[1], CultureInfo.InvariantCulture));
+
+                IndoorNavNode? nodeA = null;
+                IndoorNavNode? nodeB = null;
+                var bestDistA = float.MaxValue;
+                var bestDistB = float.MaxValue;
+
+                for (var i = 0; i < nodes.Count; i++)
+                {
+                    var distA = Vector2.DistanceSquared(startWorld, nodes[i].Position);
+                    if (distA < bestDistA)
+                    {
+                        bestDistA = distA;
+                        nodeA = nodes[i];
+                    }
+
+                    var distB = Vector2.DistanceSquared(endWorld, nodes[i].Position);
+                    if (distB < bestDistB)
+                    {
+                        bestDistB = distB;
+                        nodeB = nodes[i];
+                    }
+                }
+
+                if (nodeA is not null && nodeB is not null
+                    && bestDistA <= toleranceSquared && bestDistB <= toleranceSquared)
+                {
+                    links.Add(new IndoorNavLink(nodeA.Id, nodeB.Id));
+                }
+            }
+
+            return links.ToArray();
+        }
+
+        return Array.Empty<IndoorNavLink>();
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────

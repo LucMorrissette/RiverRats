@@ -7,6 +7,7 @@ using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using RiverRats.Game.Components;
+using RiverRats.Game.Core;
 using RiverRats.Game.Data;
 using RiverRats.Game.Entities;
 using RiverRats.Game.Graphics;
@@ -318,6 +319,7 @@ public sealed class FishingScreen : IGameScreen
 
     private readonly GraphicsDevice _graphicsDevice;
     private readonly ContentManager _content;
+    private readonly GameSessionServices _gameSessionServices;
     private readonly int _virtualWidth;
     private readonly int _virtualHeight;
     private readonly ScreenManager _screenManager;
@@ -406,12 +408,13 @@ public sealed class FishingScreen : IGameScreen
     /// <summary>
     /// Creates a fishing mini-game screen.
     /// </summary>
-    public FishingScreen(
+    internal FishingScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
         int virtualWidth,
         int virtualHeight,
         ScreenManager screenManager,
+        GameSessionServices gameSessionServices,
         Action requestExit,
         string returnMapName,
         Vector2 returnPosition,
@@ -423,6 +426,7 @@ public sealed class FishingScreen : IGameScreen
         _virtualWidth = virtualWidth;
         _virtualHeight = virtualHeight;
         _screenManager = screenManager ?? throw new ArgumentNullException(nameof(screenManager));
+        _gameSessionServices = gameSessionServices ?? throw new ArgumentNullException(nameof(gameSessionServices));
         _requestExit = requestExit ?? throw new ArgumentNullException(nameof(requestExit));
         _returnMapName = returnMapName ?? throw new ArgumentNullException(nameof(returnMapName));
         _returnPosition = returnPosition;
@@ -446,6 +450,7 @@ public sealed class FishingScreen : IGameScreen
             Path.Combine(global::System.AppContext.BaseDirectory, _content.RootDirectory, "Fonts", "Nunito.ttf")));
 
         _mapRenderer = new SimpleTiledRenderer(_graphicsDevice, _content, _fishingMapAsset);
+        _gameSessionServices.EventBus.Publish(GameEventType.ZoneEntered, _fishingMapAsset, 1);
 
         // Initialise aim bounds from the loaded map.
         _castState.AimMaxX = _mapRenderer.MapPixelWidth - AimArrowSize;
@@ -1017,6 +1022,7 @@ public sealed class FishingScreen : IGameScreen
                     _virtualWidth,
                     _virtualHeight,
                     _screenManager,
+                    _gameSessionServices,
                     _requestExit,
                     _returnMapName,
                     fadeInFromBlack: true,

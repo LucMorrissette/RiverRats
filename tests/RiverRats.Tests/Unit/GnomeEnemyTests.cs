@@ -101,7 +101,9 @@ public class GnomeEnemyTests
         var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
         var target = new Vector2(300, 300);
         var flow = CreateOpenFlowField(target);
-        var wallBlocksX = new DelegateCollisionData(r => r.Left != 160);
+        // Foot bounds Left = Round(pos.X + 3) = 163 at starting position.
+        // Block any rect whose Left is not 163 — prevents X movement.
+        var wallBlocksX = new DelegateCollisionData(r => r.Left != 163);
 
         UpdateChasing(gnome, FakeGameTime.FromSeconds(0.5f), target, flow, wallBlocksX);
 
@@ -116,8 +118,9 @@ public class GnomeEnemyTests
         // Target is diagonal — flow will have both X and Y components.
         var target = new Vector2(300, 300);
         var flow = CreateOpenFlowField(target);
-        // Block any downward movement (Y increases).
-        var wallBlocksY = new DelegateCollisionData(r => r.Top > 160);
+        // Block any downward movement (Y increases beyond foot bounds starting Top).
+        // Foot bounds Top = Round(pos.Y + 10) = 170 at starting position.
+        var wallBlocksY = new DelegateCollisionData(r => r.Top > 170);
 
         UpdateChasing(gnome, FakeGameTime.FromSeconds(0.5f), target, flow, wallBlocksY);
 
@@ -130,54 +133,55 @@ public class GnomeEnemyTests
 
     // -- Attack state machine tests --
 
+    // -- Foot bounds tests --
+
     [Fact]
-    public void Update__PhasesThrough__AfterStuckFor2Seconds()
+    public void FootBounds__UsesStandardizedRatios__ForMovementHull()
     {
-        // Place gnome boxed in on all sides.
-        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
-        var target = new Vector2(300, 160);
-        var flow = CreateOpenFlowField(target);
-        var wallEverywhere = new DelegateCollisionData(_ => true);
+        // GnomeEnemy sprite is 16×16. Foot bounds should be:
+        // Width  = Round(16 * 0.6)  = 10
+        // Height = Round(16 * 0.25) = 4
+        // OffsetX = (16 - 10) / 2   = 3
+        // OffsetY = 16 - 4 - 2      = 10
+        var gnome = new GnomeEnemy(new Vector2(100, 200), 0f);
 
-        var startPos = gnome.Position;
+        var foot = gnome.FootBounds;
 
-        // Simulate 1.05 seconds stuck (63 frames at 60fps).
-        for (var i = 0; i < 63; i++)
-            UpdateChasing(gnome, FakeGameTime.OneFrame(), target, flow, wallEverywhere);
-
-        Assert.True(gnome.IsPhasing, "Gnome should start phasing after 2s stuck");
-
-        // Next frame should move through the wall.
-        UpdateChasing(gnome, FakeGameTime.FromSeconds(0.1f), target, flow, wallEverywhere);
-
-        Assert.True(gnome.Position.X > startPos.X, "Phasing gnome should move through obstacles");
+        Assert.Equal(103, foot.X);    // 100 + 3
+        Assert.Equal(210, foot.Y);    // 200 + 10
+        Assert.Equal(10, foot.Width);
+        Assert.Equal(4, foot.Height);
     }
 
     [Fact]
-    public void Update__ClearsPhasing__AfterMoving16px()
+    public void FootBounds__IsSmallerThanBounds()
     {
+        var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
+
+        var foot = gnome.FootBounds;
+        var full = gnome.Bounds;
+
+        Assert.True(foot.Width < full.Width);
+        Assert.True(foot.Height < full.Height);
+    }
+
+    [Fact]
+    public void Update__UsesFootBounds__ForMovementCollision()
+    {
+        // Wall blocks the full-sprite area but NOT the foot bounds area.
+        // If the gnome can still move, it's using foot bounds for collision.
         var gnome = new GnomeEnemy(new Vector2(160, 160), 0f);
         var target = new Vector2(300, 160);
         var flow = CreateOpenFlowField(target);
-        var wallEverywhere = new DelegateCollisionData(_ => true);
 
-        // Get stuck for 1s to trigger phasing.
-        for (var i = 0; i < 63; i++)
-            UpdateChasing(gnome, FakeGameTime.OneFrame(), target, flow, wallEverywhere);
+        // Block any rectangle that starts at Y < 165. Full sprite starts at Y=160,
+        // but foot bounds start at Y=170. So this wall blocks full-sprite checks
+        // but NOT foot-bounds checks.
+        var wallBlocksFullSpriteOnly = new DelegateCollisionData(r => r.Top < 165);
 
-        Assert.True(gnome.IsPhasing);
+        UpdateChasing(gnome, FakeGameTime.FromSeconds(0.1f), target, flow, wallBlocksFullSpriteOnly);
 
-        // Move through walls until 16px clear — then phasing should end.
-        var noWalls = new DelegateCollisionData(_ => false);
-        for (var i = 0; i < 60; i++)
-        {
-            UpdateChasing(gnome, FakeGameTime.OneFrame(), target, flow, noWalls);
-            if (!gnome.IsPhasing)
-                break;
-        }
-
-        Assert.False(gnome.IsPhasing, "Phasing should clear after moving 16px from stuck point");
-        Assert.True(gnome.Position.X > 172, "Gnome should have moved at least 16px from start");
+        Assert.True(gnome.Position.X > 160, "Gnome should move because foot bounds are below the wall");
     }
 
     // -- Attack state machine tests --

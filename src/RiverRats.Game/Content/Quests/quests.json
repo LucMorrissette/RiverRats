@@ -1,0 +1,69 @@
+[
+  {
+    "id": "meet-grandpa",
+    "title": "Find Grandpa",
+    "description": "Check in with Grandpa outside the cabin.",
+    "autoStart": true,
+    "objectives": [
+      {
+        "id": "talk-to-grandpa",
+        "description": "Talk to Grandpa.",
+        "completion": {
+          "eventType": "NpcTalkedTo",
+          "targetId": "grandpa",
+          "requiredCount": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "moms-warning",
+    "title": "Mom's Warning",
+    "description": "Hear Mom out, then make sure Grandpa knows you're heading into the woods.",
+    "startCondition": {
+      "eventType": "NpcTalkedTo",
+      "targetId": "mom",
+      "requiredCount": 1
+    },
+    "objectives": [
+      {
+        "id": "talk-to-grandpa-again",
+        "description": "Tell Grandpa you're heading out.",
+        "completion": {
+          "eventType": "NpcTalkedTo",
+          "targetId": "grandpa",
+          "requiredCount": 1
+        }
+      },
+      {
+        "id": "reach-the-woods",
+        "description": "Enter the woods behind the cabin.",
+        "completion": {
+          "eventType": "ZoneEntered",
+          "targetId": "Maps/WoodsBehindCabin",
+          "requiredCount": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "clear-the-path",
+    "title": "Clear the Path",
+    "description": "Thin out the gnomes waiting in the woods.",
+    "startCondition": {
+      "eventType": "ZoneEntered",
+      "targetId": "Maps/WoodsBehindCabin",
+      "requiredCount": 1
+    },
+    "objectives": [
+      {
+        "id": "defeat-three-gnomes",
+        "description": "Defeat 3 gnomes.",
+        "completion": {
+          "eventType": "EnemyKilled",
+          "requiredCount": 3
+        }
+      }
+    ]
+  }
+]

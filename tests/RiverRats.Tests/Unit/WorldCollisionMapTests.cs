@@ -153,6 +153,52 @@ public class WorldCollisionMapTests
         Assert.True(blocked);
     }
 
+    [Fact]
+    public void AddDynamicObstacle__BlocksQueryThatOverlaps()
+    {
+        var collisionMap = new WorldCollisionMap(new NoCollisionData(), []);
+        collisionMap.AddDynamicObstacle(new Rectangle(100, 100, 20, 20));
+
+        Assert.True(collisionMap.IsWorldRectangleBlocked(new Rectangle(110, 110, 10, 10)));
+    }
+
+    [Fact]
+    public void AddDynamicObstacle__DoesNotBlockNonOverlapping()
+    {
+        var collisionMap = new WorldCollisionMap(new NoCollisionData(), []);
+        collisionMap.AddDynamicObstacle(new Rectangle(100, 100, 20, 20));
+
+        Assert.False(collisionMap.IsWorldRectangleBlocked(new Rectangle(200, 200, 10, 10)));
+    }
+
+    [Fact]
+    public void UpdateDynamicObstacle__MovesBlockingRegion()
+    {
+        var collisionMap = new WorldCollisionMap(new NoCollisionData(), []);
+        var index = collisionMap.AddDynamicObstacle(new Rectangle(100, 100, 20, 20));
+
+        // Move the obstacle away.
+        collisionMap.UpdateDynamicObstacle(index, new Rectangle(300, 300, 20, 20));
+
+        Assert.False(collisionMap.IsWorldRectangleBlocked(new Rectangle(110, 110, 10, 10)),
+            "Original location should no longer block.");
+        Assert.True(collisionMap.IsWorldRectangleBlocked(new Rectangle(310, 310, 10, 10)),
+            "New location should block.");
+    }
+
+    [Fact]
+    public void ClearDynamicObstacles__RemovesAllDynamicBlocking()
+    {
+        var collisionMap = new WorldCollisionMap(new NoCollisionData(), []);
+        collisionMap.AddDynamicObstacle(new Rectangle(100, 100, 20, 20));
+        collisionMap.AddDynamicObstacle(new Rectangle(200, 200, 20, 20));
+
+        collisionMap.ClearDynamicObstacles();
+
+        Assert.False(collisionMap.IsWorldRectangleBlocked(new Rectangle(110, 110, 10, 10)));
+        Assert.False(collisionMap.IsWorldRectangleBlocked(new Rectangle(210, 210, 10, 10)));
+    }
+
     private sealed class NoCollisionData : IMapCollisionData
     {
         public bool IsWorldRectangleBlocked(Rectangle worldBounds)

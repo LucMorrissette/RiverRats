@@ -16,6 +16,9 @@
 
 | `IGameScreen` | `Screens/` | Screen lifecycle contract (load, update, draw, unload, transparency). |
 | `ScreenManager` | `Screens/` | Stack-based screen host. Push/pop/replace semantics with deferred mutation during update. |
+| `GameEventBus` | `Core/` | Type-keyed publish/subscribe hub for cross-system gameplay events used by quests and other session-scoped progression features. |
+| `GameSessionServices` | `Core/` | Shared runtime service bundle that survives screen replacement and carries the session event bus plus quest manager. |
+| `QuestDefinitionLoader` | `Data/` | Loads quest definitions from raw JSON and validates ids, objective structure, and required counts before runtime state is created. |
 
 *(Add entries as core classes are created — GameEvents, Direction, IMapCollisionData, etc.)*
 
@@ -43,6 +46,13 @@
 | `PlayerCombatStats` | `Data/` | Mutable combat stat modifiers for the forest survival minigame: max HP, speed multiplier, cooldown multiplier, projectile tuning, level, XP, and XP-to-next-level. Supports level-up stat scaling and reset-to-defaults. |
 | `FishingZoneData` | `Data/` | Readonly `record struct` parsed from the TMX `FishingZones` object layer. Holds the zone `Rectangle` and a `FishType` identifier used by `FishingScreen` to spawn species-appropriate fish silhouettes. |
 | `WaterShaderConfig` | `Data/` | Plain data class holding water distortion shader parameters: wave speed, amplitude, frequency layers, and surface Y-threshold. Passed to `FishingWater.fx` and `WaterDistortion.fx` at runtime. |
+| `GameEventType` | `Core/` | Enum of gameplay event kinds published through `GameEventBus` for progression systems such as quests. |
+| `GameEvent` | `Core/` | Lightweight event payload with an event type, optional target id, and amount used by the shared gameplay event bus. |
+| `QuestStatus` | `Data/` | Enum tracking whether a quest is not started, active, completed, or failed in the current play session. |
+| `QuestEventConditionDefinition` | `Data/` | Event requirement used by quest start triggers and objective completion checks. Matches a `GameEventType`, optional target id, and required count. |
+| `ObjectiveDefinition` | `Data/` | Immutable quest objective definition loaded from JSON, including player-facing text and an event-driven completion rule. |
+| `QuestDefinition` | `Data/` | Immutable linear quest definition loaded from JSON, including id, title, description, optional start trigger, auto-start flag, and ordered objectives. |
+| `QuestState` | `Data/` | Mutable runtime quest progress for a loaded `QuestDefinition`, tracking current objective index and per-objective counters. |
 
 *(Add entries as data classes are created — configs, enums, save DTOs, etc.)*
 

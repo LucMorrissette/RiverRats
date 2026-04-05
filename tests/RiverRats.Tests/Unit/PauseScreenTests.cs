@@ -1,7 +1,10 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using RiverRats.Game.Core;
+using RiverRats.Game.Data;
 using RiverRats.Game.Input;
 using RiverRats.Game.Screens;
+using RiverRats.Game.Systems;
 using RiverRats.Tests.Helpers;
 using Xunit;
 
@@ -11,13 +14,15 @@ public sealed class PauseScreenTests
 {
     private static PauseScreen CreatePauseScreen(
         ScreenManager? manager = null,
-        FakeMusicManager? music = null)
+        FakeMusicManager? music = null,
+        QuestManager? quests = null)
     {
         return new PauseScreen(
             manager ?? new ScreenManager(),
             music ?? new FakeMusicManager(),
-            null!, // GraphicsDevice not needed for logic tests (LoadContent/Draw not called)
-            null!, // ContentManager not needed for logic tests (LoadContent not called)
+            quests ?? CreateQuestManager(),
+            null!,
+            null!,
             480,
             270);
     }
@@ -33,7 +38,6 @@ public sealed class PauseScreenTests
     public void Update__PausePressed__PopsTopScreen()
     {
         var manager = new ScreenManager();
-        // Push two stub screens to simulate gameplay + pause on the stack
         manager.Push(new StubScreen());
         manager.Push(new StubScreen());
         Assert.Equal(2, manager.Count);
@@ -42,7 +46,22 @@ public sealed class PauseScreenTests
         var input = new FakeInputManager();
         input.Press(InputAction.Pause);
 
-        // Calling Update directly (not via manager) — Pop executes immediately
+        screen.Update(FakeGameTime.OneFrame(), input);
+
+        Assert.Equal(1, manager.Count);
+    }
+
+    [Fact]
+    public void Update__CancelPressed__PopsTopScreen()
+    {
+        var manager = new ScreenManager();
+        manager.Push(new StubScreen());
+        manager.Push(new StubScreen());
+
+        var screen = CreatePauseScreen(manager: manager);
+        var input = new FakeInputManager();
+        input.Press(InputAction.Cancel);
+
         screen.Update(FakeGameTime.OneFrame(), input);
 
         Assert.Equal(1, manager.Count);
@@ -57,11 +76,55 @@ public sealed class PauseScreenTests
 
         var screen = CreatePauseScreen(manager: manager);
         var input = new FakeInputManager();
-        // No Pause press
 
         screen.Update(FakeGameTime.OneFrame(), input);
 
         Assert.Equal(2, manager.Count);
+    }
+
+    [Fact]
+    public void Update__MoveDownPressed__AdvancesQuestSelection()
+    {
+        var screen = CreatePauseScreen(quests: CreateQuestManager());
+        var input = new FakeInputManager();
+        input.Press(InputAction.MoveDown);
+
+        screen.Update(FakeGameTime.OneFrame(), input);
+
+        Assert.Equal(1, screen.SelectedQuestIndex);
+    }
+
+    [Fact]
+    public void Update__MoveUpPressedAtFirstQuest__WrapsToLastQuest()
+    {
+        var screen = CreatePauseScreen(quests: CreateQuestManager());
+        var input = new FakeInputManager();
+        input.Press(InputAction.MoveUp);
+
+        screen.Update(FakeGameTime.OneFrame(), input);
+
+        Assert.Equal(1, screen.SelectedQuestIndex);
+    }
+
+    [Fact]
+    public void Update__ConfirmPressed__TracksSelectedQuestWithoutClosingPauseScreen()
+    {
+        var manager = new ScreenManager();
+        manager.Push(new StubScreen());
+        manager.Push(new StubScreen());
+
+        var quests = CreateQuestManager();
+        var screen = CreatePauseScreen(manager: manager, quests: quests);
+        var input = new FakeInputManager();
+        input.Press(InputAction.MoveDown);
+        screen.Update(FakeGameTime.OneFrame(), input);
+        input.Update();
+        input.Press(InputAction.Confirm);
+
+        screen.Update(FakeGameTime.OneFrame(), input);
+
+        Assert.Equal(2, manager.Count);
+        Assert.Equal("quest-b", quests.TrackedQuest!.Definition.Id);
     }
 
     [Fact]
@@ -79,7 +142,6 @@ public sealed class PauseScreenTests
     public void UnloadContent__VolumeHistoryShowsRestore()
     {
         var music = new FakeMusicManager();
-        // Simulate what LoadContent would do (set volume to 0.2)
         music.SetVolume(0.2f);
         var screen = CreatePauseScreen(music: music);
 
@@ -90,7 +152,58 @@ public sealed class PauseScreenTests
         Assert.Equal(1.0f, music.VolumeHistory[1]);
     }
 
-    /// <summary>Minimal stub screen for stack setup in tests.</summary>
+    private static QuestManager CreateQuestManager()
+    {
+        var bus = new GameEventBus();
+        var manager = new QuestManager(bus);
+        manager.LoadDefinitions(
+        [
+            new QuestDefinition
+            {
+                Id = "quest-a",
+                Title = "Quest A",
+                Description = "First quest.",
+                AutoStart = true,
+                Objectives =
+                [
+                    new ObjectiveDefinition
+                    {
+                        Id = "a-1",
+                        Description = "Talk to Mom.",
+                        Completion = new QuestEventConditionDefinition
+                        {
+                            EventType = GameEventType.NpcTalkedTo,
+                            TargetId = "mom",
+                            RequiredCount = 1,
+                        },
+                    },
+                ],
+            },
+            new QuestDefinition
+            {
+                Id = "quest-b",
+                Title = "Quest B",
+                Description = "Second quest.",
+                AutoStart = true,
+                Objectives =
+                [
+                    new ObjectiveDefinition
+                    {
+                        Id = "b-1",
+                        Description = "Talk to Grandpa.",
+                        Completion = new QuestEventConditionDefinition
+                        {
+                            EventType = GameEventType.NpcTalkedTo,
+                            TargetId = "grandpa",
+                            RequiredCount = 1,
+                        },
+                    },
+                ],
+            },
+        ]);
+        return manager;
+    }
+
     private sealed class StubScreen : IGameScreen
     {
         public bool IsTransparent => false;

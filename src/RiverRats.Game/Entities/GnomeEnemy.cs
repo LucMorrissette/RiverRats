@@ -19,6 +19,19 @@ internal sealed class GnomeEnemy : IWorldProp
     private const float MoveSpeed = 60f;
     private const int SpriteSize = 16;
 
+    // Foot bounds ratios — standardized across all walking actors (Player, Mom, GnomeEnemy).
+    private const float FootWidthRatio = 0.6f;
+    private const float FootHeightRatio = 0.25f;
+    private const float FootInsetFromBottom = 2f;
+
+    private static readonly Point FootSize = new(
+        Math.Max(1, (int)MathF.Round(SpriteSize * FootWidthRatio)),     // 10
+        Math.Max(1, (int)MathF.Round(SpriteSize * FootHeightRatio)));   // 4
+
+    private static readonly Vector2 FootOffset = new(
+        (SpriteSize - FootSize.X) / 2f,                                // 3
+        SpriteSize - FootSize.Y - FootInsetFromBottom);                 // 10
+
     // Attack tuning.
     private const float AttackTriggerRange = 48f;
     private const float AttackTriggerRangeSq = AttackTriggerRange * AttackTriggerRange;
@@ -52,14 +65,6 @@ internal sealed class GnomeEnemy : IWorldProp
     private float _hopPhase;
     private bool _facingLeft;
 
-    // Stuck detection — phase through obstacles after being stuck too long.
-    private const float StuckTimeThreshold = 1f;
-    private const float StuckDistanceThreshold = 8f;
-    private const float PhaseClearDistance = 16f;
-    private Vector2 _stuckCheckpoint;
-    private float _stuckTimer;
-    private bool _phasing;
-
     // State machine.
     private GnomeState _state;
     private float _stateTimer;
@@ -79,7 +84,6 @@ internal sealed class GnomeEnemy : IWorldProp
     public GnomeEnemy(Vector2 position, float initialHopPhase)
     {
         _position = position;
-        _stuckCheckpoint = position;
         _hopPhase = initialHopPhase;
         _state = GnomeState.Chasing;
     }
@@ -99,9 +103,6 @@ internal sealed class GnomeEnemy : IWorldProp
     /// <summary>True for exactly one frame after this gnome's lunge hit the player.</summary>
     public bool JustHitPlayer => _justHitPlayer;
 
-    /// <summary>Whether the gnome is currently phasing through obstacles.</summary>
-    public bool IsPhasing => _phasing;
-
     /// <summary>The enemy variant type of this gnome.</summary>
     public EnemyType EnemyType => _enemyType;
 
@@ -109,13 +110,26 @@ internal sealed class GnomeEnemy : IWorldProp
     public bool ExplodeOnDeath => _explodeOnDeath;
 
     /// <summary>
-    /// Returns the bounding rectangle used for Y-sorting. Based on world position (no hop offset).
+    /// Returns the bounding rectangle used for Y-sorting and hit detection. Based on world position (no hop offset).
     /// </summary>
     public Rectangle Bounds => new(
         (int)_position.X,
         (int)_position.Y,
         SpriteSize,
         SpriteSize);
+
+    /// <summary>
+    /// Returns the foot-level bounding rectangle used for movement collision.
+    /// Standardized across all walking actors (Player, Mom, GnomeEnemy).
+    /// </summary>
+    public Rectangle FootBounds => GetFootBounds(_position);
+
+    private static Rectangle GetFootBounds(Vector2 basePosition)
+    {
+        var left = (int)MathF.Round(basePosition.X + FootOffset.X);
+        var top = (int)MathF.Round(basePosition.Y + FootOffset.Y);
+        return new Rectangle(left, top, FootSize.X, FootSize.Y);
+    }
 
     /// <summary>
     /// Sets the gnome's HP. Call when spawning or recycling from the pool.
@@ -370,99 +384,67 @@ internal sealed class GnomeEnemy : IWorldProp
             var effectiveSpeed = MoveSpeed * _baseSpeedMultiplier * _speedMultiplier * speedMultiplier;
             var movement = steeringDir * effectiveSpeed * dt;
 
-            if (_phasing)
-            {
-                // Phasing — ignore collision, move freely.
-                _position += movement;
+            var originalPos = _position;
 
-                // Clear phasing once we've moved far enough from where we got stuck.
-                var fromCheckpoint = _position - _stuckCheckpoint;
-                if (fromCheckpoint.LengthSquared() >= PhaseClearDistance * PhaseClearDistance)
+            var movedX = false;
+            var movedY = false;
+
+            if (movement.X != 0f)
+            {
+                var candidateX = _position.X + movement.X;
+                var candidateBounds = GetFootBounds(new Vector2(candidateX, _position.Y));
+                if (!collisionMap.IsWorldRectangleBlocked(candidateBounds))
                 {
-                    _phasing = false;
-                    _stuckCheckpoint = _position;
-                    _stuckTimer = 0f;
+                    _position.X = candidateX;
+                    movedX = true;
                 }
             }
-            else
+
+            if (movement.Y != 0f)
             {
-                var originalPos = _position;
-
-                var movedX = false;
-                var movedY = false;
-
-                if (movement.X != 0f)
+                var candidateY = _position.Y + movement.Y;
+                var candidateBounds = GetFootBounds(new Vector2(_position.X, candidateY));
+                if (!collisionMap.IsWorldRectangleBlocked(candidateBounds))
                 {
-                    var candidateX = _position.X + movement.X;
-                    var candidateBounds = new Rectangle((int)candidateX, (int)_position.Y, SpriteSize, SpriteSize);
-                    if (!collisionMap.IsWorldRectangleBlocked(candidateBounds))
-                    {
-                        _position.X = candidateX;
-                        movedX = true;
-                    }
+                    _position.Y = candidateY;
+                    movedY = true;
                 }
+            }
 
-                if (movement.Y != 0f)
+            // Speed redistribution: when one axis is blocked, slide the other at full speed.
+            if (movedX && !movedY)
+            {
+                var fullSlideX = MathF.CopySign(effectiveSpeed * dt, steeringDir.X);
+                var candidateX = originalPos.X + fullSlideX;
+                var slideBounds = GetFootBounds(new Vector2(candidateX, _position.Y));
+                if (!collisionMap.IsWorldRectangleBlocked(slideBounds))
+                    _position.X = candidateX;
+            }
+            else if (!movedX && movedY)
+            {
+                var fullSlideY = MathF.CopySign(effectiveSpeed * dt, steeringDir.Y);
+                var candidateY = originalPos.Y + fullSlideY;
+                var slideBounds = GetFootBounds(new Vector2(_position.X, candidateY));
+                if (!collisionMap.IsWorldRectangleBlocked(slideBounds))
+                    _position.Y = candidateY;
+            }
+            else if (!movedX && !movedY)
+            {
+                // Both axes blocked — try each axis independently.
+                if (steeringDir.X != 0f)
                 {
-                    var candidateY = _position.Y + movement.Y;
-                    var candidateBounds = new Rectangle((int)_position.X, (int)candidateY, SpriteSize, SpriteSize);
-                    if (!collisionMap.IsWorldRectangleBlocked(candidateBounds))
-                    {
-                        _position.Y = candidateY;
-                        movedY = true;
-                    }
-                }
-
-                // Speed redistribution: when one axis is blocked, slide the other at full speed.
-                if (movedX && !movedY)
-                {
-                    var fullSlideX = MathF.CopySign(effectiveSpeed * dt, steeringDir.X);
-                    var candidateX = originalPos.X + fullSlideX;
-                    var slideBounds = new Rectangle((int)candidateX, (int)_position.Y, SpriteSize, SpriteSize);
+                    var slideX = MathF.CopySign(effectiveSpeed * dt, steeringDir.X);
+                    var slideBounds = GetFootBounds(new Vector2(_position.X + slideX, _position.Y));
                     if (!collisionMap.IsWorldRectangleBlocked(slideBounds))
-                        _position.X = candidateX;
+                        _position.X += slideX;
                 }
-                else if (!movedX && movedY)
+
+                if (steeringDir.Y != 0f)
                 {
-                    var fullSlideY = MathF.CopySign(effectiveSpeed * dt, steeringDir.Y);
-                    var candidateY = originalPos.Y + fullSlideY;
-                    var slideBounds = new Rectangle((int)_position.X, (int)candidateY, SpriteSize, SpriteSize);
+                    var slideY = MathF.CopySign(effectiveSpeed * dt, steeringDir.Y);
+                    var slideBounds = GetFootBounds(new Vector2(_position.X, _position.Y + slideY));
                     if (!collisionMap.IsWorldRectangleBlocked(slideBounds))
-                        _position.Y = candidateY;
-                }
-                else if (!movedX && !movedY)
-                {
-                    // Both axes blocked — try each axis independently.
-                    if (steeringDir.X != 0f)
-                    {
-                        var slideX = MathF.CopySign(effectiveSpeed * dt, steeringDir.X);
-                        var slideBounds = new Rectangle((int)(_position.X + slideX), (int)_position.Y, SpriteSize, SpriteSize);
-                        if (!collisionMap.IsWorldRectangleBlocked(slideBounds))
-                            _position.X += slideX;
-                    }
-
-                    if (steeringDir.Y != 0f)
-                    {
-                        var slideY = MathF.CopySign(effectiveSpeed * dt, steeringDir.Y);
-                        var slideBounds = new Rectangle((int)_position.X, (int)(_position.Y + slideY), SpriteSize, SpriteSize);
-                        if (!collisionMap.IsWorldRectangleBlocked(slideBounds))
-                            _position.Y += slideY;
-                    }
-                }
-
-                // Stuck detection: if we haven't moved far from the checkpoint, accumulate time.
-                var drift = _position - _stuckCheckpoint;
-                if (drift.LengthSquared() <= StuckDistanceThreshold * StuckDistanceThreshold)
-                {
-                    _stuckTimer += dt;
-                    if (_stuckTimer >= StuckTimeThreshold)
-                        _phasing = true;
-                }
-                else
-                {
-                    // Meaningful movement — reset checkpoint.
-                    _stuckCheckpoint = _position;
-                    _stuckTimer = 0f;
+                        _position.Y += slideY;
                 }
             }
 
@@ -502,10 +484,10 @@ internal sealed class GnomeEnemy : IWorldProp
         var step = LungeSpeed * dt;
         var movement = _lungeDirection * step;
 
-        // Move and check for wall collision.
+        // Move and check for wall collision using foot bounds.
         var newPos = _position + movement;
-        var newBounds = new Rectangle((int)newPos.X, (int)newPos.Y, SpriteSize, SpriteSize);
-        var hitWall = collisionMap.IsWorldRectangleBlocked(newBounds);
+        var newFootBounds = GetFootBounds(newPos);
+        var hitWall = collisionMap.IsWorldRectangleBlocked(newFootBounds);
 
         if (!hitWall)
         {

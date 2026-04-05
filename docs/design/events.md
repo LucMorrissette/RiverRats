@@ -14,3 +14,8 @@ Events are listed with their declaring class, delegate type, parameters, and the
 | `OnWaveCleared` | `WaveManager` | `event Action<int>` — 1-based wave number | The wave timer expires (Active phase ends). Remaining enemies persist but no new gnomes spawn. |
 | `OnAllWavesComplete` | `WaveManager` | `event Action` — no parameters | The final wave is cleared and the state machine transitions to `AllWavesComplete`. |
 | `OnLevelUp` | `XpLevelSystem` | `event Action<int>` — new level number | Accumulated XP crosses the `XpToNextLevel` threshold. `PlayerCombatStats.ApplyLevelUp()` is called before the event fires. |
+| `NpcTalkedTo` | `GameEventBus` (published by `GameplayScreen`) | `GameEvent` — `targetId` = NPC id, `amount` = 1 | The player starts dialog with a quest-relevant NPC (`mom`, `grandpa`). |
+| `ZoneEntered` | `GameEventBus` (published by `GameplayScreen` / `FishingScreen`) | `GameEvent` — `targetId` = map asset name, `amount` = 1 | A gameplay or fishing map finishes loading for the current screen. |
+| `EnemyKilled` | `GameEventBus` (published by `GameplayScreen` via `GnomeSpawner.OnGnomeDied`) | `GameEvent` — `targetId` = `EnemyType`, `amount` = 1 | A loot-dropping enemy death is swept from the active pool, which corresponds to a player/follower kill. |
+| `WaveCleared` | `GameEventBus` (published by `GameplayScreen` via `WaveManager.OnWaveCleared`) | `GameEvent` — `targetId` = cleared wave number, `amount` = 1 | The forest wave timer expires and the wave transitions into intermission. |
+| `LevelReached` | `GameEventBus` (published by `GameplayScreen` via `XpLevelSystem.OnLevelUp`) | `GameEvent` — `targetId` = new level number, `amount` = 1 | The player levels up in the forest combat map. |

@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using RiverRats.Game.Audio;
+using RiverRats.Game.Core;
 using RiverRats.Game.Input;
 
 namespace RiverRats.Game.Screens;
@@ -35,6 +36,7 @@ public sealed class DeathScreen : IGameScreen
 
     private readonly GraphicsDevice _graphicsDevice;
     private readonly ContentManager _content;
+    private readonly GameSessionServices _gameSessionServices;
     private readonly int _virtualWidth;
     private readonly int _virtualHeight;
     private readonly ScreenManager _screenManager;
@@ -66,12 +68,13 @@ public sealed class DeathScreen : IGameScreen
     /// <param name="requestExit">Callback to request game exit.</param>
     /// <param name="musicManager">Music manager to stop background music.</param>
     /// <param name="dayNightProgress">Current day/night cycle progress to pass to the overworld.</param>
-    public DeathScreen(
+    internal DeathScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
         int virtualWidth,
         int virtualHeight,
         ScreenManager screenManager,
+        GameSessionServices gameSessionServices,
         Action requestExit,
         IMusicManager musicManager,
         float dayNightProgress)
@@ -81,6 +84,7 @@ public sealed class DeathScreen : IGameScreen
         _virtualWidth = virtualWidth;
         _virtualHeight = virtualHeight;
         _screenManager = screenManager;
+        _gameSessionServices = gameSessionServices;
         _requestExit = requestExit;
         _musicManager = musicManager;
         _dayNightProgress = dayNightProgress;
@@ -275,6 +279,7 @@ public sealed class DeathScreen : IGameScreen
             _virtualWidth,
             _virtualHeight,
             _screenManager,
+            _gameSessionServices,
             _requestExit,
             "Maps/StarterMap",
             "from-woods",
