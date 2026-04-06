@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="10" nextobjectid="226">
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="10" nextobjectid="229">
  <tileset firstgid="1" source="../Tilesets/Terrain.tsx"/>
  <tileset firstgid="50" source="../Tilesets/Props.tsx"/>
  <layer id="1" name="Water/Bottom" width="32" height="20" locked="1">
@@ -211,6 +211,7 @@
    </properties>
   </object>
   <object id="223" gid="90" x="928" y="288" width="64" height="64"/>
+  <object id="228" gid="91" x="575.75" y="589.625" width="21" height="64"/>
  </objectgroup>
  <objectgroup id="8" name="SpawnPoints" locked="1">
   <object id="203" name="from-woods" x="799" y="217"/>

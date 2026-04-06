@@ -20,6 +20,7 @@
 
 | `FakeGamePadStateSource` | Scriptable `IGamePadStateSource` fake for gamepad unit tests (queued `GamePadState` frames). Defined inline in `InputManagerGamepadTests`. |
 | `FakeJoystickStateSource` | Scriptable `IJoystickStateSource` fake for joystick unit tests (queued `JoystickSnapshot` frames). Defined inline in `InputManagerJoystickTests`. |
+| `FakeSaveGameService` | In-memory `ISaveGameService` fake. Records save/delete call counts for assertions. |
 
 *(Add entries as test helpers are created.)*
 

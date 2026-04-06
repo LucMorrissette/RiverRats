@@ -1,5 +1,6 @@
 #nullable enable
 
+using System;
 using RiverRats.Game.Core;
 
 namespace RiverRats.Game.Data;
@@ -51,6 +52,28 @@ internal sealed class QuestState
     internal int GetObjectiveProgress(int objectiveIndex)
     {
         return _objectiveProgress[objectiveIndex];
+    }
+
+    /// <summary>
+    /// Restores saved state (status, objective index, and progress counters).
+    /// Used by the save mapper during load. Bypasses normal event-driven progression.
+    /// </summary>
+    /// <param name="status">Saved quest status.</param>
+    /// <param name="currentObjectiveIndex">Saved objective index.</param>
+    /// <param name="objectiveProgress">Saved per-objective progress counters.</param>
+    internal void RestoreState(QuestStatus status, int currentObjectiveIndex, int[] objectiveProgress)
+    {
+        Status = status;
+        CurrentObjectiveIndex = currentObjectiveIndex;
+
+        if (objectiveProgress is not null)
+        {
+            var count = Math.Min(objectiveProgress.Length, _objectiveProgress.Length);
+            for (var i = 0; i < count; i++)
+            {
+                _objectiveProgress[i] = objectiveProgress[i];
+            }
+        }
     }
 
     /// <summary>

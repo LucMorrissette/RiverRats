@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="39" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="42" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -258,5 +258,12 @@
       <property name="propType" value="garden-shed"/>
     </properties>
     <image source="../Sprites/garden-shed-closed.png" width="64" height="64"/>
+  </tile>
+  <tile id="41">
+    <properties>
+      <property name="propType" value="watercraft-canoe-vertical"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/canoe-vertical.png" width="21" height="64"/>
   </tile>
 </tileset>

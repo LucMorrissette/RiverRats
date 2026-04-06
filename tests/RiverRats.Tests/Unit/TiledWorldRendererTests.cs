@@ -33,6 +33,47 @@ public class TiledWorldRendererTests
         Assert.False(isWaterLayer);
     }
 
+    [Fact]
+    public void HasAnyWaterTileAt__WhenAnyWaterLayerContainsTile__ReturnsTrue()
+    {
+        var waterLayers = new[]
+        {
+            new[] { 0, 0, 0, 0 },
+            new[] { 0, 24, 0, 0 },
+        };
+
+        var hasWater = TiledWorldRenderer.HasAnyWaterTileAt(waterLayers, 1);
+
+        Assert.True(hasWater);
+    }
+
+    [Fact]
+    public void HasAnyWaterTileAt__WhenAllWaterLayersEmpty__ReturnsFalse()
+    {
+        var waterLayers = new[]
+        {
+            new[] { 0, 0, 0, 0 },
+            new[] { 0, 0, 0, 0 },
+        };
+
+        var hasWater = TiledWorldRenderer.HasAnyWaterTileAt(waterLayers, 2);
+
+        Assert.False(hasWater);
+    }
+
+    [Fact]
+    public void HasAnyWaterTileAt__WhenTileIndexOutOfRange__ReturnsFalse()
+    {
+        var waterLayers = new[]
+        {
+            new[] { 24, 0 },
+        };
+
+        var hasWater = TiledWorldRenderer.HasAnyWaterTileAt(waterLayers, 5);
+
+        Assert.False(hasWater);
+    }
+
     [Theory]
     [InlineData(0, 0)]
     [InlineData(3, 7)]

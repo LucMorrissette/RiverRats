@@ -15,5 +15,7 @@ public enum InputAction
     ToggleCollisionDebug,
     ToggleCrtFilter,
     CopyScreenshotToClipboard,
-    Pause
+    Pause,
+    QuickSave,
+    QuickLoad
 }

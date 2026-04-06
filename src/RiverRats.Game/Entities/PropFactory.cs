@@ -223,6 +223,28 @@ internal static class PropFactory
         return docks.ToArray();
     }
 
+    internal static Watercraft[] CreateWatercraft(Texture2D canoeVerticalTexture, Texture2D canoeHorizontalTexture, IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var watercraft = new List<Watercraft>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "watercraft-canoe-vertical", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (placement.IsUnderwater)
+            {
+                continue;
+            }
+
+            watercraft.Add(new Watercraft(placement.Position, canoeVerticalTexture, canoeHorizontalTexture));
+        }
+
+        return watercraft.ToArray();
+    }
+
     internal static FrontDoor[] CreateFrontDoors(
         Texture2D closedTexture,
         Texture2D openTexture,
@@ -671,6 +693,17 @@ internal static class PropFactory
         for (var i = 0; i < docks.Length; i++)
         {
             bounds[i] = docks[i].Bounds;
+        }
+
+        return bounds;
+    }
+
+    internal static Rectangle[] GetWatercraftBounds(Watercraft[] watercraftProps)
+    {
+        var bounds = new Rectangle[watercraftProps.Length];
+        for (var i = 0; i < watercraftProps.Length; i++)
+        {
+            bounds[i] = watercraftProps[i].Bounds;
         }
 
         return bounds;

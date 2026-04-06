@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using RiverRats.Game.Core;
 using RiverRats.Game.Data;
+using RiverRats.Game.Data.Save;
 using RiverRats.Game.Input;
 using RiverRats.Game.Screens;
 using RiverRats.Game.Systems;
@@ -57,7 +58,8 @@ public class Game1 : Microsoft.Xna.Framework.Game
         _inputManager = new InputManager();
         _screenManager = new ScreenManager();
         var eventBus = new GameEventBus();
-        _gameSessionServices = new GameSessionServices(eventBus, new QuestManager(eventBus));
+        var saveService = new JsonSaveGameService();
+        _gameSessionServices = new GameSessionServices(eventBus, new QuestManager(eventBus), saveService);
 
         _graphics.PreferredBackBufferWidth = VirtualWidth * StartupScale;
         _graphics.PreferredBackBufferHeight = VirtualHeight * StartupScale;

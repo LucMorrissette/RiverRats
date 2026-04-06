@@ -11,6 +11,7 @@ using RiverRats.Data;
 using RiverRats.Game.Components;
 using RiverRats.Game.Core;
 using RiverRats.Game.Data;
+using RiverRats.Game.Data.Save;
 using RiverRats.Game.Entities;
 using RiverRats.Game.Graphics;
 using RiverRats.Game.Audio;
@@ -182,6 +183,8 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _grandpaSpriteSheet;
     private Texture2D _boulderTexture;
     private Texture2D _dockTexture;
+    private Texture2D _canoeVerticalTexture;
+    private Texture2D _canoeHorizontalTexture;
     private Texture2D _frontDoorClosedTexture;
     private Texture2D _frontDoorOpenTexture;
     private Texture2D _dockLegLeftTexture;
@@ -198,6 +201,7 @@ public sealed class GameplayScreen : IGameScreen
     private Boulder[] _areaRugs;
     private Couch[] _couches;
     private CouchSitSequence _couchSitSequence;
+    private WatercraftBoardSequence _watercraftBoardSequence;
     private Boulder[] _oldTvs;
     private Boulder[] _speakerTowersA;
     private Boulder[] _speakerTowersB;
@@ -218,8 +222,10 @@ public sealed class GameplayScreen : IGameScreen
     private Tree[] _deciduousTrees;
     private Tree[] _bushes;
     private Dock[] _docks;
+    private Watercraft[] _watercraftProps;
     private FrontDoor[] _frontDoors;
     private Boulder[] _dockLegsLeft;
+    private Rectangle[] _watercraftTravelObstacleBounds = Array.Empty<Rectangle>();
     private WorldCollisionMap _collisionMap;
     private DayNightCycle _dayNightCycle;
     private Texture2D _pixelTexture;
@@ -294,6 +300,7 @@ public sealed class GameplayScreen : IGameScreen
     private float _fadeHoldTimer;
     private ZoneTransitionRequest? _pendingZoneTransition;
     private bool _pendingFishingTransition;
+    private SaveGameData _pendingSaveRestore;
 
     // ── Dialog system ────────────────────────────────────────────────────────
     private const int DialogLetterTickSfxCount = 4;
@@ -329,6 +336,7 @@ public sealed class GameplayScreen : IGameScreen
     /// <param name="fadeInFromBlack">When true, the screen starts fully black and fades in.</param>
     /// <param name="dayNightStartProgress">Starting cycle progress (0–1). Pass the previous zone's progress to preserve time across transitions.</param>
     /// <param name="spawnPosition">Exact world-space position to place the player at. Overrides spawnPointId when set.</param>
+    /// <param name="saveDataToRestore">Optional save data to restore combat stats from after LoadContent.</param>
     internal GameplayScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
@@ -341,7 +349,8 @@ public sealed class GameplayScreen : IGameScreen
         string spawnPointId = null,
         bool fadeInFromBlack = false,
         float dayNightStartProgress = DayNightCycleStartProgress,
-        Vector2? spawnPosition = null)
+        Vector2? spawnPosition = null,
+        SaveGameData saveDataToRestore = null)
     {
         _graphicsDevice = graphicsDevice;
         _content = content;
@@ -356,6 +365,7 @@ public sealed class GameplayScreen : IGameScreen
         _fadeInFromBlack = fadeInFromBlack;
         _mapConfig = MapConfig.ForMap(mapAssetName);
         _dayNightStartProgress = dayNightStartProgress;
+        _pendingSaveRestore = saveDataToRestore;
     }
 
     /// <inheritdoc />
@@ -382,6 +392,8 @@ public sealed class GameplayScreen : IGameScreen
             _grandpaSpriteSheet = _content.Load<Texture2D>("Sprites/grandpa_character_sheet");
         _boulderTexture = _content.Load<Texture2D>("Sprites/boulder");
         _dockTexture = _content.Load<Texture2D>("Sprites/wooden-dock");
+        _canoeVerticalTexture = _content.Load<Texture2D>("Sprites/canoe-vertical");
+        _canoeHorizontalTexture = _content.Load<Texture2D>("Sprites/canoe-horizontal");
         _frontDoorClosedTexture = _content.Load<Texture2D>("Sprites/front-door-closed");
         _frontDoorOpenTexture = _content.Load<Texture2D>("Sprites/front-door-open");
         _doorOpenSfx = _content.Load<SoundEffect>("Audio/SFX/door_open_creak");
@@ -492,6 +504,7 @@ public sealed class GameplayScreen : IGameScreen
 
         _boulders = PropFactory.CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
         _docks = PropFactory.CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
+        _watercraftProps = PropFactory.CreateWatercraft(_canoeVerticalTexture, _canoeHorizontalTexture, _worldRenderer.PropPlacements);
         _frontDoors = PropFactory.CreateFrontDoors(_frontDoorClosedTexture, _frontDoorOpenTexture, _worldRenderer.PropPlacements);
         _dockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: false);
         _surfaceReachDockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
@@ -562,6 +575,7 @@ public sealed class GameplayScreen : IGameScreen
         _areaRugs = PropFactory.CreateAreaRugs(_content.Load<Texture2D>("Sprites/area-rug"), _worldRenderer.PropPlacements);
         _couches = PropFactory.CreateCouches(_content.Load<Texture2D>("Sprites/old-couch"), _worldRenderer.PropPlacements);
         _couchSitSequence = new CouchSitSequence(PlayerFramePixels, PlayerFramePixels);
+        _watercraftBoardSequence = new WatercraftBoardSequence(PlayerFramePixels, PlayerFramePixels);
         _oldTvs = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/old-tv"), _worldRenderer.PropPlacements, "old-tv", isUnderwater: false);
         _speakerTowersA = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/speaker-tower-a"), _worldRenderer.PropPlacements, "speaker-tower-a", isUnderwater: false);
         _speakerTowersB = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/speaker-tower-b"), _worldRenderer.PropPlacements, "speaker-tower-b", isUnderwater: false);
@@ -621,6 +635,8 @@ public sealed class GameplayScreen : IGameScreen
                     var vel = new Vector2(MathF.Cos(angle) * speed, MathF.Sin(angle) * speed);
                     _particleManager.Emit(LevelUpBurstProfile, _player.Center, 1, angle);
                 }
+
+                PerformAutoSave();
             };
             _gnomeSpawner = new GnomeSpawner(initialCount: 10, spawnIntervalSeconds: 0.15f, maxActive: 200);
             _projectileSystem = new ProjectileSystem(
@@ -716,7 +732,15 @@ public sealed class GameplayScreen : IGameScreen
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_deciduousTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_bushes));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetCabinCollisionBounds(_cozyLakeCabins));
-        _collisionMap = new WorldCollisionMap(_worldRenderer, PropFactory.MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds), PropFactory.GetDockBounds(_docks));
+        var walkableOverrideBounds = PropFactory.GetDockBounds(_docks);
+        // Watercraft uses only prop obstacles — not Colliders layer bounds,
+        // which are water-boundary walls meant to block foot traffic.
+        _watercraftTravelObstacleBounds = propObstacleBounds;
+        var allObstacleBounds = PropFactory.MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds);
+        _collisionMap = new WorldCollisionMap(
+            _worldRenderer,
+            allObstacleBounds,
+            walkableOverrideBounds);
 
         // Validate nav links against collision BEFORE adding Mom as a dynamic
         // obstacle — otherwise her starting foot bounds block links at the entry node.
@@ -731,6 +755,8 @@ public sealed class GameplayScreen : IGameScreen
 
         if (_mapAssetName == "Maps/WoodsBehindCabin")
             _flowField = new FlowField(_worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight, _collisionMap, agentRadius: 5); // Half-width of gnome foot bounds (10px wide)
+
+        RestoreWatercraftStateFromSession();
 
         _camera.LookAt(_player.Center);
 
@@ -847,6 +873,19 @@ public sealed class GameplayScreen : IGameScreen
 
         _crtTransitionRenderer = new CrtTransitionRenderer(_pixelTexture);
 
+        // Restore combat stats from save data if this screen was created by a load operation.
+        if (_pendingSaveRestore is not null && _combatStats is not null)
+        {
+            SaveGameMapper.RestoreCombatStats(_pendingSaveRestore, _combatStats);
+            if (_playerHealth is not null)
+            {
+                _playerHealth = new Health(_combatStats.MaxHp);
+                _playerHealth.OnDied += OnPlayerDied;
+            }
+        }
+
+        _pendingSaveRestore = null;
+
         _gameSessionServices.EventBus.Publish(GameEventType.ZoneEntered, _mapAssetName, 1);
     }
 
@@ -913,6 +952,17 @@ public sealed class GameplayScreen : IGameScreen
             _debugOverlayMode = (_debugOverlayMode + 1) % 3;
         }
 
+        if (input.IsPressed(InputAction.QuickSave))
+        {
+            PerformSave(_gameSessionServices.LastUsedSaveSlot);
+        }
+
+        if (input.IsPressed(InputAction.QuickLoad))
+        {
+            PerformLoad(_gameSessionServices.LastUsedSaveSlot);
+            return;
+        }
+
         // --- Dialog sequence: when active, delegate input to the dialog and freeze movement ---
         if (_dialogSequence != null && _dialogSequence.IsActive)
         {
@@ -933,19 +983,16 @@ public sealed class GameplayScreen : IGameScreen
         if (_couchSitSequence.IsActive)
         {
             _couchSitSequence.Update(gameTime, input, _player, _follower);
+            UpdatePassiveNpcSimulation(gameTime);
 
-            // Keep Mom simulation running while the player/follower are in the
-            // couch sequence so indoor NPC behavior remains alive.
-            if (_momNpc != null)
-            {
-                if (_momObstacleIndex >= 0)
-                    _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, Rectangle.Empty);
+            UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
 
-                _momNpc.Update(gameTime, _collisionMap);
-
-                if (_momObstacleIndex >= 0)
-                    _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, _momNpc.FootBounds);
-            }
+        if (_watercraftBoardSequence.IsActive)
+        {
+            _watercraftBoardSequence.Update(gameTime, input, _player, _follower, CanWatercraftMoveToBounds, CanDisembarkToBounds);
+            UpdatePassiveNpcSimulation(gameTime);
 
             UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
             return;
@@ -959,28 +1006,7 @@ public sealed class GameplayScreen : IGameScreen
 
         // Update Mom before player so her foot bounds are current in the collision map.
         // Clear her own obstacle first so she doesn't collide with herself.
-        if (_momNpc != null)
-        {
-            if (_momObstacleIndex >= 0)
-                _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, Rectangle.Empty);
-
-            _momNpc.Update(gameTime, _collisionMap);
-
-            if (_momObstacleIndex >= 0)
-                _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, _momNpc.FootBounds);
-        }
-
-        // Update Grandpa the same way.
-        if (_grandpaNpc != null)
-        {
-            if (_grandpaObstacleIndex >= 0)
-                _collisionMap.UpdateDynamicObstacle(_grandpaObstacleIndex, Rectangle.Empty);
-
-            _grandpaNpc.Update(gameTime, _collisionMap);
-
-            if (_grandpaObstacleIndex >= 0)
-                _collisionMap.UpdateDynamicObstacle(_grandpaObstacleIndex, _grandpaNpc.FootBounds);
-        }
+        UpdatePassiveNpcSimulation(gameTime);
 
         if (_dashRollSequence != null)
         {
@@ -1021,6 +1047,11 @@ public sealed class GameplayScreen : IGameScreen
         if (actionPressed && _dashRollSequence == null)
         {
             if (TryTalkToNearbyNpc())
+            {
+                return;
+            }
+
+            if (TryHopIntoWatercraft())
             {
                 return;
             }
@@ -1163,6 +1194,31 @@ public sealed class GameplayScreen : IGameScreen
         }
         _musicManager.Update(gameTime);
         _rippleSystem.Update(gameTime, input, _camera, _graphicsDevice, _virtualWidth, _virtualHeight);
+    }
+
+    private void UpdatePassiveNpcSimulation(GameTime gameTime)
+    {
+        if (_momNpc != null)
+        {
+            if (_momObstacleIndex >= 0)
+                _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, Rectangle.Empty);
+
+            _momNpc.Update(gameTime, _collisionMap);
+
+            if (_momObstacleIndex >= 0)
+                _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, _momNpc.FootBounds);
+        }
+
+        if (_grandpaNpc != null)
+        {
+            if (_grandpaObstacleIndex >= 0)
+                _collisionMap.UpdateDynamicObstacle(_grandpaObstacleIndex, Rectangle.Empty);
+
+            _grandpaNpc.Update(gameTime, _collisionMap);
+
+            if (_grandpaObstacleIndex >= 0)
+                _collisionMap.UpdateDynamicObstacle(_grandpaObstacleIndex, _grandpaNpc.FootBounds);
+        }
     }
 
     private void UpdateFrontDoors()
@@ -1355,12 +1411,18 @@ public sealed class GameplayScreen : IGameScreen
         var mapHeight = (float)_worldRenderer.MapPixelHeight;
         var mapWidth = (float)_worldRenderer.MapPixelWidth;
         var playerDepth = SortDepth(_player.Bounds, mapHeight, mapWidth);
+        if (TryGetOccupiedWatercraftDepth(mapHeight, mapWidth, out var occupiedWatercraftDepth))
+        {
+            playerDepth = Math.Min(Math.Max(playerDepth, occupiedWatercraftDepth + 0.0002f), 0.9999f);
+        }
         var playerTint = GetPlayerHitTint();
 
         var followerDepth = SortDepth(_follower.Bounds, mapHeight, mapWidth);
         var anyOccluded = _isPlayerOccluded || _isFollowerOccluded;
 
-        if (anyOccluded && !_couchSitSequence.IsActive)
+        var hasScriptedCharacterSequence = _couchSitSequence.IsActive || _watercraftBoardSequence.IsActive;
+
+        if (anyOccluded && !hasScriptedCharacterSequence)
         {
             // The cutoff depth for the "behind" pass is the shallowest (smallest) of
             // whichever characters are occluded, so all occluded characters are drawn
@@ -1411,6 +1473,14 @@ public sealed class GameplayScreen : IGameScreen
                     _worldSpriteBatch, _playerSpriteSheet, _followerSpriteSheet,
                     mapHeight, mapWidth);
                 DrawMomNpc(mapHeight, mapWidth);
+            }
+            else if (_watercraftBoardSequence.IsActive)
+            {
+                _watercraftBoardSequence.Draw(
+                    _worldSpriteBatch, _playerSpriteSheet, _followerSpriteSheet,
+                    mapHeight, mapWidth);
+                DrawMomNpc(mapHeight, mapWidth);
+                DrawGrandpaNpc(mapHeight, mapWidth);
             }
             else
             {
@@ -1744,6 +1814,7 @@ public sealed class GameplayScreen : IGameScreen
     {
         _questCompletionSequence.Enqueue(questState.Definition);
         _questCompleteCueSfx.Play(QuestCompleteCueSfxVolume, 0f, 0f);
+        PerformAutoSave();
     }
 
     /// <inheritdoc />
@@ -2022,6 +2093,7 @@ public sealed class GameplayScreen : IGameScreen
             }
             else if (_fadeHoldTimer <= 0f && _pendingZoneTransition is { } transition)
             {
+                PerformAutoSave();
                 _screenManager.Replace(new GameplayScreen(
                     _graphicsDevice,
                     _content,
@@ -2131,6 +2203,123 @@ public sealed class GameplayScreen : IGameScreen
 
         _couchSitSequence.Begin(_couches[nearestIndex], _player, _follower);
         return true;
+    }
+
+    private bool TryHopIntoWatercraft()
+    {
+        const float WatercraftHopSnapDistanceSquared = 4f * 4f;
+
+        var playerFootBounds = _player.FootBounds;
+        var playerFacing = _player.Facing;
+        var playerCenter = new Vector2(playerFootBounds.Center.X, playerFootBounds.Center.Y);
+
+        var nearestIndex = -1;
+        var nearestDistanceSquared = float.MaxValue;
+
+        for (var i = 0; i < _watercraftProps.Length; i++)
+        {
+            if (!_watercraftProps[i].CanInteract(playerFootBounds, playerFacing))
+            {
+                continue;
+            }
+
+            var boardPosition = _watercraftProps[i].GetBoardPosition(PlayerFramePixels, PlayerFramePixels);
+            if (Vector2.DistanceSquared(_player.Position, boardPosition) <= WatercraftHopSnapDistanceSquared)
+            {
+                continue;
+            }
+
+            var watercraftCenter = new Vector2(_watercraftProps[i].Bounds.Center.X, _watercraftProps[i].Bounds.Center.Y);
+            var distanceSquared = Vector2.DistanceSquared(playerCenter, watercraftCenter);
+            if (distanceSquared < nearestDistanceSquared)
+            {
+                nearestDistanceSquared = distanceSquared;
+                nearestIndex = i;
+            }
+        }
+
+        if (nearestIndex < 0)
+        {
+            return false;
+        }
+
+        _watercraftBoardSequence.Begin(_watercraftProps[nearestIndex], _player, _follower);
+        return true;
+    }
+
+    private bool CanWatercraftMoveToBounds(Rectangle candidateBounds)
+    {
+        if (candidateBounds.Left < 0
+            || candidateBounds.Top < 0
+            || candidateBounds.Right > _worldRenderer.MapPixelWidth
+            || candidateBounds.Bottom > _worldRenderer.MapPixelHeight)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < _watercraftTravelObstacleBounds.Length; i++)
+        {
+            if (_watercraftTravelObstacleBounds[i].Intersects(candidateBounds))
+            {
+                return false;
+            }
+        }
+
+        var samplePoints = new[]
+        {
+            new Point(candidateBounds.Left + 2, candidateBounds.Top + 2),
+            new Point(candidateBounds.Right - 3, candidateBounds.Top + 2),
+            new Point(candidateBounds.Left + 2, candidateBounds.Bottom - 3),
+            new Point(candidateBounds.Right - 3, candidateBounds.Bottom - 3),
+            new Point(candidateBounds.Center.X, candidateBounds.Center.Y),
+            new Point(candidateBounds.Center.X, candidateBounds.Top + 2),
+            new Point(candidateBounds.Center.X, candidateBounds.Bottom - 3),
+        };
+
+        var hasWaterSupport = false;
+        for (var i = 0; i < samplePoints.Length; i++)
+        {
+            if (IsPointWithinDock(samplePoints[i]))
+            {
+                continue;
+            }
+
+            if (_worldRenderer.IsWorldPointInWater(samplePoints[i]))
+            {
+                hasWaterSupport = true;
+                continue;
+            }
+
+            return false;
+        }
+
+        return hasWaterSupport;
+    }
+
+    private bool CanDisembarkToBounds(Rectangle actorBounds)
+    {
+        if (actorBounds.Left < 0
+            || actorBounds.Top < 0
+            || actorBounds.Right > _worldRenderer.MapPixelWidth
+            || actorBounds.Bottom > _worldRenderer.MapPixelHeight)
+        {
+            return false;
+        }
+
+        return !_collisionMap.IsWorldRectangleBlocked(actorBounds);
+    }
+
+    private bool IsPointWithinDock(Point point)
+    {
+        for (var i = 0; i < _docks.Length; i++)
+        {
+            if (_docks[i].Bounds.Contains(point))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool TryTalkToNearbyNpc()
@@ -2254,6 +2443,8 @@ public sealed class GameplayScreen : IGameScreen
     /// </summary>
     private void DrawWorldEntities(float mapHeight, float mapWidth, float playerDepth, EntityDepthFilter filter)
     {
+        var activeWatercraft = _watercraftBoardSequence.ActiveWatercraft;
+
         // Welcome mats and area rugs always draw at depth 0 — always on the ground, behind every sorted entity.
         if (filter != EntityDepthFilter.InFrontOfPlayer)
         {
@@ -2345,6 +2536,18 @@ public sealed class GameplayScreen : IGameScreen
         {
             for (var i = 0; i < _docks.Length; i++)
                 _docks[i].Draw(_worldSpriteBatch);
+        }
+
+        for (var i = 0; i < _watercraftProps.Length; i++)
+        {
+            if (activeWatercraft != null && ReferenceEquals(_watercraftProps[i], activeWatercraft))
+            {
+                continue;
+            }
+
+            var depth = SortDepth(_watercraftProps[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _watercraftProps[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _sunkenLogs.Length; i++)
@@ -2509,6 +2712,25 @@ public sealed class GameplayScreen : IGameScreen
         }
     }
 
+    private bool TryGetOccupiedWatercraftDepth(float mapHeight, float mapWidth, out float watercraftDepth)
+    {
+        var playerCenter = _player.Center;
+
+        for (var i = 0; i < _watercraftProps.Length; i++)
+        {
+            if (!_watercraftProps[i].ContainsPoint(playerCenter))
+            {
+                continue;
+            }
+
+            watercraftDepth = SortDepth(_watercraftProps[i].Bounds, mapHeight, mapWidth);
+            return true;
+        }
+
+        watercraftDepth = 0f;
+        return false;
+    }
+
     private void DrawMomNpc(float mapHeight, float mapWidth)
     {
         if (_momNpc == null || _momAnimator == null || _momSpriteSheet == null)
@@ -2565,5 +2787,240 @@ public sealed class GameplayScreen : IGameScreen
 
         var t = _playerHitFlashTimer / PlayerHitFlashDuration;
         return Color.Lerp(Color.White, new Color(255, 60, 60), t);
+    }
+
+    // ── Save / Load ──────────────────────────────────────────────────────
+
+    private const int AutoSaveSlot = 0;
+
+    /// <summary>
+    /// Captures the current game state and writes it to the auto-save slot (slot 0).
+    /// </summary>
+    private void PerformAutoSave()
+    {
+        PerformSave(AutoSaveSlot);
+    }
+
+    /// <summary>
+    /// Captures the current game state and writes it to the specified slot.
+    /// </summary>
+    private void PerformSave(int slot)
+    {
+        StoreCurrentMapWatercraftStateInSession();
+
+        var data = SaveGameMapper.Capture(
+            _player.Position,
+            _player.Facing,
+            _mapAssetName,
+            _gameSessionServices.Quests,
+            _combatStats,
+            _dayNightCycle?.CycleProgress ?? DayNightCycleStartProgress,
+            CaptureAllWatercraftStatesForSave());
+
+        _gameSessionServices.SaveGame.Save(slot, data);
+        System.Console.WriteLine($"[Save] Slot {slot} saved — zone={_mapAssetName}, pos=({_player.Position.X:F0},{_player.Position.Y:F0})");
+    }
+
+    /// <summary>
+    /// Loads saved data from the specified slot and replaces the current screen.
+    /// </summary>
+    private void PerformLoad(int slot)
+    {
+        var data = _gameSessionServices.SaveGame.Load(slot);
+        if (data is null)
+        {
+            System.Console.WriteLine($"[Save] Slot {slot} is empty — nothing to load.");
+            return;
+        }
+
+        RestoreWatercraftSessionState(data);
+
+        // Restore quest state into the existing manager before rebuilding the screen.
+        SaveGameMapper.RestoreQuests(data, _gameSessionServices.Quests);
+        _gameSessionServices.Quests.RebuildListsFromRestoredState();
+
+        var savedPlayer = data.Player;
+        var savedPosition = new Vector2(savedPlayer.X, savedPlayer.Y);
+
+        _screenManager.Replace(new GameplayScreen(
+            _graphicsDevice,
+            _content,
+            _virtualWidth,
+            _virtualHeight,
+            _screenManager,
+            _gameSessionServices,
+            _requestExit,
+            savedPlayer.ZoneMapAssetName,
+            spawnPointId: null,
+            fadeInFromBlack: true,
+            dayNightStartProgress: data.DayNight?.CycleProgress ?? DayNightCycleStartProgress,
+            spawnPosition: savedPosition,
+            saveDataToRestore: data));
+
+        System.Console.WriteLine($"[Save] Slot {slot} loaded — zone={savedPlayer.ZoneMapAssetName}, pos=({savedPlayer.X:F0},{savedPlayer.Y:F0})");
+    }
+
+    private SaveWatercraftData[] CaptureCurrentMapWatercraftStates()
+    {
+        if (_watercraftProps.Length == 0)
+        {
+            return [];
+        }
+
+        var states = new SaveWatercraftData[_watercraftProps.Length];
+        var activeWatercraft = _watercraftBoardSequence.ActiveWatercraft;
+        for (var i = 0; i < _watercraftProps.Length; i++)
+        {
+            var craft = _watercraftProps[i];
+            states[i] = new SaveWatercraftData
+            {
+                MapAssetName = _mapAssetName,
+                InitialX = craft.InitialPlacementPosition.X,
+                InitialY = craft.InitialPlacementPosition.Y,
+                CenterX = craft.Center.X,
+                CenterY = craft.Center.Y,
+                Facing = craft.Facing,
+                IsOccupied = activeWatercraft != null
+                    && ReferenceEquals(activeWatercraft, craft)
+                    && _watercraftBoardSequence.IsActive,
+            };
+        }
+
+        return states;
+    }
+
+    private SaveWatercraftData[] CaptureAllWatercraftStatesForSave()
+    {
+        var totalCount = 0;
+        foreach (var entry in _gameSessionServices.WatercraftStatesByMap)
+        {
+            totalCount += entry.Value.Length;
+        }
+
+        if (totalCount == 0)
+        {
+            return [];
+        }
+
+        var result = new SaveWatercraftData[totalCount];
+        var index = 0;
+        foreach (var entry in _gameSessionServices.WatercraftStatesByMap)
+        {
+            for (var i = 0; i < entry.Value.Length; i++)
+            {
+                result[index++] = CloneWatercraftState(entry.Value[i]);
+            }
+        }
+
+        return result;
+    }
+
+    private void StoreCurrentMapWatercraftStateInSession()
+    {
+        _gameSessionServices.WatercraftStatesByMap[_mapAssetName] = CaptureCurrentMapWatercraftStates();
+    }
+
+    private void RestoreWatercraftSessionState(SaveGameData data)
+    {
+        _gameSessionServices.WatercraftStatesByMap.Clear();
+        if (data.Watercraft is null || data.Watercraft.Length == 0)
+        {
+            return;
+        }
+
+        var groupedStates = new Dictionary<string, List<SaveWatercraftData>>(StringComparer.Ordinal);
+        for (var i = 0; i < data.Watercraft.Length; i++)
+        {
+            var state = data.Watercraft[i];
+            if (!groupedStates.TryGetValue(state.MapAssetName, out var states))
+            {
+                states = new List<SaveWatercraftData>();
+                groupedStates[state.MapAssetName] = states;
+            }
+
+            states.Add(CloneWatercraftState(state));
+        }
+
+        foreach (var entry in groupedStates)
+        {
+            _gameSessionServices.WatercraftStatesByMap[entry.Key] = entry.Value.ToArray();
+        }
+    }
+
+    private void RestoreWatercraftStateFromSession()
+    {
+        SaveWatercraftData[] states = null;
+        if (!_gameSessionServices.WatercraftStatesByMap.TryGetValue(_mapAssetName, out states)
+            && _pendingSaveRestore != null
+            && _pendingSaveRestore.Watercraft is { Length: > 0 })
+        {
+            var filteredStates = new List<SaveWatercraftData>();
+            for (var i = 0; i < _pendingSaveRestore.Watercraft.Length; i++)
+            {
+                var state = _pendingSaveRestore.Watercraft[i];
+                if (string.Equals(state.MapAssetName, _mapAssetName, StringComparison.Ordinal))
+                {
+                    filteredStates.Add(state);
+                }
+            }
+
+            if (filteredStates.Count > 0)
+            {
+                states = filteredStates.ToArray();
+            }
+        }
+
+        if (states == null || states.Length == 0)
+        {
+            return;
+        }
+
+        Watercraft occupiedWatercraft = null;
+        for (var i = 0; i < states.Length; i++)
+        {
+            var craft = FindWatercraftByInitialPlacement(new Vector2(states[i].InitialX, states[i].InitialY));
+            if (craft == null)
+            {
+                continue;
+            }
+
+            craft.SetState(new Vector2(states[i].CenterX, states[i].CenterY), states[i].Facing);
+            if (states[i].IsOccupied)
+            {
+                occupiedWatercraft = craft;
+            }
+        }
+
+        if (occupiedWatercraft != null)
+        {
+            _watercraftBoardSequence.RestoreSeated(occupiedWatercraft, _player, _follower);
+        }
+    }
+
+    private Watercraft FindWatercraftByInitialPlacement(Vector2 initialPlacement)
+    {
+        for (var i = 0; i < _watercraftProps.Length; i++)
+        {
+            if (Vector2.DistanceSquared(_watercraftProps[i].InitialPlacementPosition, initialPlacement) <= 0.01f)
+            {
+                return _watercraftProps[i];
+            }
+        }
+
+        return null;
+    }
+
+    private static SaveWatercraftData CloneWatercraftState(SaveWatercraftData state)
+    {
+        return new SaveWatercraftData
+        {
+            MapAssetName = state.MapAssetName,
+            InitialX = state.InitialX,
+            InitialY = state.InitialY,
+            CenterX = state.CenterX,
+            CenterY = state.CenterY,
+            Facing = state.Facing,
+            IsOccupied = state.IsOccupied,
+        };
     }
 }

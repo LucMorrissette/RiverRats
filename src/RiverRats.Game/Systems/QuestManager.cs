@@ -60,6 +60,32 @@ internal sealed class QuestManager
     internal event Action<QuestState?>? TrackedQuestChanged;
 
     /// <summary>
+    /// Rebuilds the active/available/tracked lists from restored quest state.
+    /// Call after <see cref="SaveGameMapper.RestoreQuests"/> has applied saved data.
+    /// </summary>
+    internal void RebuildListsFromRestoredState()
+    {
+        _activeQuests.Clear();
+        _availableQuests.Clear();
+        _trackedQuest = null;
+
+        for (var i = 0; i < _questStatesInLoadOrder.Count; i++)
+        {
+            var quest = _questStatesInLoadOrder[i];
+            if (quest.Status == QuestStatus.Active || quest.Status == QuestStatus.Completed)
+            {
+                _availableQuests.Add(quest);
+            }
+
+            if (quest.Status == QuestStatus.Active)
+            {
+                _activeQuests.Add(quest);
+                _trackedQuest ??= quest;
+            }
+        }
+    }
+
+    /// <summary>
     /// Loads quest definitions and prepares their runtime state.
     /// </summary>
     /// <param name="definitions">Validated quest definitions in load order.</param>

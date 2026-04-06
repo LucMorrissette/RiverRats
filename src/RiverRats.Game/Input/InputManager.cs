@@ -219,7 +219,9 @@ public sealed class InputManager : IInputManager, IDisposable
             [InputAction.ToggleCollisionDebug] = new[] { Keys.U },
             [InputAction.ToggleCrtFilter] = new[] { Keys.F9 },
             [InputAction.CopyScreenshotToClipboard] = new[] { Keys.P },
-            [InputAction.Pause] = new[] { Keys.Escape }
+            [InputAction.Pause] = new[] { Keys.Escape },
+            [InputAction.QuickSave] = new[] { Keys.K },
+            [InputAction.QuickLoad] = new[] { Keys.L }
         };
     }
 

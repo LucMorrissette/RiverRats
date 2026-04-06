@@ -17,7 +17,10 @@
 | `IGameScreen` | `Screens/` | Screen lifecycle contract (load, update, draw, unload, transparency). |
 | `ScreenManager` | `Screens/` | Stack-based screen host. Push/pop/replace semantics with deferred mutation during update. |
 | `GameEventBus` | `Core/` | Type-keyed publish/subscribe hub for cross-system gameplay events used by quests and other session-scoped progression features. |
-| `GameSessionServices` | `Core/` | Shared runtime service bundle that survives screen replacement and carries the session event bus plus quest manager. |
+| `GameSessionServices` | `Core/` | Shared runtime service bundle that survives screen replacement and carries the session event bus, quest manager, and save game service. |
+| `ISaveGameService` | `Core/` | Abstraction for persisting and loading save game data. Supports multiple slots, save/load/delete/query operations. |
+| `JsonSaveGameService` | `Data/Save/` | `ISaveGameService` implementation that writes JSON files to `%APPDATA%/RiverRats/saves/`. Uses atomic writes (tmp + rename). |
+| `SaveGameMapper` | `Data/Save/` | Static capture/restore mapper — single source of truth for converting live game state to/from `SaveGameData`. |
 | `QuestDefinitionLoader` | `Data/` | Loads quest definitions from raw JSON and validates ids, objective structure, and required counts before runtime state is created. |
 
 *(Add entries as core classes are created — GameEvents, Direction, IMapCollisionData, etc.)*
@@ -52,13 +55,12 @@
 | `QuestEventConditionDefinition` | `Data/` | Event requirement used by quest start triggers and objective completion checks. Matches a `GameEventType`, optional target id, and required count. |
 | `ObjectiveDefinition` | `Data/` | Immutable quest objective definition loaded from JSON, including player-facing text and an event-driven completion rule. |
 | `QuestDefinition` | `Data/` | Immutable linear quest definition loaded from JSON, including id, title, description, optional start trigger, auto-start flag, and ordered objectives. |
-| `QuestState` | `Data/` | Mutable runtime quest progress for a loaded `QuestDefinition`, tracking current objective index and per-objective counters. |
-
-*(Add entries as data classes are created — configs, enums, save DTOs, etc.)*
-
-<!-- Example format:
-| `SaveGameData` | `Data/Save/` | Root save game data model. |
--->
+| `QuestState` | `Data/` | Mutable runtime quest progress for a loaded `QuestDefinition`, tracking current objective index and per-objective counters. Supports `RestoreState()` for save/load. |
+| `SaveGameData` | `Data/Save/` | Root save DTO. Contains version, timestamp, and nested DTOs for player, quests, combat stats, and day/night state. |
+| `SavePlayerData` | `Data/Save/` | Player position, facing direction, and current zone map asset name. |
+| `SaveQuestStateData` | `Data/Save/` | Per-quest snapshot: quest id, status, objective index, and progress counters. |
+| `SaveCombatStatsData` | `Data/Save/` | Forest combat stat snapshot: max HP, level, XP, multipliers. |
+| `SaveDayNightData` | `Data/Save/` | Day/night cycle progress (0–1 float). |
 
 ## Utility Classes
 

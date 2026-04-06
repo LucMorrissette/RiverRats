@@ -28,6 +28,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
     private readonly int _tileWidth;
     private readonly int _tileHeight;
     private readonly MapLayer[] _layers;
+    private readonly int[][] _waterLayerTileGlobalIds;
     private readonly bool[] _blockedByTile;
     private readonly int[] _variantIndexByTile;
     private readonly int _tilesetFirstGlobalIdentifier;
@@ -139,12 +140,19 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
         }
 
         var layers = new List<MapLayer>();
+        var waterLayerTileGlobalIds = new List<int[]>();
         foreach (var layerElement in mapElement.Elements("layer"))
         {
             var layerName = TmxXmlHelpers.GetRequiredStringAttribute(layerElement, "name");
             var dataElement = layerElement.Element("data") ?? throw new InvalidOperationException($"TMX layer '{layerName}' data was not found.");
             var tileGlobalIds = TmxXmlHelpers.ParseCsvTileData(dataElement.Value, _mapWidth * _mapHeight);
-            layers.Add(new MapLayer(layerName, tileGlobalIds, TmxXmlHelpers.IsWaterLayerName(layerName)));
+            var isWaterLayer = TmxXmlHelpers.IsWaterLayerName(layerName);
+            layers.Add(new MapLayer(layerName, tileGlobalIds, isWaterLayer));
+
+            if (isWaterLayer)
+            {
+                waterLayerTileGlobalIds.Add(tileGlobalIds);
+            }
         }
 
         if (layers.Count == 0)
@@ -153,6 +161,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
         }
 
         _layers = layers.ToArray();
+    _waterLayerTileGlobalIds = waterLayerTileGlobalIds.ToArray();
 
         var tileCount = _mapWidth * _mapHeight;
         _blockedByTile = new bool[tileCount];
@@ -403,6 +412,25 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
         return false;
     }
 
+    /// <summary>
+    /// Returns true when the provided world-space point lies on any authored water layer tile.
+    /// </summary>
+    public bool IsWorldPointInWater(Point worldPoint)
+    {
+        if (worldPoint.X < 0
+            || worldPoint.Y < 0
+            || worldPoint.X >= MapPixelWidth
+            || worldPoint.Y >= MapPixelHeight)
+        {
+            return false;
+        }
+
+        var tileX = worldPoint.X / _tileWidth;
+        var tileY = worldPoint.Y / _tileHeight;
+        var tileIndex = (tileY * _mapWidth) + tileX;
+        return HasAnyWaterTileAt(_waterLayerTileGlobalIds, tileIndex);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -423,6 +451,33 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
     /// </summary>
     internal static bool IsWaterLayerName(string layerName) =>
         TmxXmlHelpers.IsWaterLayerName(layerName);
+
+    /// <summary>
+    /// Returns true when any supplied water layer has a non-empty tile at the given index.
+    /// </summary>
+    internal static bool HasAnyWaterTileAt(IReadOnlyList<int[]> waterLayerTileGlobalIds, int tileIndex)
+    {
+        if (tileIndex < 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < waterLayerTileGlobalIds.Count; i++)
+        {
+            var tileIds = waterLayerTileGlobalIds[i];
+            if (tileIndex >= tileIds.Length)
+            {
+                continue;
+            }
+
+            if (tileIds[tileIndex] > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Converts a Tiled tile-object position (bottom-left origin) to world-space top-left.
