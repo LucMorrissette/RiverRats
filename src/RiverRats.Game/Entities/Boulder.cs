@@ -14,6 +14,7 @@ public sealed class Boulder : IWorldProp
     private readonly float _rotationRadians;
     private readonly float _scale;
     private readonly int _collisionHeightPixels;
+    private readonly int _collisionYOffset;
     private readonly int _scaledWidthPixels;
     private readonly int _scaledHeightPixels;
     private readonly int _scaledCollisionHeightPixels;
@@ -31,7 +32,8 @@ public sealed class Boulder : IWorldProp
     /// Use a small value for tall props (e.g. shelves) so only the base blocks movement.
     /// </param>
     /// <param name="scale">Uniform sprite scale applied to both draw size and collision bounds.</param>
-    public Boulder(Vector2 position, Texture2D texture, bool suppressOcclusion = false, float rotationRadians = 0f, int collisionHeightPixels = 0, float scale = 1f)
+    /// <param name="collisionYOffset">Pixel offset applied to the collision box Y position (negative = up).</param>
+    public Boulder(Vector2 position, Texture2D texture, bool suppressOcclusion = false, float rotationRadians = 0f, int collisionHeightPixels = 0, float scale = 1f, int collisionYOffset = 0)
     {
         if (scale <= 0f)
         {
@@ -46,6 +48,7 @@ public sealed class Boulder : IWorldProp
         _scaledWidthPixels = ScaleDimension(texture.Width, _scale);
         _scaledHeightPixels = ScaleDimension(texture.Height, _scale);
         _scaledCollisionHeightPixels = ScaleDimension(_collisionHeightPixels, _scale);
+        _collisionYOffset = collisionYOffset;
         SuppressOcclusion = suppressOcclusion;
     }
 
@@ -61,7 +64,7 @@ public sealed class Boulder : IWorldProp
     /// <summary>World-space blocking bounds for this boulder.</summary>
     public Rectangle Bounds => new(
         (int)_position.X,
-        (int)_position.Y + _scaledHeightPixels - _scaledCollisionHeightPixels,
+        (int)_position.Y + _scaledHeightPixels - _scaledCollisionHeightPixels + _collisionYOffset,
         _scaledWidthPixels,
         _scaledCollisionHeightPixels);
 

@@ -333,7 +333,8 @@ internal static class PropFactory
         bool isUnderwater,
         bool reachesSurface = false,
         int collisionHeightPixels = 0,
-        int targetWidthPixels = 0)
+        int targetWidthPixels = 0,
+        int collisionYOffset = 0)
     {
         var props = new List<Boulder>(placements.Count);
         var scale = CalculateUniformScale(texture.Width, targetWidthPixels);
@@ -360,10 +361,47 @@ internal static class PropFactory
                 texture,
                 rotationRadians: placement.RotationRadians,
                 collisionHeightPixels: collisionHeightPixels,
-                scale: scale));
+                scale: scale,
+                collisionYOffset: collisionYOffset));
         }
 
         return props.ToArray();
+    }
+
+    internal static GardenShed[] CreateGardenSheds(
+        Texture2D closedTexture,
+        Texture2D openTexture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
+        int collisionHeightPixels = 0,
+        int targetWidthPixels = 0,
+        int collisionYOffset = 0)
+    {
+        var sheds = new List<GardenShed>(placements.Count);
+        var scale = CalculateUniformScale(closedTexture.Width, targetWidthPixels);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "garden-shed", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (placement.IsUnderwater)
+            {
+                continue;
+            }
+
+            sheds.Add(new GardenShed(
+                placement.Position,
+                closedTexture,
+                openTexture,
+                collisionHeightPixels: collisionHeightPixels,
+                scale: scale,
+                collisionYOffset: collisionYOffset,
+                suppressOcclusion: placement.SuppressOcclusion));
+        }
+
+        return sheds.ToArray();
     }
 
     /// <summary>
@@ -600,6 +638,17 @@ internal static class PropFactory
         for (var i = 0; i < boulders.Length; i++)
         {
             bounds[i] = boulders[i].Bounds;
+        }
+
+        return bounds;
+    }
+
+    internal static Rectangle[] GetGardenShedBounds(GardenShed[] sheds)
+    {
+        var bounds = new Rectangle[sheds.Length];
+        for (var i = 0; i < sheds.Length; i++)
+        {
+            bounds[i] = sheds[i].Bounds;
         }
 
         return bounds;

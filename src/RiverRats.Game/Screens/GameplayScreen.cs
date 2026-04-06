@@ -53,6 +53,7 @@ public sealed class GameplayScreen : IGameScreen
     private const float DeciduousTreeSortAnchorOffsetPixels = 10f;
     private const float BushSortAnchorOffsetPixels = 4f;
     private const int EntertainmentShelfWidthTiles = 2;
+    private const int GardenShedWidthTiles = 2;
     private const float ZoneTransitionFadeDurationSeconds = 0.4f;
     private const float ZoneTransitionBlackHoldSeconds = 0.15f;
     private const float GameplayMusicVolume = 1f;
@@ -204,6 +205,7 @@ public sealed class GameplayScreen : IGameScreen
     private Boulder[] _gameConsoles;
     private Boulder[] _pottedPlants1;
     private Boulder[] _entertainmentShelves;
+    private GardenShed[] _gardenSheds;
     private Boulder[] _sunkenLogs;
     private Boulder[] _underwaterSunkenLogs;
     private SunkenChest[] _sunkenChests;
@@ -573,6 +575,13 @@ public sealed class GameplayScreen : IGameScreen
             isUnderwater: false,
             collisionHeightPixels: 32,
             targetWidthPixels: _worldRenderer.TileWidthPixels * EntertainmentShelfWidthTiles);
+        _gardenSheds = PropFactory.CreateGardenSheds(
+            _content.Load<Texture2D>("Sprites/garden-shed-closed"),
+            _content.Load<Texture2D>("Sprites/garden-shed-open"),
+            _worldRenderer.PropPlacements,
+            collisionHeightPixels: 32,
+            targetWidthPixels: _worldRenderer.TileWidthPixels * GardenShedWidthTiles,
+            collisionYOffset: -20);
 
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _hookIconTexture = _content.Load<Texture2D>("Sprites/hook-icon");
@@ -700,6 +709,7 @@ public sealed class GameplayScreen : IGameScreen
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_gameConsoles));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_pottedPlants1));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_entertainmentShelves));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetGardenShedBounds(_gardenSheds));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_pineTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_birchTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_deadTrees));
@@ -832,6 +842,7 @@ public sealed class GameplayScreen : IGameScreen
         foreach (var g in _gameConsoles)    _occluders.Add(new OcclusionEntry(g));
         foreach (var p in _pottedPlants1)   _occluders.Add(new OcclusionEntry(p));
         foreach (var e in _entertainmentShelves) _occluders.Add(new OcclusionEntry(e));
+        foreach (var s in _gardenSheds)     _occluders.Add(new OcclusionEntry(s));
         foreach (var l in _sunkenLogs)      _occluders.Add(new OcclusionEntry(l));
 
         _crtTransitionRenderer = new CrtTransitionRenderer(_pixelTexture);
@@ -1033,6 +1044,7 @@ public sealed class GameplayScreen : IGameScreen
             _followerSystem.GetRestPosition(_player, _follower, _collisionMap,
                 _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight));
         UpdateFrontDoors();
+        UpdateGardenShedDoors();
 
         _flowField?.Update(_player.Center);
         _waveManager?.Update(gameTime, _camera.WorldBounds);
@@ -1169,6 +1181,37 @@ public sealed class GameplayScreen : IGameScreen
                 anyOpened = true;
             }
             else if (wasOpen && !_frontDoors[i].IsOpen)
+            {
+                anyClosed = true;
+            }
+        }
+
+        if (anyOpened)
+        {
+            _doorOpenSfx.Play(DoorOpenSfxVolume, 0f, 0f);
+        }
+
+        if (anyClosed)
+        {
+            _doorCloseSfx.Play(DoorCloseSfxVolume, 0f, 0f);
+        }
+    }
+
+    private void UpdateGardenShedDoors()
+    {
+        var anyOpened = false;
+        var anyClosed = false;
+        var playerFootBounds = _player.FootBounds;
+
+        for (var i = 0; i < _gardenSheds.Length; i++)
+        {
+            var wasOpen = _gardenSheds[i].IsDoorOpen;
+            _gardenSheds[i].UpdateDoorState(playerFootBounds);
+            if (!wasOpen && _gardenSheds[i].IsDoorOpen)
+            {
+                anyOpened = true;
+            }
+            else if (wasOpen && !_gardenSheds[i].IsDoorOpen)
             {
                 anyClosed = true;
             }
@@ -1779,6 +1822,11 @@ public sealed class GameplayScreen : IGameScreen
             _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _entertainmentShelves[i].Bounds, Color.Red);
         }
 
+        for (var i = 0; i < _gardenSheds.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _gardenSheds[i].Bounds, Color.Red);
+        }
+
         for (var i = 0; i < _firepits.Length; i++)
         {
             _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _firepits[i].Bounds, Color.Red);
@@ -2276,6 +2324,13 @@ public sealed class GameplayScreen : IGameScreen
             var depth = SortDepth(_entertainmentShelves[i].Bounds, mapHeight, mapWidth);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _entertainmentShelves[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _gardenSheds.Length; i++)
+        {
+            var depth = SortDepth(_gardenSheds[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _gardenSheds[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _gardenGnomes.Length; i++)

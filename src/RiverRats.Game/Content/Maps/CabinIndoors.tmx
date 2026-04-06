@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="10" height="7" tilewidth="32" tileheight="32" infinite="0" nextlayerid="7" nextobjectid="38">
  <tileset firstgid="1" source="../Tilesets/CabinInterior.tsx"/>
- <tileset firstgid="5" source="../Tilesets/Props.tsx"/>
+ <tileset firstgid="9" source="../Tilesets/Props.tsx"/>
  <layer id="1" name="Ground" width="10" height="7">
   <data encoding="csv">
 1,1,1,1,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1
+1,1,1,1,1,1,5,6,7,8,
+1,1,1,1,1,1,6,7,8,5,
+1,1,1,1,1,1,7,8,5,6,
+1,1,1,1,1,1,8,5,6,7
 </data>
  </layer>
  <objectgroup id="4" name="stuff">
-  <object id="5" gid="35" x="196.616" y="224.073" width="37" height="32"/>
-  <object id="14" gid="38" x="5.01222" y="162.715" width="25" height="48"/>
-  <object id="15" gid="39" x="31.2589" y="169.103" width="16" height="10"/>
-  <object id="16" gid="37" x="134.305" y="201.224" width="24" height="80"/>
-  <object id="17" gid="36" x="131.021" y="205.392" width="96" height="92" rotation="-90"/>
-  <object id="18" gid="40" x="2.05913" y="203.349" width="32" height="34"/>
-  <object id="22" gid="41" x="32" y="96" width="64" height="40"/>
-  <object id="23" gid="42" x="96" y="96" width="20" height="32"/>
-  <object id="25" gid="44" x="6.33333" y="104.667" width="20" height="32"/>
+  <object id="5" gid="39" x="196.616" y="224.073" width="37" height="32"/>
+  <object id="14" gid="42" x="5.01222" y="162.715" width="25" height="48"/>
+  <object id="15" gid="43" x="31.2589" y="169.103" width="16" height="10"/>
+  <object id="16" gid="41" x="134.305" y="201.224" width="24" height="80"/>
+  <object id="17" gid="40" x="131.021" y="205.392" width="96" height="92" rotation="-90"/>
+  <object id="18" gid="44" x="2.05913" y="203.349" width="32" height="34"/>
+  <object id="22" gid="45" x="32" y="96" width="64" height="40"/>
+  <object id="23" gid="46" x="96" y="96" width="20" height="32"/>
+  <object id="25" gid="48" x="6.33333" y="104.667" width="20" height="32"/>
  </objectgroup>
  <objectgroup id="2" name="ZoneTriggers">
   <object id="1" x="204.15" y="212.711" width="30" height="10.7655">
