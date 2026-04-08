@@ -11,7 +11,7 @@ Usage:
     python tooling/sprites/prepare_hook_icon.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/hook-icon.png
+    src/DogDays.Game/Content/Sprites/hook-icon.png
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = ROOT / "tooling" / "sprites" / "hook_icon.jpg"
-OUTPUT_PATH = ROOT / "src" / "RiverRats.Game" / "Content" / "Sprites" / "hook-icon.png"
+OUTPUT_PATH = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "hook-icon.png"
 
 TARGET_HEIGHT = 12
 PALETTE_COLORS = 12

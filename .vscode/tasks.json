@@ -2,25 +2,25 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Build RiverRats",
+			"label": "Build DogDays",
 			"type": "shell",
 			"command": "powershell.exe",
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"Set-Location 'C:\\Users\\Luc\\git\\RiverRats'; dotnet build RiverRats.slnx"
+				"Set-Location 'C:\\Users\\Luc\\git\\DogDays'; dotnet build DogDays.slnx"
 			],
 			"isBackground": false,
 			"group": "build"
 		},
 		{
-			"label": "Run RiverRats",
+			"label": "Run DogDays",
 			"type": "shell",
 			"command": "powershell.exe",
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"Set-Location 'C:\\Users\\Luc\\git\\RiverRats'; dotnet run --project src/RiverRats.Game/RiverRats.Game.csproj"
+				"Set-Location 'C:\\Users\\Luc\\git\\DogDays'; dotnet run --project src/DogDays.Game/DogDays.Game.csproj"
 			],
 			"isBackground": false
 		}

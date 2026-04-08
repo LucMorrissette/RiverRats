@@ -8,7 +8,7 @@ Style goals:
 
 Output:
   - tooling/sprites/output/companion_character_sheet.png
-  - src/RiverRats.Game/Content/Sprites/companion_character_sheet.png
+  - src/DogDays.Game/Content/Sprites/companion_character_sheet.png
 """
 
 from PIL import Image
@@ -21,7 +21,7 @@ REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 BASE_SHEET_PATH = os.path.join(
     REPO_ROOT,
     "src",
-    "RiverRats.Game",
+    "DogDays.Game",
     "Content",
     "Sprites",
     "generic_character_sheet.png",
@@ -34,7 +34,7 @@ OUTPUT_SHEET_PATH = os.path.join(OUTPUT_DIR, "companion_character_sheet.png")
 CONTENT_SHEET_PATH = os.path.join(
     REPO_ROOT,
     "src",
-    "RiverRats.Game",
+    "DogDays.Game",
     "Content",
     "Sprites",
     "companion_character_sheet.png",

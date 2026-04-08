@@ -11,7 +11,7 @@ Usage:
     python tooling/sprites/prepare_gnome.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/garden-gnome.png
+    src/DogDays.Game/Content/Sprites/garden-gnome.png
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = ROOT / "tooling" / "sprites" / "gnome.jpg"
-OUTPUT_PATH = ROOT / "src" / "RiverRats.Game" / "Content" / "Sprites" / "garden-gnome.png"
+OUTPUT_PATH = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "garden-gnome.png"
 
 TARGET_HEIGHT = 16  # 1/2 tile (32 / 2 = 16 px)
 PALETTE_COLORS = 20

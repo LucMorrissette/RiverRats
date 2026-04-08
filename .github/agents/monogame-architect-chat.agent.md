@@ -57,7 +57,7 @@ When user transitions from discussion to implementation:
 - Read and follow `.github/copilot-instructions.md`.
 - Consult `docs/DESIGN.md` before architecture recommendations (if it exists).
 - When recommending new entities, systems, or patterns, note that design docs must be updated as part of implementation.
-- Keep namespace and folder conventions aligned with the existing project (`RiverRats` namespace, `src/RiverRats.Game/` layout).
+- Keep namespace and folder conventions aligned with the existing project (`DogDays` namespace, `src/DogDays.Game/` layout).
 
 ## Output Style
 

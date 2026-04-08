@@ -16,7 +16,7 @@ import math
 TILE_SIZE = 32
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output", "tiles")
-CONTENT_DIR = os.path.join(SCRIPT_DIR, "..", "..", "src", "RiverRats.Game",
+CONTENT_DIR = os.path.join(SCRIPT_DIR, "..", "..", "src", "DogDays.Game",
                            "Content", "Tilesets")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 

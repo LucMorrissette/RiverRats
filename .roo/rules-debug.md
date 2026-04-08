@@ -1,4 +1,4 @@
-# Debug Mode Rules — RiverRats
+# Debug Mode Rules — DogDays
 
 ## Debugging Approach
 

@@ -11,7 +11,7 @@ Usage:
     python tooling/sprites/prepare_sunken_chest.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/sunken-chest.png
+    src/DogDays.Game/Content/Sprites/sunken-chest.png
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = ROOT / "tooling" / "sprites" / "sunken_chest.jpg"
-OUTPUT_PATH = ROOT / "src" / "RiverRats.Game" / "Content" / "Sprites" / "sunken-chest.png"
+OUTPUT_PATH = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "sunken-chest.png"
 
 TARGET_WIDTH = 32
 PALETTE_COLORS = 20

@@ -31,7 +31,7 @@ MAP_HEIGHT = 17  # tiles  (30x16=480, 17x16=272 -- fits 480x270 virtual res)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
-CONTENT_DIR = os.path.join(PROJECT_ROOT, "src", "RiverRats.Game", "Content")
+CONTENT_DIR = os.path.join(PROJECT_ROOT, "src", "DogDays.Game", "Content")
 TILESETS_DIR = os.path.join(CONTENT_DIR, "Tilesets")
 FISHING_TILES_DIR = os.path.join(TILESETS_DIR, "fishing")
 MAPS_DIR = os.path.join(CONTENT_DIR, "Maps")

@@ -12,10 +12,10 @@ Usage:
     python tooling/sprites/prepare_deciduous_trees.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/deciduous-tree1.png
-    src/RiverRats.Game/Content/Sprites/deciduous-tree2.png
-    src/RiverRats.Game/Content/Sprites/deciduous-tree3.png
-    src/RiverRats.Game/Content/Sprites/deciduous-tree4.png
+    src/DogDays.Game/Content/Sprites/deciduous-tree1.png
+    src/DogDays.Game/Content/Sprites/deciduous-tree2.png
+    src/DogDays.Game/Content/Sprites/deciduous-tree3.png
+    src/DogDays.Game/Content/Sprites/deciduous-tree4.png
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = ROOT / "tooling" / "sprites" / "sprite_sheet_deciduous_trees.jpg"
-OUTPUT_DIR = ROOT / "src" / "RiverRats.Game" / "Content" / "Sprites"
+OUTPUT_DIR = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites"
 
 TARGET_HEIGHT = 128  # 4 tiles at 32 px
 PALETTE_COLORS = 20

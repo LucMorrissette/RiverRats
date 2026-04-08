@@ -17,7 +17,7 @@ import numpy as np
 SAMPLE_RATE = 44100
 OUTPUT_DIR = os.path.join(
     os.path.dirname(__file__),
-    "..", "..", "src", "RiverRats.Game", "Content", "Audio", "SFX",
+    "..", "..", "src", "DogDays.Game", "Content", "Audio", "SFX",
 )
 NUM_VARIANTS = 4
 RNG_SEED = 42

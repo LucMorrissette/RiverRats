@@ -5,10 +5,13 @@ Prepares WelcomeMat.jpg for use as a game prop:
   - Resizes to exactly 32 px tall (1 tile), preserving aspect ratio.
   - Saves as welcome-mat.png in the game's Content/Sprites folder.
 """
+from pathlib import Path
+
 from PIL import Image
 
-SRC = r"C:\Users\Luc\git\RiverRats\tooling\sprites\WelcomeMat.jpg"
-DST = r"C:\Users\Luc\git\RiverRats\src\RiverRats.Game\Content\Sprites\welcome-mat.png"
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "tooling" / "sprites" / "WelcomeMat.jpg"
+DST = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "welcome-mat.png"
 
 # Pixels whose min-channel value >= FULL_TRANSPARENT_THRESHOLD become fully transparent.
 # Pixels in [FRINGE_THRESHOLD, FULL_TRANSPARENT_THRESHOLD) get alpha-tapered so edges soften.

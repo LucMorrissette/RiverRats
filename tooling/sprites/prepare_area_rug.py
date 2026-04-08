@@ -5,10 +5,13 @@ Prepares arearug.jpg for use as a game prop:
   - Resizes to exactly 96 px wide (3 tiles), preserving aspect ratio.
   - Saves as area-rug.png in the game's Content/Sprites folder.
 """
+from pathlib import Path
+
 from PIL import Image
 
-SRC = r"C:\Users\Luc\git\RiverRats\tooling\sprites\AreaRugh\arearug.jpg"
-DST = r"C:\Users\Luc\git\RiverRats\src\RiverRats.Game\Content\Sprites\area-rug.png"
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "tooling" / "sprites" / "AreaRugh" / "arearug.jpg"
+DST = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "area-rug.png"
 
 FULL_TRANSPARENT_THRESHOLD = 235
 FRINGE_THRESHOLD = 210

@@ -3,7 +3,7 @@ import zlib
 from pathlib import Path
 
 
-OUTPUT_PATH = Path(__file__).resolve().parents[2] / "src" / "RiverRats.Game" / "Content" / "Sprites" / "projectile-arrow.png"
+OUTPUT_PATH = Path(__file__).resolve().parents[2] / "src" / "DogDays.Game" / "Content" / "Sprites" / "projectile-arrow.png"
 WIDTH = 12
 HEIGHT = 12
 TRANSPARENT = (0, 0, 0, 0)

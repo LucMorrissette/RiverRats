@@ -12,7 +12,7 @@ and the same sheet layout as the main character (generate_character.py).
 
 Output:
   - tooling/sprites/output/mom_character_sheet.png
-  - src/RiverRats.Game/Content/Sprites/mom_character_sheet.png
+  - src/DogDays.Game/Content/Sprites/mom_character_sheet.png
 
 Layout (4 cols × 4 rows, 32×32 per frame):
   Row 0 = Down   (facing camera)
@@ -40,7 +40,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 OUTPUT_SHEET_PATH = os.path.join(OUTPUT_DIR, "mom_character_sheet.png")
 CONTENT_SHEET_PATH = os.path.join(
     REPO_ROOT,
-    "src", "RiverRats.Game", "Content", "Sprites", "mom_character_sheet.png",
+    "src", "DogDays.Game", "Content", "Sprites", "mom_character_sheet.png",
 )
 
 # ---------------------------------------------------------------------------

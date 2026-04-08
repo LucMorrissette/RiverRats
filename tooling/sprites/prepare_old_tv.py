@@ -5,10 +5,13 @@ Prepares old-tv.jpg for use as a game prop:
   - Resizes to exactly 48 px tall (1.5 tiles), preserving aspect ratio.
   - Saves as old-tv.png in the game's Content/Sprites folder.
 """
+from pathlib import Path
+
 from PIL import Image
 
-SRC = r"C:\Users\Luc\git\RiverRats\tooling\old-tv.jpg"
-DST = r"C:\Users\Luc\git\RiverRats\src\RiverRats.Game\Content\Sprites\old-tv.png"
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "tooling" / "old-tv.jpg"
+DST = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "old-tv.png"
 
 FULL_TRANSPARENT_THRESHOLD = 235
 FRINGE_THRESHOLD = 210

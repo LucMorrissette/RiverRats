@@ -5,7 +5,7 @@
 | Decision | Value | Rationale |
 |---|---|---|
 | **Framework** | xUnit | Standard .NET test framework; good tooling support. |
-| **Test project** | `tests/RiverRats.Tests/` | Separate project referencing the game project directly. |
+| **Test project** | `tests/DogDays.Tests/` | Separate project referencing the game project directly. |
 | **Testability strategy** | Decouple logic from GPU via interfaces | All game logic testable without a GraphicsDevice. |
 | **Test tiers** | Unit + Integration | Unit for single-class isolation; Integration for multi-system frame simulation. |
 | **Key testing interfaces** | `IInputManager`, `IMapCollisionData`, `IAudioManager` | Hardware dependencies sit behind interfaces for fake substitution. |

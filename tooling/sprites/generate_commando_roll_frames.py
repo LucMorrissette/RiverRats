@@ -7,8 +7,8 @@ direction-agnostic spinning bundles that are rotated at runtime to match the
 dash direction.
 
 Outputs (in-place update):
-  - src/RiverRats.Game/Content/Sprites/generic_character_sheet.png   (128x192)
-  - src/RiverRats.Game/Content/Sprites/companion_character_sheet.png (128x192)
+  - src/DogDays.Game/Content/Sprites/generic_character_sheet.png   (128x192)
+  - src/DogDays.Game/Content/Sprites/companion_character_sheet.png (128x192)
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from PIL import Image
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
-CONTENT_DIR = os.path.join(REPO_ROOT, "src", "RiverRats.Game", "Content", "Sprites")
+CONTENT_DIR = os.path.join(REPO_ROOT, "src", "DogDays.Game", "Content", "Sprites")
 
 FRAME_W = 32
 FRAME_H = 32

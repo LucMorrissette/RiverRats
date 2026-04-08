@@ -145,7 +145,7 @@ The audit found that `LightingRenderer`, `MusicManager`, and `CloudShadowRendere
 
 ### Rule
 
-**Every new class containing game logic MUST have a corresponding test file in `tests/RiverRats.Tests/`.**
+**Every new class containing game logic MUST have a corresponding test file in `tests/DogDays.Tests/`.**
 
 ### What Qualifies as Game Logic
 
@@ -160,9 +160,9 @@ A class has game logic if it contains any of:
 
 | Logic type | Test location | Example |
 |---|---|---|
-| Single-class isolation | `tests/RiverRats.Tests/Unit/` | `PlayerBlockTests.cs` |
-| Multi-system frame simulation | `tests/RiverRats.Tests/Integration/` | `PlayerBlockMovementTests.cs` |
-| New test fakes or builders | `tests/RiverRats.Tests/Helpers/` | `FakeInputManager.cs` |
+| Single-class isolation | `tests/DogDays.Tests/Unit/` | `PlayerBlockTests.cs` |
+| Multi-system frame simulation | `tests/DogDays.Tests/Integration/` | `PlayerBlockMovementTests.cs` |
+| New test fakes or builders | `tests/DogDays.Tests/Helpers/` | `FakeInputManager.cs` |
 
 ### Test File Naming
 
@@ -299,7 +299,7 @@ This checklist is derived from the most frequent and impactful violations found 
 | Constants | `PascalCase` | `MaxLights`, `DefaultSpeed` |
 | Interfaces | `I` + `PascalCase` | `IInputManager`, `IWorldProp` |
 | Enums | `PascalCase` type, `PascalCase` members | `FacingDirection.North` |
-| Namespaces | `RiverRats.Game.{Folder}` | `RiverRats.Game.Entities` |
+| Namespaces | `DogDays.Game.{Folder}` | `DogDays.Game.Entities` |
 
 ### File Naming
 
@@ -347,15 +347,15 @@ Single-underscore test method naming (`Method_Condition_Outcome`) is PROHIBITED.
 ### Namespace Conventions
 
 ```
-RiverRats.Game                    — Root namespace for production code
-RiverRats.Game.{Folder}           — Sub-namespace matching folder name
-RiverRats.Tests.Unit              — Unit test namespace
-RiverRats.Tests.Integration       — Integration test namespace
-RiverRats.Tests.Helpers           — Test helper namespace
+DogDays.Game                    — Root namespace for production code
+DogDays.Game.{Folder}           — Sub-namespace matching folder name
+DogDays.Tests.Unit              — Unit test namespace
+DogDays.Tests.Integration       — Integration test namespace
+DogDays.Tests.Helpers           — Test helper namespace
 ```
 
 - Namespace must match folder structure exactly.
-- Do not create namespaces for nested folders within a namespace (e.g., `Content/Maps/` does not create `RiverRats.Game.Content.Maps`).
+- Do not create namespaces for nested folders within a namespace (e.g., `Content/Maps/` does not create `DogDays.Game.Content.Maps`).
 
 ---
 

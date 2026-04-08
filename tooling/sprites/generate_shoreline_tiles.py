@@ -1,5 +1,5 @@
 """
-Generate 8 shoreline tile variants for the RiverRats tileset.
+Generate 8 shoreline tile variants for the DogDays tileset.
 
 All tiles are 32x32 pixels. Each tile represents a north-facing shoreline:
 grass at the top, a muddy bank in the middle, and transparent pixels at the
@@ -32,7 +32,7 @@ EDGE_COLS = 2  # columns locked to edge profile on each side
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output", "tiles")
 CONTENT_DIR = os.path.join(
-    SCRIPT_DIR, "..", "..", "src", "RiverRats.Game", "Content", "Tilesets"
+    SCRIPT_DIR, "..", "..", "src", "DogDays.Game", "Content", "Tilesets"
 )
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)

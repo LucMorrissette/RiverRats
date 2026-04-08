@@ -23,7 +23,7 @@ CHECKER_OUTPUTS = [
     ("cabin-checker-floor-dark-2.png", False, 4),
 ]
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
-OUTPUT_DIR = BASE_DIR / "src" / "RiverRats.Game" / "Content" / "Tilesets"
+OUTPUT_DIR = BASE_DIR / "src" / "DogDays.Game" / "Content" / "Tilesets"
 
 
 def clamp(value: int) -> int:

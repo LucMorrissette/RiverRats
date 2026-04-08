@@ -1,6 +1,6 @@
-# RiverRats — Design Document
+# DogDays — Design Document
 
-Living source of truth for the RiverRats project's architecture, design decisions, and technical implementation. Every decision here acts as a guardrail for both human and AI contributors.
+Living source of truth for the DogDays project's architecture, design decisions, and technical implementation. Every decision here acts as a guardrail for both human and AI contributors.
 
 > **This is the master index.** Detailed content lives in focused sub-documents under [`docs/design/`](design/). Each sub-document is self-contained so LLM agents only need to load the sections relevant to their task.
 
@@ -46,7 +46,7 @@ Living source of truth for the RiverRats project's architecture, design decision
 ## 2. Folder Structure
 
 ```
-src/RiverRats.Game/
+src/DogDays.Game/
     Game1.cs, Program.cs
     /Audio/         Audio services
     /Components/    Reusable behaviors attached to entities (SpriteAnimator, Health, etc.)
@@ -66,7 +66,7 @@ docs/
     DESIGN.md       Master design index (this file)
     design/         Focused design sub-documents
     features/       Implemented feature specs (.md files)
-tests/RiverRats.Tests/
+tests/DogDays.Tests/
     /Unit/          Unit tests
     /Integration/   Integration tests
     /Helpers/       Test fakes and builders

@@ -36,7 +36,7 @@ You are a senior 2D game developer who specializes in **MonoGame 3.8** (WindowsD
 
 ## Project Conventions
 
-- **Namespace:** `RiverRats` (sub-namespaces match folder: `RiverRats.Entities`, `RiverRats.Systems`, etc.)
+- **Namespace:** `DogDays` (sub-namespaces match folder: `DogDays.Entities`, `DogDays.Systems`, etc.)
 - **Naming:** `PascalCase` public members, `_camelCase` private fields, `camelCase` locals/params. Interfaces prefixed with `I`.
 - **One type per file.** File name matches the type name.
 - **Assets:** Loaded via Content Pipeline in `LoadContent()`, cached as fields. Descriptive paths: `Sprites/Player/idle`.
@@ -44,7 +44,7 @@ You are a senior 2D game developer who specializes in **MonoGame 3.8** (WindowsD
 ## Folder Structure
 
 ```
-src/RiverRats.Game/
+src/DogDays.Game/
     Game1.cs, Program.cs
     /Audio/         Audio services
     /Components/    Reusable behaviors attached to entities (SpriteAnimator, Health, etc.)

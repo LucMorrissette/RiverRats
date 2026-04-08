@@ -19,7 +19,7 @@
 | `GameEventBus` | `Core/` | Type-keyed publish/subscribe hub for cross-system gameplay events used by quests and other session-scoped progression features. |
 | `GameSessionServices` | `Core/` | Shared runtime service bundle that survives screen replacement and carries the session event bus, quest manager, and save game service. |
 | `ISaveGameService` | `Core/` | Abstraction for persisting and loading save game data. Supports multiple slots, save/load/delete/query operations. |
-| `JsonSaveGameService` | `Data/Save/` | `ISaveGameService` implementation that writes JSON files to `%APPDATA%/RiverRats/saves/`. Uses atomic writes (tmp + rename). |
+| `JsonSaveGameService` | `Data/Save/` | `ISaveGameService` implementation that writes JSON files to `%APPDATA%/DogDays/saves/`. Uses atomic writes (tmp + rename). |
 | `SaveGameMapper` | `Data/Save/` | Static capture/restore mapper — single source of truth for converting live game state to/from `SaveGameData`. |
 | `QuestDefinitionLoader` | `Data/` | Loads quest definitions from raw JSON and validates ids, objective structure, and required counts before runtime state is created. |
 

@@ -11,7 +11,7 @@ Usage:
 
 Output:
     tooling/sprites/output/fishing-icon.png
-    src/RiverRats.Game/Content/Sprites/fishing-icon.png
+    src/DogDays.Game/Content/Sprites/fishing-icon.png
 """
 
 import os
@@ -25,7 +25,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 CONTENT_SPRITES = os.path.join(
-    PROJECT_ROOT, "src", "RiverRats.Game", "Content", "Sprites"
+    PROJECT_ROOT, "src", "DogDays.Game", "Content", "Sprites"
 )
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 

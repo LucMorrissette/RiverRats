@@ -10,7 +10,7 @@
 | **Atomic writes** | Write to `.tmp`, rename to final path | Prevents corruption on crash during save. |
 | **Auto-save triggers** | Zone transition, quest completed, level-up | Saves at meaningful progress milestones. |
 | **Dev hotkeys** | K = quick save (slot 1), L = quick load (slot 1) | Rapid iteration during development. |
-| **Save file location** | `%APPDATA%/RiverRats/saves/slot_N.json` | Standard Windows user data location. |
+| **Save file location** | `%APPDATA%/DogDays/saves/slot_N.json` | Standard Windows user data location. |
 | **Load mechanism** | Screen replacement via `ScreenManager.Replace()` | Clean teardown — no mid-frame state mutation. |
 | **Restore scope** | Exact player position + zone + combat stats + quests + day/night + per-map watercraft state | Full gameplay state round-trip. |
 

@@ -21,7 +21,7 @@ Usage (as library):
 
 Output:
     tooling/sprites/output/<name>.png
-    src/RiverRats.Game/Content/Sprites/<name>.png
+    src/DogDays.Game/Content/Sprites/<name>.png
 """
 
 import argparse
@@ -40,7 +40,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 CONTENT_SPRITES = os.path.join(
-    PROJECT_ROOT, "src", "RiverRats.Game", "Content", "Sprites"
+    PROJECT_ROOT, "src", "DogDays.Game", "Content", "Sprites"
 )
 
 # ---------------------------------------------------------------------------

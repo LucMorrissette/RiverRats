@@ -118,7 +118,7 @@ def main() -> None:
         "..",
         "..",
         "src",
-        "RiverRats.Game",
+        "DogDays.Game",
         "Content",
         "Sprites",
     )

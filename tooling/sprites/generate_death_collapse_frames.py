@@ -12,8 +12,8 @@ frames per facing direction (Down=6, Left=7, Right=8, Up=9):
   - frame 3: flat on the ground (lying horizontal)
 
 Outputs (in-place update):
-  - src/RiverRats.Game/Content/Sprites/generic_character_sheet.png   (128x320)
-  - src/RiverRats.Game/Content/Sprites/companion_character_sheet.png (128x320)
+  - src/DogDays.Game/Content/Sprites/generic_character_sheet.png   (128x320)
+  - src/DogDays.Game/Content/Sprites/companion_character_sheet.png (128x320)
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from PIL import Image
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
-CONTENT_DIR = os.path.join(REPO_ROOT, "src", "RiverRats.Game", "Content", "Sprites")
+CONTENT_DIR = os.path.join(REPO_ROOT, "src", "DogDays.Game", "Content", "Sprites")
 
 FRAME_W = 32
 FRAME_H = 32

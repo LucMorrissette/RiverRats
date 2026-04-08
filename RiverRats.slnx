@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/RiverRats.Game/RiverRats.Game.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/RiverRats.Tests/RiverRats.Tests.csproj" />
-  </Folder>
-</Solution>

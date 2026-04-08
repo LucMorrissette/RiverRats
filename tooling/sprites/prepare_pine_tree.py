@@ -11,7 +11,7 @@ Usage:
     python tooling/sprites/prepare_pine_tree.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/pine-tree.png
+    src/DogDays.Game/Content/Sprites/pine-tree.png
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = ROOT / "tooling" / "sprites" / "PineTreeOne.jpg"
-OUTPUT_PATH = ROOT / "src" / "RiverRats.Game" / "Content" / "Sprites" / "pine-tree.png"
+OUTPUT_PATH = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "pine-tree.png"
 
 TARGET_HEIGHT = 128  # 4 tiles at 32px each
 PALETTE_COLORS = 20

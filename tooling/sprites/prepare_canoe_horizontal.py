@@ -11,7 +11,7 @@ Usage:
     python tooling/sprites/prepare_canoe_horizontal.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/canoe-horizontal.png
+    src/DogDays.Game/Content/Sprites/canoe-horizontal.png
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = ROOT / "tooling" / "sprites" / "canoe_horizontal_raw.png"
-OUTPUT_PATH = ROOT / "src" / "RiverRats.Game" / "Content" / "Sprites" / "canoe-horizontal.png"
+OUTPUT_PATH = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "canoe-horizontal.png"
 
 TARGET_WIDTH = 64  # 2 tiles at 32 px each
 PALETTE_COLORS = 12

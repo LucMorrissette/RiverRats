@@ -9,7 +9,7 @@ HEIGHT = 6
 OUT_PATH = (
     Path(__file__).resolve().parents[2]
     / "src"
-    / "RiverRats.Game"
+    / "DogDays.Game"
     / "Content"
     / "Sprites"
     / "frog_lure.png"

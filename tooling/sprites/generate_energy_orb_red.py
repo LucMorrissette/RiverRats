@@ -5,7 +5,7 @@ from PIL import Image
 
 SIZE = 24
 CENTER = (SIZE - 1) * 0.5
-OUT_PATH = Path(__file__).resolve().parents[2] / "src" / "RiverRats.Game" / "Content" / "Sprites" / "energy-orb-red.png"
+OUT_PATH = Path(__file__).resolve().parents[2] / "src" / "DogDays.Game" / "Content" / "Sprites" / "energy-orb-red.png"
 
 
 def clamp01(value: float) -> float:

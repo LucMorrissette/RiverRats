@@ -11,9 +11,9 @@ Usage:
     python tooling/sprites/prepare_small_bushes.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/bush1.png
-    src/RiverRats.Game/Content/Sprites/bush2.png
-    src/RiverRats.Game/Content/Sprites/bush3.png
+    src/DogDays.Game/Content/Sprites/bush1.png
+    src/DogDays.Game/Content/Sprites/bush2.png
+    src/DogDays.Game/Content/Sprites/bush3.png
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = ROOT / "tooling" / "sprites" / "sprite_sheet_small_bushes.png"
-OUTPUT_DIR = ROOT / "src" / "RiverRats.Game" / "Content" / "Sprites"
+OUTPUT_DIR = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites"
 
 # (col_start, col_end, row_start, row_end, target_width)
 BUSH_SPECS = [

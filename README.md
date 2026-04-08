@@ -1,4 +1,4 @@
-# River Rats
+# Dog Days
 
 A 2D top-down exploration game built with MonoGame — outdoor adventure set along rivers, shorelines, and natural terrain.
 
@@ -40,10 +40,10 @@ A 2D top-down exploration game built with MonoGame — outdoor adventure set alo
 
 ```bash
 # Build the solution
-dotnet build RiverRats.slnx
+dotnet build DogDays.slnx
 
 # Run the game
-dotnet run --project src/RiverRats.Game/RiverRats.Game.csproj
+dotnet run --project src/DogDays.Game/DogDays.Game.csproj
 
 # Run all tests
 dotnet test
@@ -52,7 +52,7 @@ dotnet test
 ## Project Layout
 
 ```
-src/RiverRats.Game/          Main game project
+src/DogDays.Game/          Main game project
     Game1.cs, Program.cs
     /Components/             Reusable behaviors (SpriteAnimator)
     /Content/                Content Pipeline assets (maps, sprites, tilesets, effects)
@@ -62,7 +62,7 @@ src/RiverRats.Game/          Main game project
     /Input/                  Input abstraction (IInputManager, InputManager, InputAction)
     /Screens/                Screen management (GameplayScreen, ScreenManager)
     /World/                  Tilemap and collision systems
-tests/RiverRats.Tests/       xUnit test project
+tests/DogDays.Tests/       xUnit test project
     /Unit/                   Unit tests
     /Integration/            Integration tests
     /Helpers/                Test fakes (FakeInputManager, FakeGameTime)
@@ -93,10 +93,10 @@ tooling/sprites/             Python asset generation scripts
 
 The game uses a **composition-over-inheritance** entity model and a **stack-based screen manager** for game state. Key architectural decisions:
 
-- **Input:** All input flows through an action-mapped [`IInputManager`](src/RiverRats.Game/Input/IInputManager.cs) abstraction — never raw keyboard state.
-- **Rendering:** 960×540 virtual resolution with 2× integer scaling. [`Camera2D`](src/RiverRats.Game/Graphics/Camera2D.cs) provides matrix transforms with map-bounds clamping. Y-sorting ensures correct draw order.
-- **World:** Tiled `.tmx` maps drive terrain, collisions (from tile properties), and object-layer prop placements. [`WorldCollisionMap`](src/RiverRats.Game/World/WorldCollisionMap.cs) aggregates terrain + props + collider objects.
-- **Entities:** [`PlayerBlock`](src/RiverRats.Game/Entities/PlayerBlock.cs), [`FollowerBlock`](src/RiverRats.Game/Entities/FollowerBlock.cs) (companion following via breadcrumb trail), [`Boulder`](src/RiverRats.Game/Entities/Boulder.cs), [`Dock`](src/RiverRats.Game/Entities/Dock.cs).
+- **Input:** All input flows through an action-mapped [`IInputManager`](src/DogDays.Game/Input/IInputManager.cs) abstraction — never raw keyboard state.
+- **Rendering:** 960×540 virtual resolution with 2× integer scaling. [`Camera2D`](src/DogDays.Game/Graphics/Camera2D.cs) provides matrix transforms with map-bounds clamping. Y-sorting ensures correct draw order.
+- **World:** Tiled `.tmx` maps drive terrain, collisions (from tile properties), and object-layer prop placements. [`WorldCollisionMap`](src/DogDays.Game/World/WorldCollisionMap.cs) aggregates terrain + props + collider objects.
+- **Entities:** [`PlayerBlock`](src/DogDays.Game/Entities/PlayerBlock.cs), [`FollowerBlock`](src/DogDays.Game/Entities/FollowerBlock.cs) (companion following via breadcrumb trail), [`Boulder`](src/DogDays.Game/Entities/Boulder.cs), [`Dock`](src/DogDays.Game/Entities/Dock.cs).
 
 For full details, see [`docs/DESIGN.md`](docs/DESIGN.md).
 

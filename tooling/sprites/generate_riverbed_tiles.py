@@ -1,5 +1,5 @@
 """
-Generate muddy riverbed tile variants for the RiverRats tileset.
+Generate muddy riverbed tile variants for the DogDays tileset.
 
 All tiles are 32x32 pixels and use restrained pixel details so they read as
 walkable terrain rather than props. Variants include a few pebbles, subtle
@@ -39,7 +39,7 @@ CONTENT_DIR = os.path.join(
     "..",
     "..",
     "src",
-    "RiverRats.Game",
+    "DogDays.Game",
     "Content",
     "Tilesets",
 )

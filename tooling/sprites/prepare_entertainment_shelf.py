@@ -5,10 +5,13 @@ Prepares entertainment_shelf.jpg for use as a game prop:
   - Resizes to exactly 96 px wide (3 tiles), preserving aspect ratio.
   - Saves as entertainment-shelf.png in the game's Content/Sprites folder.
 """
+from pathlib import Path
+
 from PIL import Image
 
-SRC = r"C:\Users\Luc\git\RiverRats\tooling\sprites\entertainment_shelf.jpg"
-DST = r"C:\Users\Luc\git\RiverRats\src\RiverRats.Game\Content\Sprites\entertainment-shelf.png"
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "tooling" / "sprites" / "entertainment_shelf.jpg"
+DST = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "entertainment-shelf.png"
 
 FULL_TRANSPARENT_THRESHOLD = 220
 FRINGE_THRESHOLD = 190

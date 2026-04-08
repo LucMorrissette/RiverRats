@@ -11,7 +11,7 @@ Usage:
     python tooling/sprites/prepare_explosion.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/explosion.png
+    src/DogDays.Game/Content/Sprites/explosion.png
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = ROOT / "tooling" / "sprites" / "simple-explosion.png"
-OUTPUT_PATH = ROOT / "src" / "RiverRats.Game" / "Content" / "Sprites" / "explosion.png"
+OUTPUT_PATH = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "explosion.png"
 
 # Minimum gap (in transparent columns) to consider two blobs separate frames.
 MIN_GAP = 2

@@ -1,4 +1,4 @@
-# Code Mode Rules — RiverRats
+# Code Mode Rules — DogDays
 
 ## Before Writing Code
 
@@ -7,7 +7,7 @@
 
 ## Code Standards
 
-- **Namespace:** `RiverRats` (sub-namespaces match folder: `RiverRats.Entities`, `RiverRats.Input`, etc.)
+- **Namespace:** `DogDays` (sub-namespaces match folder: `DogDays.Entities`, `DogDays.Input`, etc.)
 - **Naming:** `PascalCase` public members, `_camelCase` private fields, `camelCase` locals/params. Interfaces prefixed with `I`.
 - **One type per file.** File name must match the type name.
 - **XML doc comments** (`///`) on all public types and members.
@@ -32,9 +32,9 @@
 
 When creating game logic, also create tests:
 
-- **Unit tests** → `tests/RiverRats.Tests/Unit/{ClassUnderTest}Tests.cs`
-- **Integration tests** → `tests/RiverRats.Tests/Integration/{Feature}Tests.cs`
-- **Test helpers** → `tests/RiverRats.Tests/Helpers/`
+- **Unit tests** → `tests/DogDays.Tests/Unit/{ClassUnderTest}Tests.cs`
+- **Integration tests** → `tests/DogDays.Tests/Integration/{Feature}Tests.cs`
+- **Test helpers** → `tests/DogDays.Tests/Helpers/`
 - Use existing fakes: `FakeInputManager`, `FakeGameTime`, `FakeMapCollisionData`
 - Test method naming: `{Method}__{Scenario}__{ExpectedResult}`
 - All tests must be deterministic — no randomness, no real clocks, no hardware input

@@ -13,7 +13,7 @@ except ImportError as exc:
 TILE_SIZE = 32
 CANVAS_SIZE = TILE_SIZE * 2
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
-OUTPUT_PATH = BASE_DIR / "src" / "RiverRats.Game" / "Content" / "Sprites" / "storage-shed.png"
+OUTPUT_PATH = BASE_DIR / "src" / "DogDays.Game" / "Content" / "Sprites" / "storage-shed.png"
 
 OUTLINE = (34, 23, 18, 255)
 ROOF_DARK = (70, 57, 54, 255)

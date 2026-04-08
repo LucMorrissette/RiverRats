@@ -20,7 +20,7 @@ except ImportError:
     )
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-CONTENT_DIR = SCRIPT_DIR.parent.parent / "src" / "RiverRats.Game" / "Content" / "Sprites"
+CONTENT_DIR = SCRIPT_DIR.parent.parent / "src" / "DogDays.Game" / "Content" / "Sprites"
 
 # Native draw size — 2x2 tiles at 32px/tile, no runtime scaling.
 TARGET_SIZE = (64, 64)

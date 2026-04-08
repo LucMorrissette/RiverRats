@@ -5,10 +5,13 @@ Prepares game-console.jpg for use as a game prop:
   - Resizes to exactly 16 px wide (0.5 tiles), preserving aspect ratio.
   - Saves as game-console.png in the game's Content/Sprites folder.
 """
+from pathlib import Path
+
 from PIL import Image
 
-SRC = r"C:\Users\Luc\git\RiverRats\tooling\sprites\game-console.jpg"
-DST = r"C:\Users\Luc\git\RiverRats\src\RiverRats.Game\Content\Sprites\game-console.png"
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "tooling" / "sprites" / "game-console.jpg"
+DST = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "game-console.png"
 
 FULL_TRANSPARENT_THRESHOLD = 235
 FRINGE_THRESHOLD = 210

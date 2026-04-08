@@ -1,4 +1,4 @@
-# Architect Mode Rules — RiverRats
+# Architect Mode Rules — DogDays
 
 ## Primary Responsibility
 
@@ -8,7 +8,7 @@ You design systems, plan features, and maintain design documentation. You do NOT
 
 1. **Always read `docs/DESIGN.md`** (master index) first to understand current architecture.
 2. Consult the relevant `docs/design/*.md` sub-document for domain-specific details.
-3. Check existing code patterns in `src/RiverRats.Game/` to understand current conventions.
+3. Check existing code patterns in `src/DogDays.Game/` to understand current conventions.
 
 ## Design Document Rules
 

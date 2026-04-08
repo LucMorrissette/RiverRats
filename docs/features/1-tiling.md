@@ -101,12 +101,12 @@ This feature is intentionally narrow:
 
 Expected areas touched when this feature is implemented:
 
-- `src/RiverRats.Game/RiverRats.Game.csproj`
-- `src/RiverRats.Game/Game1.cs`
-- `src/RiverRats.Game/Content/Content.mgcb`
-- `src/RiverRats.Game/Content/Maps/` *(new)*
-- `src/RiverRats.Game/Content/Tilesets/` *(new)*
-- `src/RiverRats.Game/World/` *(new)*
+- `src/DogDays.Game/DogDays.Game.csproj`
+- `src/DogDays.Game/Game1.cs`
+- `src/DogDays.Game/Content/Content.mgcb`
+- `src/DogDays.Game/Content/Maps/` *(new)*
+- `src/DogDays.Game/Content/Tilesets/` *(new)*
+- `src/DogDays.Game/World/` *(new)*
 - `docs/design/rendering.md`
 - `docs/design/world.md`
 - `docs/design/core-data-classes.md` *(if new world-facing types are introduced)*

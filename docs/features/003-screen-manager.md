@@ -57,14 +57,14 @@ Game1.Draw()
 
 ## Files Created
 
-- `src/RiverRats.Game/Screens/IGameScreen.cs`
-- `src/RiverRats.Game/Screens/ScreenManager.cs`
-- `src/RiverRats.Game/Screens/GameplayScreen.cs`
+- `src/DogDays.Game/Screens/IGameScreen.cs`
+- `src/DogDays.Game/Screens/ScreenManager.cs`
+- `src/DogDays.Game/Screens/GameplayScreen.cs`
 - `docs/features/003-screen-manager.md` (this file)
 
 ## Files Modified
 
-- `src/RiverRats.Game/Game1.cs`
+- `src/DogDays.Game/Game1.cs`
 - `docs/DESIGN.md`
 - `docs/design/screens-input.md`
 

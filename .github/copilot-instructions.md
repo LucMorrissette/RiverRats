@@ -1,8 +1,8 @@
-﻿# Copilot Instructions — RiverRats (MonoGame 2D)
+﻿# Copilot Instructions — DogDays (MonoGame 2D)
 
 ## Project Overview
 
-This is a 2D game built with **MonoGame 3.8** (WindowsDX) targeting **.NET 9** (net9.0-windows). All code lives in the `RiverRats` namespace.
+This is a 2D game built with **MonoGame 3.8** (WindowsDX) targeting **.NET 9** (net9.0-windows). All code lives in the `DogDays` namespace.
 
 > **Design decisions and architectural rationale** should be recorded in `docs/DESIGN.md` (master index) and focused sub-documents in `docs/design/`. Read the master index before proposing structural changes, then consult the relevant sub-document for domain-specific details.
 
@@ -83,7 +83,7 @@ Push back when a request would:
 Organize code into folders by responsibility:
 
 ```
-src/RiverRats.Game/
+src/DogDays.Game/
     Game1.cs, Program.cs
     /Audio/         Audio services
     /Components/    Reusable behaviors attached to entities (SpriteAnimator, Health, etc.)
@@ -193,7 +193,7 @@ src/RiverRats.Game/
 ## When Generating Code
 
 1. Always include the necessary `using` directives.
-2. Place code in the `RiverRats` namespace (or a sub-namespace matching the folder, e.g., `RiverRats.Entities`).
+2. Place code in the `DogDays` namespace (or a sub-namespace matching the folder, e.g., `DogDays.Entities`).
 3. Provide XML doc comments on public API.
 4. If a new system or component is created, show how it integrates with `Game1` or the screen manager.
 5. Prefer showing a **complete, compilable file** over a partial snippet.
@@ -237,7 +237,7 @@ src/RiverRats.Game/
 
 ### Test Project
 
-- Framework: **xUnit** (in `tests/RiverRats.Tests/`).
+- Framework: **xUnit** (in `tests/DogDays.Tests/`).
 - Test project references the main game project directly.
 - Run via `dotnet test` from the solution root.
 
@@ -245,9 +245,9 @@ src/RiverRats.Game/
 
 - Test file naming: `{ClassUnderTest}Tests.cs` (e.g., `Camera2DTests.cs`).
 - Test method naming: `{Method}__{Scenario}__{ExpectedResult}` using underscores for readability (e.g., `Follow_ClampsToLeftEdge_WhenTargetNearLeftBoundary`).
-- Place unit tests in `tests/RiverRats.Tests/Unit/`.
-- Place integration tests in `tests/RiverRats.Tests/Integration/`.
-- Place test helpers (fakes, builders) in `tests/RiverRats.Tests/Helpers/`.
+- Place unit tests in `tests/DogDays.Tests/Unit/`.
+- Place integration tests in `tests/DogDays.Tests/Integration/`.
+- Place test helpers (fakes, builders) in `tests/DogDays.Tests/Helpers/`.
 
 ### Fakes & Helpers
 

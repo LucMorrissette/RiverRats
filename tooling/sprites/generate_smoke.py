@@ -6,7 +6,7 @@ Usage:
     python tooling/sprites/generate_smoke.py
 
 Output:
-    src/RiverRats.Game/Content/Sprites/smoke-puff.png
+    src/DogDays.Game/Content/Sprites/smoke-puff.png
 """
 
 import math
@@ -15,7 +15,7 @@ import random
 from PIL import Image
 
 SIZE = 32
-OUTPUT_PATH = "src/RiverRats.Game/Content/Sprites/smoke-puff.png"
+OUTPUT_PATH = "src/DogDays.Game/Content/Sprites/smoke-puff.png"
 
 def create_smoke_texture():
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)

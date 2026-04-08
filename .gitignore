@@ -14,7 +14,7 @@ artifacts/
 *.mgcontent
 *.mgspritefontcache
 *.mgc
-src/RiverRats.Game/pipeline-references/
+src/DogDays.Game/pipeline-references/
 
 # VS Code / Visual Studio
 .vs/

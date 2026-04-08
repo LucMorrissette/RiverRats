@@ -63,7 +63,7 @@ for y, x in corners:
 img = Image.fromarray(arr)
 dst = os.path.join(
     os.path.dirname(__file__),
-    "..", "..", "src", "RiverRats.Game", "Content", "Sprites",
+    "..", "..", "src", "DogDays.Game", "Content", "Sprites",
     "dialog_box_9slice.png",
 )
 img.save(dst)

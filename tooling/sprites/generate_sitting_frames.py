@@ -15,8 +15,8 @@ Input:
   - tooling/sprites/output/companion_character_sheet_backup.png  (original 128×128)
 
 Output (in-place update):
-  - src/RiverRats.Game/Content/Sprites/generic_character_sheet.png   (128×160)
-  - src/RiverRats.Game/Content/Sprites/companion_character_sheet.png (128×160)
+  - src/DogDays.Game/Content/Sprites/generic_character_sheet.png   (128×160)
+  - src/DogDays.Game/Content/Sprites/companion_character_sheet.png (128×160)
 """
 
 from PIL import Image
@@ -24,7 +24,7 @@ import os
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
-CONTENT_DIR = os.path.join(REPO_ROOT, "src", "RiverRats.Game", "Content", "Sprites")
+CONTENT_DIR = os.path.join(REPO_ROOT, "src", "DogDays.Game", "Content", "Sprites")
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 

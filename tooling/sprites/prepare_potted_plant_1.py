@@ -5,10 +5,13 @@ Prepares potted_plant_1.jpg for use as a game prop:
   - Resizes to exactly 32 px wide (1 tile), preserving aspect ratio.
   - Saves as potted-plant-1.png in the game's Content/Sprites folder.
 """
+from pathlib import Path
+
 from PIL import Image
 
-SRC = r"C:\Users\Luc\git\RiverRats\tooling\sprites\potted_plant_1.jpg"
-DST = r"C:\Users\Luc\git\RiverRats\src\RiverRats.Game\Content\Sprites\potted-plant-1.png"
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "tooling" / "sprites" / "potted_plant_1.jpg"
+DST = ROOT / "src" / "DogDays.Game" / "Content" / "Sprites" / "potted-plant-1.png"
 
 FULL_TRANSPARENT_THRESHOLD = 235
 FRINGE_THRESHOLD = 210

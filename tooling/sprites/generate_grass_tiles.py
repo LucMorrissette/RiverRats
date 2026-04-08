@@ -1,5 +1,5 @@
 """
-Generate grass tile variants for the RiverRats tileset.
+Generate grass tile variants for the DogDays tileset.
 
 All tiles are 32×32 pixels. The base green matches the existing palette.
 Decorations are kept small relative to the character (16×22 art in a 32×32 frame),
@@ -35,7 +35,7 @@ FLOWER      = (217, 87, 99, 255)
 
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR  = os.path.join(SCRIPT_DIR, "output", "tiles")
-CONTENT_DIR = os.path.join(SCRIPT_DIR, "..", "..", "src", "RiverRats.Game",
+CONTENT_DIR = os.path.join(SCRIPT_DIR, "..", "..", "src", "DogDays.Game",
                            "Content", "Tilesets")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)

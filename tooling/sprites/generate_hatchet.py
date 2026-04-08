@@ -81,7 +81,7 @@ def generate_hatchet():
     print(f"Saved hatchet sprite to {out_path}")
 
     content_dir = os.path.join(
-        os.path.dirname(__file__), "..", "..", "src", "RiverRats.Game", "Content", "Sprites"
+        os.path.dirname(__file__), "..", "..", "src", "DogDays.Game", "Content", "Sprites"
     )
     content_path = os.path.join(content_dir, "hatchet.png")
     img.save(content_path)

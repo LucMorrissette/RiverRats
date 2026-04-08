@@ -6,11 +6,11 @@ Each fish type gets a horizontal sprite strip with swim-cycle frames
 (body flex + tail wag animation).
 
 Output:
-  - src/RiverRats.Game/Content/Sprites/fish-silhouettes.png
+  - src/DogDays.Game/Content/Sprites/fish-silhouettes.png
     A single atlas: rows = fish types, columns = animation frames.
 
 Fish types (top to bottom row):
-  0: Small minnow    (sleek, streamlined, forked tail)
+    0: Small perch     (sleek, streamlined, forked tail)
   1: Medium bass      (deep body, spiny dorsal, slightly forked tail)
   2: Large catfish    (flat head, barbels, rounded tail)
 """
@@ -30,12 +30,12 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
 CONTENT_PATH = os.path.join(
-    PROJECT_ROOT, "src", "RiverRats.Game", "Content", "Sprites", "fish-silhouettes.png"
+    PROJECT_ROOT, "src", "DogDays.Game", "Content", "Sprites", "fish-silhouettes.png"
 )
 
 # Colors - dark silhouettes with slight blue tint for underwater feel.
 SILHOUETTE_COLORS = [
-    (20, 35, 60, 180),    # Small minnow - most transparent
+    (20, 35, 60, 180),    # Small perch - most transparent
     (25, 40, 65, 200),    # Medium bass - medium opacity
     (15, 30, 50, 210),    # Large catfish - most opaque
 ]
@@ -78,12 +78,12 @@ def _apply_swim_bend(points, cx, bend_amount):
 
 
 # ---------------------------------------------------------------------------
-# Minnow – sleek, torpedo-shaped, forked tail
+# Perch – sleek, torpedo-shaped, forked tail
 # ---------------------------------------------------------------------------
 
-def _minnow_profile():
+def _perch_profile():
     """
-    Return the raw body outline of a minnow (facing left, centered near 0,0).
+    Return the raw body outline of a perch (facing left, centered near 0,0).
     Returns list of (x, y) for the upper profile, mirrored for lower.
     """
     # Nose to tail control points (x, half-height at that x)
@@ -101,9 +101,9 @@ def _minnow_profile():
     return profile
 
 
-def draw_minnow(draw, cx, cy, tail_angle, color, eye_color):
-    """Draw a small, sleek minnow with a forked tail."""
-    profile = _minnow_profile()
+def draw_perch(draw, cx, cy, tail_angle, color, eye_color):
+    """Draw a small, sleek perch with a forked tail."""
+    profile = _perch_profile()
 
     # Build upper + lower body outline
     upper = [(cx + x, cy - h) for x, h in profile]
@@ -195,7 +195,7 @@ def draw_bass(draw, cx, cy, tail_angle, color, eye_color):
 
     wag_y = math.sin(tail_angle) * 2.5
 
-    # --- Forked tail (broader than minnow) ---
+    # --- Forked tail (broader than perch) ---
     ped_x = cx + 9
     draw.polygon([
         (ped_x, cy - 0.8 + wag_y * 0.3),
@@ -368,7 +368,7 @@ def draw_catfish(draw, cx, cy, tail_angle, color, eye_color):
 
 
 # --- Fish drawing dispatch ---
-FISH_DRAW_FUNCS = [draw_minnow, draw_bass, draw_catfish]
+FISH_DRAW_FUNCS = [draw_perch, draw_bass, draw_catfish]
 
 
 def generate_fish_atlas():
