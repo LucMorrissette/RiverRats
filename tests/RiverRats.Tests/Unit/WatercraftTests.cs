@@ -109,7 +109,23 @@ public class WatercraftTests
 
         var seatPosition = watercraft.GetFrontSeatPosition(actorWidth: 32, actorHeight: 32);
 
-        Assert.Equal(new Vector2(102f, 112f), seatPosition);
+        Assert.Equal(new Vector2(108f, 110f), seatPosition);
+    }
+
+    [Fact]
+    public void GetRearSeatPosition__WhenFacingLeftAndRight__MirrorsDistanceFromStern()
+    {
+        var watercraft = CreateWatercraft();
+
+        watercraft.SetState(watercraft.Center, FacingDirection.Right);
+        var rightRearSeat = watercraft.GetRearSeatPosition(actorWidth: 32, actorHeight: 32);
+        var rightSternInset = rightRearSeat.X - watercraft.Bounds.Left;
+
+        watercraft.SetState(watercraft.Center, FacingDirection.Left);
+        var leftRearSeat = watercraft.GetRearSeatPosition(actorWidth: 32, actorHeight: 32);
+        var leftSternInset = watercraft.Bounds.Right - (leftRearSeat.X + 32f);
+
+        Assert.Equal(rightSternInset, leftSternInset);
     }
 
     [Fact]

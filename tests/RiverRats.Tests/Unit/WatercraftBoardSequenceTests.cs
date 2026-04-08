@@ -86,7 +86,60 @@ public class WatercraftBoardSequenceTests
     }
 
     [Fact]
-    public void Update__WhenSeated__FollowerBoardsTheWatercraft()
+    public void Mounted__AfterHopDuration__FiresOnceWhenActorsReachSeats()
+    {
+        var sequence = new WatercraftBoardSequence(FrameSize, FrameSize);
+        var watercraft = CreateWatercraft(new Vector2(100f, 100f));
+        var player = CreatePlayer(new Vector2(100f, 170f), FacingDirection.Up);
+        var follower = CreateFollower(new Vector2(80f, 170f));
+        var input = new FakeInputManager();
+        var mountedCount = 0;
+        Watercraft? mountedCraft = null;
+
+        sequence.Mounted += craft =>
+        {
+            mountedCount++;
+            mountedCraft = craft;
+        };
+
+        sequence.Begin(watercraft, player, follower);
+
+        Assert.Equal(0, mountedCount);
+
+        for (var i = 0; i < 60; i++)
+        {
+            sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
+        }
+
+        Assert.Equal(1, mountedCount);
+        Assert.Same(watercraft, mountedCraft);
+
+        for (var i = 0; i < 10; i++)
+        {
+            sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
+        }
+
+        Assert.Equal(1, mountedCount);
+    }
+
+    [Fact]
+    public void RestoreSeated__DoesNotFireMounted()
+    {
+        var sequence = new WatercraftBoardSequence(FrameSize, FrameSize);
+        var watercraft = CreateWatercraft(new Vector2(100f, 100f));
+        var player = CreatePlayer(new Vector2(100f, 170f), FacingDirection.Up);
+        var follower = CreateFollower(new Vector2(80f, 170f));
+        var mountedCount = 0;
+
+        sequence.Mounted += _ => mountedCount++;
+
+        sequence.RestoreSeated(watercraft, player, follower);
+
+        Assert.Equal(0, mountedCount);
+    }
+
+    [Fact]
+    public void Update__WhenSeated__PlayerOccupiesRearSeatAndFollowerOccupiesFrontSeat()
     {
         var sequence = new WatercraftBoardSequence(FrameSize, FrameSize);
         var watercraft = CreateWatercraft(new Vector2(100f, 100f));
@@ -101,8 +154,8 @@ public class WatercraftBoardSequenceTests
             sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
         }
 
-        Assert.Equal(watercraft.GetRearSeatPosition(FrameSize, FrameSize), follower.Position);
-        Assert.Equal(watercraft.GetFrontSeatPosition(FrameSize, FrameSize), player.Position);
+        Assert.Equal(watercraft.GetRearSeatPosition(FrameSize, FrameSize), player.Position);
+        Assert.Equal(watercraft.GetFrontSeatPosition(FrameSize, FrameSize), follower.Position);
     }
 
     [Fact]
@@ -159,7 +212,7 @@ public class WatercraftBoardSequenceTests
     }
 
     [Fact]
-    public void Update__WhenSeatedAndMoveRightHeld__MovesWatercraftWithPlayerAtFront()
+    public void Update__WhenSeatedAndMoveRightHeld__MovesWatercraftWithPlayerInRearSeat()
     {
         var sequence = new WatercraftBoardSequence(FrameSize, FrameSize);
         var watercraft = CreateWatercraft(new Vector2(100f, 100f));
@@ -177,9 +230,95 @@ public class WatercraftBoardSequenceTests
         sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
 
         Assert.Equal(FacingDirection.Right, watercraft.Facing);
-        Assert.Equal(watercraft.GetFrontSeatPosition(FrameSize, FrameSize), player.Position);
-        Assert.Equal(watercraft.GetRearSeatPosition(FrameSize, FrameSize), follower.Position);
-        Assert.True(player.Position.X > follower.Position.X);
+        Assert.Equal(watercraft.GetRearSeatPosition(FrameSize, FrameSize), player.Position);
+        Assert.Equal(watercraft.GetFrontSeatPosition(FrameSize, FrameSize), follower.Position);
+        Assert.True(player.Position.X < follower.Position.X);
+    }
+
+    [Fact]
+    public void Update__WhenTurningInPlace__KeepsRearSeatPlayerStable()
+    {
+        var sequence = new WatercraftBoardSequence(FrameSize, FrameSize);
+        var watercraft = CreateWatercraft(new Vector2(100f, 100f));
+        var player = CreatePlayer(new Vector2(100f, 170f), FacingDirection.Up);
+        var follower = CreateFollower(new Vector2(80f, 170f));
+        var input = new FakeInputManager();
+
+        sequence.Begin(watercraft, player, follower);
+        for (var i = 0; i < 60; i++)
+        {
+            sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
+        }
+
+        var startingPlayerPosition = player.Position;
+        var startingPlayerCenter = player.Center;
+        input.Press(InputAction.MoveRight);
+
+        sequence.Update(FakeGameTime.FromSeconds(0f), input, player, follower, AllowBounds, AllowBounds);
+
+        Assert.Equal(FacingDirection.Right, watercraft.Facing);
+        Assert.InRange(Vector2.Distance(startingPlayerPosition, player.Position), 0f, 0.5f);
+        Assert.InRange(Vector2.Distance(startingPlayerCenter, player.Center), 0f, 0.5f);
+    }
+
+    [Fact]
+    public void Update__WhenSeatedAndMoveUpRightHeld__MovesWatercraftDiagonallyWithoutSpeedBoost()
+    {
+        var sequence = new WatercraftBoardSequence(FrameSize, FrameSize);
+        var watercraft = CreateWatercraft(new Vector2(100f, 100f));
+        watercraft.SetState(watercraft.Center, FacingDirection.Up);
+        var player = CreatePlayer(new Vector2(100f, 170f), FacingDirection.Up);
+        var follower = CreateFollower(new Vector2(80f, 170f));
+        var input = new FakeInputManager();
+
+        sequence.Begin(watercraft, player, follower);
+        for (var i = 0; i < 60; i++)
+        {
+            sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
+        }
+
+        var startingCenter = watercraft.Center;
+        input.Press(InputAction.MoveUp);
+        input.Press(InputAction.MoveRight);
+
+        sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
+
+        var movement = watercraft.Center - startingCenter;
+        var expectedAxisDelta = (36f / 60f) / MathF.Sqrt(2f);
+
+        Assert.Equal(FacingDirection.Up, watercraft.Facing);
+        Assert.Equal(expectedAxisDelta, movement.X, 3);
+        Assert.Equal(-expectedAxisDelta, movement.Y, 3);
+        Assert.Equal(36f / 60f, movement.Length(), 3);
+        Assert.Equal(watercraft.GetRearSeatPosition(FrameSize, FrameSize), player.Position);
+        Assert.Equal(watercraft.GetFrontSeatPosition(FrameSize, FrameSize), follower.Position);
+    }
+
+    [Fact]
+    public void Update__WhenDiagonalTurnIsBlocked__KeepsPreviousFacingAndPosition()
+    {
+        var sequence = new WatercraftBoardSequence(FrameSize, FrameSize);
+        var watercraft = CreateWatercraft(new Vector2(100f, 100f));
+        var player = CreatePlayer(new Vector2(100f, 170f), FacingDirection.Up);
+        var follower = CreateFollower(new Vector2(80f, 170f));
+        var input = new FakeInputManager();
+
+        sequence.Begin(watercraft, player, follower);
+        for (var i = 0; i < 60; i++)
+        {
+            sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
+        }
+
+        var startingCenter = watercraft.Center;
+        input.Press(InputAction.MoveRight);
+        input.Press(InputAction.MoveDown);
+
+        sequence.Update(FakeGameTime.OneFrame(), input, player, follower, BlockBounds, AllowBounds);
+
+        Assert.Equal(FacingDirection.Down, watercraft.Facing);
+        Assert.Equal(startingCenter, watercraft.Center);
+        Assert.Equal(watercraft.GetRearSeatPosition(FrameSize, FrameSize), player.Position);
+        Assert.Equal(watercraft.GetFrontSeatPosition(FrameSize, FrameSize), follower.Position);
     }
 
     [Fact]
@@ -200,6 +339,30 @@ public class WatercraftBoardSequenceTests
         input.Press(InputAction.Confirm);
         sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, BlockBounds);
 
+        Assert.Equal(WatercraftBoardState.Seated, sequence.State);
+    }
+
+    [Fact]
+    public void Update__WhenSeatedAndMovementBlocked__WatercraftDoesNotAdvance()
+    {
+        var sequence = new WatercraftBoardSequence(FrameSize, FrameSize);
+        var watercraft = CreateWatercraft(new Vector2(100f, 100f));
+        var player = CreatePlayer(new Vector2(100f, 170f), FacingDirection.Up);
+        var follower = CreateFollower(new Vector2(80f, 170f));
+        var input = new FakeInputManager();
+
+        sequence.Begin(watercraft, player, follower);
+        for (var i = 0; i < 60; i++)
+        {
+            sequence.Update(FakeGameTime.OneFrame(), input, player, follower, AllowBounds, AllowBounds);
+        }
+
+        var startingCenter = watercraft.Center;
+        input.Press(InputAction.MoveUp);
+
+        sequence.Update(FakeGameTime.OneFrame(), input, player, follower, BlockBounds, AllowBounds);
+
+        Assert.Equal(startingCenter, watercraft.Center);
         Assert.Equal(WatercraftBoardState.Seated, sequence.State);
     }
 }

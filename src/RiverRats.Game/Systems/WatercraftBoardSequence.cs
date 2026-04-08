@@ -19,13 +19,8 @@ public sealed class WatercraftBoardSequence
     private const float HopArcHeightPixels = 10f;
     private const float FollowerHopDelaySeconds = 0.12f;
     private const float MoveSpeedPixelsPerSecond = 36f;
-    private const float ReverseSpeedMultiplier = 0.5f;
     private const float GlideDecayRate = 2.1f;
     private const float GlideStopThreshold = 1f;
-    /// <summary>Below this glide speed, perpendicular input causes a full 90° turn instead of a nudge.</summary>
-    private const float SteerToTurnSpeedThreshold = 8f;
-    /// <summary>Lateral nudge speed when steering at speed (fraction of forward speed).</summary>
-    private const float SteerNudgeSpeedRatio = 0.4f;
     private const int SittingFrameRow = 4;
     private const float StandOffsetPixels = 12f;
 
@@ -72,13 +67,39 @@ public sealed class WatercraftBoardSequence
     public Watercraft? ActiveWatercraft => IsActive ? _targetWatercraft : null;
 
     /// <summary>
+    /// Raised once when both actors finish hopping into the craft and are fully seated.
+    /// </summary>
+    public event Action<Watercraft>? Mounted;
+
+    /// <summary>Current movement speed in pixels per second (includes glide). Zero when stationary or idle.</summary>
+    public float CurrentSpeed => IsActive ? _glideVelocity.Length() : 0f;
+
+    /// <summary>
+    /// Signed speed along the craft's facing axis in pixels per second.
+    /// Positive values indicate forward travel; negative values indicate reverse travel.
+    /// </summary>
+    public float SignedForwardSpeed
+    {
+        get
+        {
+            if (!IsActive)
+            {
+                return 0f;
+            }
+
+            var forward = GetFacingVector(_targetWatercraft.Facing);
+            return Vector2.Dot(_glideVelocity, forward);
+        }
+    }
+
+    /// <summary>
     /// Begins the watercraft sequence: both characters hop into the target craft.
     /// </summary>
     public void Begin(Watercraft watercraft, PlayerBlock player, FollowerBlock follower)
     {
         _targetWatercraft = watercraft;
         _state = WatercraftBoardState.HoppingToSeat;
-        _travelFacing = player.Facing;
+        _travelFacing = watercraft.Facing;
 
         _playerStartPosition = player.Position;
         _followerStartPosition = follower.Position;
@@ -210,6 +231,7 @@ public sealed class WatercraftBoardSequence
             _playerRenderPosition = _playerSeatPosition;
             _followerRenderPosition = _followerSeatPosition;
             UpdateSeatedActors(player, follower);
+            Mounted?.Invoke(_targetWatercraft);
         }
     }
 
@@ -255,10 +277,6 @@ public sealed class WatercraftBoardSequence
         var movementDirection = GetRawMovementInput(input);
         var currentCenter = _targetWatercraft.Center;
         var currentFacing = _targetWatercraft.Facing;
-        var forwardVector = GetFacingVector(currentFacing);
-        var steerVector = GetClockwisePerpendicularVector(currentFacing);
-        var longitudinalInput = Vector2.Dot(movementDirection, forwardVector);
-        var lateralInput = Vector2.Dot(movementDirection, steerVector);
 
         // --- Glide when no input ---
         if (movementDirection == Vector2.Zero)
@@ -275,59 +293,32 @@ public sealed class WatercraftBoardSequence
             return;
         }
 
-        var currentSpeed = _glideVelocity.Length();
-        var hasLongitudinalInput = longitudinalInput != 0f;
-        var hasLateralInput = lateralInput != 0f;
-
-        if (!hasLongitudinalInput)
+        var desiredFacing = GetFacingForMovementInput(movementDirection, currentFacing);
+        if (desiredFacing != currentFacing)
         {
-            if (hasLateralInput && currentSpeed <= SteerToTurnSpeedThreshold)
+            var pivotedCenter = _targetWatercraft.GetPivotedCenterForTurn(desiredFacing, _frameWidth, _frameHeight);
+            var pivotedBounds = _targetWatercraft.GetBoundsForState(pivotedCenter, desiredFacing);
+            if (canMoveToBounds(pivotedBounds))
             {
-                var pivotFacing = GetSteeringFacing(currentFacing, lateralInput);
-                var pivotedCenter = _targetWatercraft.GetPivotedCenterForTurn(pivotFacing, _frameWidth, _frameHeight);
-                var turnOnlyBounds = _targetWatercraft.GetBoundsForState(pivotedCenter, pivotFacing);
-
-                if (canMoveToBounds(turnOnlyBounds))
-                {
-                    _targetWatercraft.SetState(pivotedCenter, pivotFacing);
-                    _glideVelocity = Vector2.Zero;
-                }
+                _targetWatercraft.SetState(pivotedCenter, desiredFacing);
+                currentCenter = pivotedCenter;
+                currentFacing = desiredFacing;
             }
-
-            _travelFacing = _targetWatercraft.Facing;
-            UpdateSeatTargets();
-            _playerRenderPosition = _playerSeatPosition;
-            _followerRenderPosition = _followerSeatPosition;
-            UpdateSeatedActors(player, follower);
-            return;
         }
 
+        var normalizedDirection = Vector2.Normalize(movementDirection);
+        var velocity = normalizedDirection * MoveSpeedPixelsPerSecond;
+        var candidateCenter = currentCenter + (velocity * elapsed);
+        var candidateBounds = _targetWatercraft.GetBoundsForState(candidateCenter, currentFacing);
+
+        if (canMoveToBounds(candidateBounds))
         {
-            var speedMultiplier = 1f;
-            if (longitudinalInput < 0f)
-            {
-                speedMultiplier = ReverseSpeedMultiplier;
-            }
-
-            var velocity = Vector2.Zero;
-            if (hasLongitudinalInput)
-            {
-                velocity += forwardVector * (MoveSpeedPixelsPerSecond * speedMultiplier * longitudinalInput);
-            }
-
-            if (hasLateralInput)
-            {
-                velocity += steerVector * (MoveSpeedPixelsPerSecond * SteerNudgeSpeedRatio * lateralInput);
-            }
-
-            var candidateCenter = currentCenter + (velocity * elapsed);
-            var candidateBounds = _targetWatercraft.GetBoundsForState(candidateCenter, currentFacing);
-
-            if (canMoveToBounds(candidateBounds))
-            {
-                _targetWatercraft.SetState(candidateCenter, currentFacing);
-                _glideVelocity = velocity;
-            }
+            _targetWatercraft.SetState(candidateCenter, currentFacing);
+            _glideVelocity = velocity;
+        }
+        else
+        {
+            _glideVelocity = Vector2.Zero;
         }
 
         _travelFacing = _targetWatercraft.Facing;
@@ -407,8 +398,8 @@ public sealed class WatercraftBoardSequence
 
     private void UpdateSeatTargets()
     {
-        _playerSeatPosition = _targetWatercraft.GetFrontSeatPosition(_frameWidth, _frameHeight);
-        _followerSeatPosition = _targetWatercraft.GetRearSeatPosition(_frameWidth, _frameHeight);
+        _playerSeatPosition = _targetWatercraft.GetRearSeatPosition(_frameWidth, _frameHeight);
+        _followerSeatPosition = _targetWatercraft.GetFrontSeatPosition(_frameWidth, _frameHeight);
     }
 
     private void UpdateSeatedActors(PlayerBlock player, FollowerBlock follower)
@@ -472,26 +463,27 @@ public sealed class WatercraftBoardSequence
         };
     }
 
-    private static Vector2 GetClockwisePerpendicularVector(FacingDirection facing)
+    private static FacingDirection GetFacingForMovementInput(Vector2 movementDirection, FacingDirection currentFacing)
     {
-        return facing switch
-        {
-            FacingDirection.Left => new Vector2(0f, -1f),
-            FacingDirection.Right => new Vector2(0f, 1f),
-            FacingDirection.Up => new Vector2(1f, 0f),
-            _ => new Vector2(-1f, 0f),
-        };
-    }
+        var absX = Math.Abs(movementDirection.X);
+        var absY = Math.Abs(movementDirection.Y);
 
-    private static FacingDirection GetSteeringFacing(FacingDirection currentFacing, float lateralInput)
-    {
-        return currentFacing switch
+        if (absX > absY)
         {
-            FacingDirection.Left => lateralInput > 0f ? FacingDirection.Up : FacingDirection.Down,
-            FacingDirection.Right => lateralInput > 0f ? FacingDirection.Down : FacingDirection.Up,
-            FacingDirection.Up => lateralInput > 0f ? FacingDirection.Right : FacingDirection.Left,
-            _ => lateralInput > 0f ? FacingDirection.Left : FacingDirection.Right,
-        };
+            return movementDirection.X >= 0f ? FacingDirection.Right : FacingDirection.Left;
+        }
+
+        if (absY > absX)
+        {
+            return movementDirection.Y >= 0f ? FacingDirection.Down : FacingDirection.Up;
+        }
+
+        if (currentFacing == FacingDirection.Left || currentFacing == FacingDirection.Right)
+        {
+            return movementDirection.X >= 0f ? FacingDirection.Right : FacingDirection.Left;
+        }
+
+        return movementDirection.Y >= 0f ? FacingDirection.Down : FacingDirection.Up;
     }
 
     private Vector2 ComputeStandPosition(Vector2 seatPosition, Rectangle watercraftBounds, FacingDirection exitFacing)

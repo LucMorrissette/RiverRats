@@ -14,7 +14,7 @@ public sealed class Watercraft : IWorldProp
     private const float UpperSeatInsetRatio = -0.125f;
     private const float LowerSeatInsetRatio = 0.55f;
     private const float LeftSeatInsetRatio = 0.08f;
-    private const float RightSeatInsetRatio = 0.72f;
+    private const float RightSeatInsetRatio = 0.92f;
     private const float SideSeatHullCoverRatio = 0.90f;
 
     private readonly Texture2D _verticalTexture = null!;
@@ -84,6 +84,25 @@ public sealed class Watercraft : IWorldProp
         Bounds.Y - InteractionPaddingPixels,
         Bounds.Width + (InteractionPaddingPixels * 2),
         Bounds.Height + (InteractionPaddingPixels * 2));
+
+    /// <summary>
+    /// Returns the world-space center of the trailing edge (stern) of the craft,
+    /// opposite to the current facing direction.
+    /// </summary>
+    public Vector2 SternPosition
+    {
+        get
+        {
+            var bounds = Bounds;
+            return _facing switch
+            {
+                FacingDirection.Up => new Vector2(bounds.Center.X, bounds.Bottom),
+                FacingDirection.Down => new Vector2(bounds.Center.X, bounds.Top),
+                FacingDirection.Left => new Vector2(bounds.Right, bounds.Center.Y),
+                _ => new Vector2(bounds.Left, bounds.Center.Y),
+            };
+        }
+    }
 
     /// <summary>
     /// Applies a new center point and facing to the craft.
@@ -228,29 +247,21 @@ public sealed class Watercraft : IWorldProp
     /// <param name="actorHeight">Actor sprite height in pixels.</param>
     internal Vector2 GetPivotedCenterForTurn(FacingDirection newFacing, int actorWidth, int actorHeight)
     {
-        // Compute rear-seat actor center in current orientation.
         var oldRearTopLeft = GetRearSeatPosition(actorWidth, actorHeight);
         var rearAnchor = new Vector2(
             oldRearTopLeft.X + (actorWidth * 0.5f),
             oldRearTopLeft.Y + (actorHeight * 0.5f));
 
-        // Brute-force solve: find the watercraft center such that the rear seat
-        // center in the new facing matches rearAnchor.
-        // RearSeat = f(center, facing) → center = inverse(rearAnchor, facing).
         return SolveRearSeatCenter(rearAnchor, newFacing, actorWidth, actorHeight);
     }
 
     private Vector2 SolveRearSeatCenter(Vector2 rearActorCenter, FacingDirection facing, int actorWidth, int actorHeight)
     {
-        // Rear seat inset ratio for the target facing.
         var isVertical = facing == FacingDirection.Up || facing == FacingDirection.Down;
         if (isVertical)
         {
             var insetRatio = facing == FacingDirection.Down ? UpperSeatInsetRatio : LowerSeatInsetRatio;
             var verticalInset = MathF.Round((_verticalHeight - actorHeight) * insetRatio);
-            // rearActorCenter.Y = topLeft.Y + verticalInset + actorHeight * 0.5
-            // topLeft.Y = center.Y - verticalHeight * 0.5
-            // → center.Y = rearActorCenter.Y - verticalInset - actorHeight * 0.5 + verticalHeight * 0.5
             var centerY = rearActorCenter.Y - verticalInset - (actorHeight * 0.5f) + (_verticalHeight * 0.5f);
             return new Vector2(rearActorCenter.X, centerY);
         }
@@ -258,14 +269,8 @@ public sealed class Watercraft : IWorldProp
         {
             var insetRatio = facing == FacingDirection.Left ? RightSeatInsetRatio : LeftSeatInsetRatio;
             var horizontalInset = MathF.Round((_horizontalWidth - actorWidth) * insetRatio);
-            // rearActorCenter.X = topLeft.X + horizontalInset + actorWidth * 0.5
-            // topLeft.X = center.X - horizontalWidth * 0.5
-            // → center.X = rearActorCenter.X - horizontalInset - actorWidth * 0.5 + horizontalWidth * 0.5
             var centerX = rearActorCenter.X - horizontalInset - (actorWidth * 0.5f) + (_horizontalWidth * 0.5f);
-            // Y: rear seat verticalLift positions actor relative to canoe, keep hull center Y.
             var verticalLift = MathF.Round((actorHeight - _horizontalHeight) * SideSeatHullCoverRatio);
-            // rearActorCenter.Y = topLeft.Y - verticalLift + actorHeight * 0.5
-            // topLeft.Y = center.Y - horizontalHeight * 0.5
             var centerY = rearActorCenter.Y + verticalLift - (actorHeight * 0.5f) + (_horizontalHeight * 0.5f);
             return new Vector2(centerX, centerY);
         }

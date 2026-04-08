@@ -15,7 +15,8 @@ internal sealed class RippleSystem
 
     private readonly Vector2[] _worldPositions = new Vector2[MaxRipples];
     private readonly float[] _ages = new float[MaxRipples];
-    private readonly Vector3[] _shaderData = new Vector3[MaxRipples];
+    private readonly float[] _scales = new float[MaxRipples];
+    private readonly Vector4[] _shaderData = new Vector4[MaxRipples];
     private int _count;
 
     /// <summary>
@@ -35,6 +36,7 @@ internal sealed class RippleSystem
                 _count--;
                 _worldPositions[i] = _worldPositions[_count];
                 _ages[i] = _ages[_count];
+                _scales[i] = _scales[_count];
             }
         }
 
@@ -43,14 +45,30 @@ internal sealed class RippleSystem
             var virtualPos = PhysicalToVirtualMousePosition(
                 input.GetMousePosition(), graphicsDevice, virtualWidth, virtualHeight);
             var worldPos = camera.ScreenToWorld(virtualPos);
-            _worldPositions[_count] = worldPos;
-            _ages[_count] = 0f;
-            _count++;
+            SpawnRipple(worldPos);
         }
     }
 
     /// <summary>
+    /// Spawns a ripple at the given world position with an optional scale multiplier.
+    /// A scale of 1.0 produces a normal click ripple; higher values create larger, more pronounced ripples.
+    /// </summary>
+    public void SpawnRipple(Vector2 worldPosition, float scale = 1f)
+    {
+        if (_count >= MaxRipples)
+        {
+            return;
+        }
+
+        _worldPositions[_count] = worldPosition;
+        _ages[_count] = 0f;
+        _scales[_count] = scale;
+        _count++;
+    }
+
+    /// <summary>
     /// Writes ripple data to the water distortion shader effect.
+    /// Each ripple is a float4: xy = screen UV, z = age, w = scale multiplier.
     /// </summary>
     public void SetShaderParameters(Effect waterDistortionEffect, Camera2D camera,
         int virtualWidth, int virtualHeight)
@@ -61,15 +79,15 @@ internal sealed class RippleSystem
             {
                 var screenX = (_worldPositions[i].X - camera.Position.X) / virtualWidth + 0.5f;
                 var screenY = (_worldPositions[i].Y - camera.Position.Y) / virtualHeight + 0.5f;
-                _shaderData[i] = new Vector3(screenX, screenY, _ages[i]);
+                _shaderData[i] = new Vector4(screenX, screenY, _ages[i], _scales[i]);
             }
             else
             {
-                _shaderData[i] = new Vector3(0f, 0f, -1f); // inactive
+                _shaderData[i] = new Vector4(0f, 0f, -1f, 1f); // inactive
             }
         }
 
-        // MojoShader (DesktopGL) does not support float3 arrays; use individual params.
+        // MojoShader (DesktopGL) does not support float4 arrays; use individual params.
         waterDistortionEffect.Parameters["Ripple0"].SetValue(_shaderData[0]);
         waterDistortionEffect.Parameters["Ripple1"].SetValue(_shaderData[1]);
         waterDistortionEffect.Parameters["Ripple2"].SetValue(_shaderData[2]);

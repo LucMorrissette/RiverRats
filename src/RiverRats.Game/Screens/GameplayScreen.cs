@@ -225,7 +225,7 @@ public sealed class GameplayScreen : IGameScreen
     private Watercraft[] _watercraftProps;
     private FrontDoor[] _frontDoors;
     private Boulder[] _dockLegsLeft;
-    private Rectangle[] _watercraftTravelObstacleBounds = Array.Empty<Rectangle>();
+    private Rectangle[] _watercraftStaticBlockerBounds = Array.Empty<Rectangle>();
     private WorldCollisionMap _collisionMap;
     private DayNightCycle _dayNightCycle;
     private Texture2D _pixelTexture;
@@ -248,6 +248,8 @@ public sealed class GameplayScreen : IGameScreen
     private RenderTarget2D _previousRenderTarget;
     private int _debugOverlayMode;
     private RippleSystem _rippleSystem;
+    private float _smoothedWakeIntensity;
+    private float _wakeTravelSign = 1f;
     private GnomeSpawner _gnomeSpawner;
     private WaveManager _waveManager;
     private XpLevelSystem _xpSystem;
@@ -576,6 +578,7 @@ public sealed class GameplayScreen : IGameScreen
         _couches = PropFactory.CreateCouches(_content.Load<Texture2D>("Sprites/old-couch"), _worldRenderer.PropPlacements);
         _couchSitSequence = new CouchSitSequence(PlayerFramePixels, PlayerFramePixels);
         _watercraftBoardSequence = new WatercraftBoardSequence(PlayerFramePixels, PlayerFramePixels);
+        _watercraftBoardSequence.Mounted += OnWatercraftMounted;
         _oldTvs = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/old-tv"), _worldRenderer.PropPlacements, "old-tv", isUnderwater: false);
         _speakerTowersA = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/speaker-tower-a"), _worldRenderer.PropPlacements, "speaker-tower-a", isUnderwater: false);
         _speakerTowersB = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/speaker-tower-b"), _worldRenderer.PropPlacements, "speaker-tower-b", isUnderwater: false);
@@ -733,9 +736,11 @@ public sealed class GameplayScreen : IGameScreen
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_bushes));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetCabinCollisionBounds(_cozyLakeCabins));
         var walkableOverrideBounds = PropFactory.GetDockBounds(_docks);
-        // Watercraft uses only prop obstacles — not Colliders layer bounds,
-        // which are water-boundary walls meant to block foot traffic.
-        _watercraftTravelObstacleBounds = propObstacleBounds;
+        // Watercraft uses its own blocker set so docks can remain walkable on foot
+        // while still stopping canoes from overlapping solid surface props.
+        _watercraftStaticBlockerBounds = PropFactory.MergeRectangleArrays(
+            propObstacleBounds,
+            PropFactory.GetDockBounds(_docks));
         var allObstacleBounds = PropFactory.MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds);
         _collisionMap = new WorldCollisionMap(
             _worldRenderer,
@@ -992,6 +997,7 @@ public sealed class GameplayScreen : IGameScreen
         if (_watercraftBoardSequence.IsActive)
         {
             _watercraftBoardSequence.Update(gameTime, input, _player, _follower, CanWatercraftMoveToBounds, CanDisembarkToBounds);
+            UpdateWakeIntensity(gameTime);
             UpdatePassiveNpcSimulation(gameTime);
 
             UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
@@ -1194,6 +1200,7 @@ public sealed class GameplayScreen : IGameScreen
         }
         _musicManager.Update(gameTime);
         _rippleSystem.Update(gameTime, input, _camera, _graphicsDevice, _virtualWidth, _virtualHeight);
+        UpdateWakeIntensity(gameTime);
     }
 
     private void UpdatePassiveNpcSimulation(GameTime gameTime)
@@ -1374,6 +1381,7 @@ public sealed class GameplayScreen : IGameScreen
         _waterDistortionEffect.Parameters["CameraOffset"].SetValue(
             new Vector2(_camera.Position.X / _virtualWidth, _camera.Position.Y / _virtualHeight));
         _rippleSystem.SetShaderParameters(_waterDistortionEffect, _camera, _virtualWidth, _virtualHeight);
+        SetWakeShaderParameters();
         _worldSpriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
             blendState: BlendState.AlphaBlend,
@@ -1600,6 +1608,40 @@ public sealed class GameplayScreen : IGameScreen
             var playerScreenWidth = PlayerFramePixels * sceneScale;
             var iconX = playerWindowTop.X + playerScreenWidth * 0.5f - scaledIconWidth * 0.5f;
             var iconY = playerWindowTop.Y - scaledIconHeight + FishingPromptHeadGapPixels;
+
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+            spriteBatch.Draw(
+                _hookIconTexture,
+                new Vector2(iconX, iconY),
+                null,
+                Color.White,
+                0f,
+                Vector2.Zero,
+                FishingPromptUiScale,
+                SpriteEffects.None,
+                0f);
+            spriteBatch.End();
+        }
+
+        if (!_watercraftBoardSequence.IsActive && TryGetNearbyBoardableWatercraft(out var watercraft))
+        {
+            var watercraftScreenTop = Vector2.Transform(watercraft.Position, _camera.GetViewMatrix());
+            var gameViewport = _graphicsDevice.Viewport;
+            var scaledSceneWidth = _virtualWidth * sceneScale;
+            var scaledSceneHeight = _virtualHeight * sceneScale;
+            var sceneOffsetX = (gameViewport.Width - scaledSceneWidth) / 2;
+            var sceneOffsetY = (gameViewport.Height - scaledSceneHeight) / 2;
+            var watercraftWindowTop = new Vector2(
+                sceneOffsetX + watercraftScreenTop.X * sceneScale,
+                sceneOffsetY + watercraftScreenTop.Y * sceneScale);
+            var scaledIconWidth = _hookIconTexture.Width * FishingPromptUiScale;
+            var scaledIconHeight = _hookIconTexture.Height * FishingPromptUiScale;
+            var watercraftScreenWidth = watercraft.Bounds.Width * sceneScale;
+            var iconX = watercraftWindowTop.X + watercraftScreenWidth * 0.5f - scaledIconWidth * 0.5f;
+            var iconY = watercraftWindowTop.Y - scaledIconHeight + FishingPromptHeadGapPixels;
 
             spriteBatch.Begin(
                 sortMode: SpriteSortMode.Deferred,
@@ -1846,9 +1888,14 @@ public sealed class GameplayScreen : IGameScreen
                 _worldRenderer.TileHeightPixels);
         }
 
-        _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _player.FootBounds, Color.Yellow);
-        _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _player.Bounds, Color.OrangeRed);
-        _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _follower.Bounds, Color.Cyan);
+        var partyIsSeatedInWatercraft = _watercraftBoardSequence.IsSeated;
+
+        if (!partyIsSeatedInWatercraft)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _player.FootBounds, Color.Yellow);
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _player.Bounds, Color.OrangeRed);
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _follower.Bounds, Color.Cyan);
+        }
 
         for (var i = 0; i < _boulders.Length; i++)
         {
@@ -1858,6 +1905,11 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _couches.Length; i++)
         {
             _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _couches[i].Bounds, Color.Red);
+        }
+
+        for (var i = 0; i < _watercraftProps.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _watercraftProps[i].Bounds, Color.DeepSkyBlue);
         }
 
         for (var i = 0; i < _oldTvs.Length; i++)
@@ -2207,6 +2259,18 @@ public sealed class GameplayScreen : IGameScreen
 
     private bool TryHopIntoWatercraft()
     {
+        if (!TryGetNearbyBoardableWatercraft(out var watercraft))
+        {
+            return false;
+        }
+
+        _watercraftBoardSequence.Begin(watercraft, _player, _follower);
+
+        return true;
+    }
+
+    private bool TryGetNearbyBoardableWatercraft(out Watercraft watercraft)
+    {
         const float WatercraftHopSnapDistanceSquared = 4f * 4f;
 
         var playerFootBounds = _player.FootBounds;
@@ -2240,11 +2304,114 @@ public sealed class GameplayScreen : IGameScreen
 
         if (nearestIndex < 0)
         {
+            watercraft = null!;
             return false;
         }
 
-        _watercraftBoardSequence.Begin(_watercraftProps[nearestIndex], _player, _follower);
+        watercraft = _watercraftProps[nearestIndex];
         return true;
+    }
+
+    private void OnWatercraftMounted(Watercraft watercraft)
+    {
+        var craftBounds = watercraft.Bounds;
+        var splashCenter = new Vector2(craftBounds.Center.X, craftBounds.Center.Y);
+        _rippleSystem.SpawnRipple(splashCenter, 2.5f);
+        _rippleSystem.SpawnRipple(splashCenter + new Vector2(-5f, -3f), 1.5f);
+    }
+
+    /// <summary>
+    /// Smoothly ramps wake intensity toward the target each frame.
+    /// Called from Update so delta time is readily available.
+    /// </summary>
+    private void UpdateWakeIntensity(GameTime gameTime)
+    {
+        const float MinSpeedForWake = 4f;
+        const float WatercraftMaxSpeed = 36f;
+        const float WakeRampUpRate = 0.8f;
+        const float WakeRampDownRate = 1.5f;
+        const float WakeStopDissipateRate = 0.45f;
+
+        var signedForwardSpeed = _watercraftBoardSequence.SignedForwardSpeed;
+        var speed = MathF.Abs(signedForwardSpeed);
+        if (speed >= 0.25f)
+        {
+            _wakeTravelSign = signedForwardSpeed >= 0f ? 1f : -1f;
+        }
+
+        float targetIntensity;
+        if (_watercraftBoardSequence.ActiveWatercraft is null || speed < MinSpeedForWake)
+        {
+            targetIntensity = 0f;
+        }
+        else
+        {
+            targetIntensity = MathHelper.Clamp(
+                (speed - MinSpeedForWake) / (WatercraftMaxSpeed - MinSpeedForWake), 0f, 1f);
+        }
+
+        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        var rate = targetIntensity > _smoothedWakeIntensity
+            ? WakeRampUpRate
+            : targetIntensity <= 0f ? WakeStopDissipateRate : WakeRampDownRate;
+        _smoothedWakeIntensity = MathHelper.Lerp(_smoothedWakeIntensity, targetIntensity, 1f - MathF.Exp(-rate * dt));
+
+        if (_smoothedWakeIntensity < 0.01f)
+        {
+            _smoothedWakeIntensity = 0f;
+        }
+    }
+
+    /// <summary>
+    /// Sets the V-wake shader parameters using the pre-smoothed intensity.
+    /// </summary>
+    private void SetWakeShaderParameters()
+    {
+        var craft = _watercraftBoardSequence.ActiveWatercraft;
+
+        if (craft is null || _smoothedWakeIntensity < 0.01f)
+        {
+            _waterDistortionEffect.Parameters["WakeCenter"].SetValue(new Vector3(0f, 0f, 0f));
+            return;
+        }
+
+        // Use a point between the stern and the center of the canoe as the wake origin,
+        // so the V emanates from closer to the front of the craft.
+        // Mirror the origin when reversing so the wake flips sides with travel direction.
+        var stern = craft.SternPosition;
+        var craftCenter = new Vector2(craft.Bounds.Center.X, craft.Bounds.Center.Y);
+        var bow = (craftCenter * 2f) - stern;
+        var trailingEdge = _wakeTravelSign < 0f ? bow : stern;
+        var wakeOrigin = Vector2.Lerp(trailingEdge, craftCenter, 2.22f);
+        var screenX = (wakeOrigin.X - _camera.Position.X) / _virtualWidth + 0.5f;
+        var screenY = (wakeOrigin.Y - _camera.Position.Y) / _virtualHeight + 0.5f;
+
+        _waterDistortionEffect.Parameters["WakeCenter"].SetValue(
+            new Vector3(screenX, screenY, _smoothedWakeIntensity));
+
+        // Travel direction as aspect-corrected unit vector in UV space.
+        var dir = craft.Facing switch
+        {
+            FacingDirection.Up => new Vector2(0f, -1f),
+            FacingDirection.Down => new Vector2(0f, 1f),
+            FacingDirection.Left => new Vector2(-1f, 0f),
+            _ => new Vector2(1f, 0f),
+        };
+
+        if (_wakeTravelSign < 0f)
+        {
+            dir *= -1f;
+        }
+
+        // Aspect-correct the X component so the V angle is visually symmetric.
+        var aspectRatio = (float)_virtualWidth / _virtualHeight;
+        dir.X *= aspectRatio;
+        if (dir.LengthSquared() > 0f)
+        {
+            dir.Normalize();
+        }
+
+        _waterDistortionEffect.Parameters["WakeDirection"].SetValue(dir);
     }
 
     private bool CanWatercraftMoveToBounds(Rectangle candidateBounds)
@@ -2257,12 +2424,14 @@ public sealed class GameplayScreen : IGameScreen
             return false;
         }
 
-        for (var i = 0; i < _watercraftTravelObstacleBounds.Length; i++)
+        if (WatercraftCollisionRules.IsBlocked(
+            candidateBounds,
+            _watercraftBoardSequence.ActiveWatercraft?.Bounds ?? candidateBounds,
+            _watercraftStaticBlockerBounds,
+            _watercraftProps,
+            _watercraftBoardSequence.ActiveWatercraft))
         {
-            if (_watercraftTravelObstacleBounds[i].Intersects(candidateBounds))
-            {
-                return false;
-            }
+            return false;
         }
 
         var samplePoints = new[]
@@ -2279,11 +2448,6 @@ public sealed class GameplayScreen : IGameScreen
         var hasWaterSupport = false;
         for (var i = 0; i < samplePoints.Length; i++)
         {
-            if (IsPointWithinDock(samplePoints[i]))
-            {
-                continue;
-            }
-
             if (_worldRenderer.IsWorldPointInWater(samplePoints[i]))
             {
                 hasWaterSupport = true;
@@ -2307,19 +2471,6 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         return !_collisionMap.IsWorldRectangleBlocked(actorBounds);
-    }
-
-    private bool IsPointWithinDock(Point point)
-    {
-        for (var i = 0; i < _docks.Length; i++)
-        {
-            if (_docks[i].Bounds.Contains(point))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private bool TryTalkToNearbyNpc()
