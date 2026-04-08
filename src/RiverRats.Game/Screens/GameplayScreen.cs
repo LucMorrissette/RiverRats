@@ -290,6 +290,8 @@ public sealed class GameplayScreen : IGameScreen
     private readonly Random _sfxRng = new Random();
     private readonly IMusicManager _musicManager = new MusicManager();
     private Texture2D _hookIconTexture;
+    private Texture2D _boardIconTexture;
+    private Texture2D _disembarkIconTexture;
     private bool _playerInFishingZone;
     private HudRenderer _hudRenderer;
     private ForestHudRenderer _forestHudRenderer;
@@ -602,6 +604,8 @@ public sealed class GameplayScreen : IGameScreen
 
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _hookIconTexture = _content.Load<Texture2D>("Sprites/hook-icon");
+        _boardIconTexture = _content.Load<Texture2D>("Sprites/board-icon");
+        _disembarkIconTexture = _content.Load<Texture2D>("Sprites/disembark-icon");
         _particleManager = new ParticleManager(MaxParticleCount);
 
         if (_mapAssetName == "Maps/WoodsBehindCabin")
@@ -1637,8 +1641,8 @@ public sealed class GameplayScreen : IGameScreen
             var watercraftWindowTop = new Vector2(
                 sceneOffsetX + watercraftScreenTop.X * sceneScale,
                 sceneOffsetY + watercraftScreenTop.Y * sceneScale);
-            var scaledIconWidth = _hookIconTexture.Width * FishingPromptUiScale;
-            var scaledIconHeight = _hookIconTexture.Height * FishingPromptUiScale;
+            var scaledIconWidth = _boardIconTexture.Width * FishingPromptUiScale;
+            var scaledIconHeight = _boardIconTexture.Height * FishingPromptUiScale;
             var watercraftScreenWidth = watercraft.Bounds.Width * sceneScale;
             var iconX = watercraftWindowTop.X + watercraftScreenWidth * 0.5f - scaledIconWidth * 0.5f;
             var iconY = watercraftWindowTop.Y - scaledIconHeight + FishingPromptHeadGapPixels;
@@ -1648,7 +1652,43 @@ public sealed class GameplayScreen : IGameScreen
                 blendState: BlendState.AlphaBlend,
                 samplerState: SamplerState.PointClamp);
             spriteBatch.Draw(
-                _hookIconTexture,
+                _boardIconTexture,
+                new Vector2(iconX, iconY),
+                null,
+                Color.White,
+                0f,
+                Vector2.Zero,
+                FishingPromptUiScale,
+                SpriteEffects.None,
+                0f);
+            spriteBatch.End();
+        }
+
+        if (_watercraftBoardSequence.IsSeated
+            && _watercraftBoardSequence.CanDisembark(CanDisembarkToBounds)
+            && _watercraftBoardSequence.ActiveWatercraft is { } seatedCraft)
+        {
+            var craftScreenPos = Vector2.Transform(seatedCraft.Position, _camera.GetViewMatrix());
+            var gameViewport = _graphicsDevice.Viewport;
+            var scaledSceneWidth = _virtualWidth * sceneScale;
+            var scaledSceneHeight = _virtualHeight * sceneScale;
+            var sceneOffsetX = (gameViewport.Width - scaledSceneWidth) / 2;
+            var sceneOffsetY = (gameViewport.Height - scaledSceneHeight) / 2;
+            var craftWindowPos = new Vector2(
+                sceneOffsetX + craftScreenPos.X * sceneScale,
+                sceneOffsetY + craftScreenPos.Y * sceneScale);
+            var scaledIconWidth = _disembarkIconTexture.Width * FishingPromptUiScale;
+            var scaledIconHeight = _disembarkIconTexture.Height * FishingPromptUiScale;
+            var craftScreenWidth = seatedCraft.Bounds.Width * sceneScale;
+            var iconX = craftWindowPos.X + craftScreenWidth * 0.5f - scaledIconWidth * 0.5f;
+            var iconY = craftWindowPos.Y - scaledIconHeight + FishingPromptHeadGapPixels;
+
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+            spriteBatch.Draw(
+                _disembarkIconTexture,
                 new Vector2(iconX, iconY),
                 null,
                 Color.White,

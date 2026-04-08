@@ -67,6 +67,39 @@ public sealed class WatercraftBoardSequence
     public Watercraft? ActiveWatercraft => IsActive ? _targetWatercraft : null;
 
     /// <summary>
+    /// Returns <c>true</c> when the party is seated and at least one disembark
+    /// direction has clear ground for both actors. Read-only — does not mutate state.
+    /// </summary>
+    public bool CanDisembark(Func<Rectangle, bool> canDisembarkToBounds)
+    {
+        if (!IsSeated || _targetWatercraft is null)
+            return false;
+
+        var directionCandidates = new[]
+        {
+            _targetWatercraft.Facing,
+            FacingDirection.Down,
+            FacingDirection.Up,
+            _targetWatercraft.Facing == FacingDirection.Left ? FacingDirection.Right : FacingDirection.Left,
+        };
+
+        for (var i = 0; i < directionCandidates.Length; i++)
+        {
+            var direction = directionCandidates[i];
+            var playerStand = ComputeStandPosition(_playerSeatPosition, _targetWatercraft.Bounds, direction);
+            var followerStand = ComputeStandPosition(_followerSeatPosition, _targetWatercraft.Bounds, direction);
+
+            if (canDisembarkToBounds(ToActorBounds(playerStand))
+                && canDisembarkToBounds(ToActorBounds(followerStand)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Raised once when both actors finish hopping into the craft and are fully seated.
     /// </summary>
     public event Action<Watercraft>? Mounted;

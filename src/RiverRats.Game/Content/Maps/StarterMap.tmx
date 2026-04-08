@@ -197,7 +197,7 @@
   <object id="200" x="783" y="6" width="97" height="153"/>
   <object id="201" x="754" y="182" width="39" height="36"/>
  </objectgroup>
- <objectgroup id="7" name="ZoneTriggers">
+ <objectgroup id="7" name="ZoneTriggers" visible="0">
   <object id="202" x="798" y="158" width="31" height="16">
    <properties>
     <property name="targetMap" value="Maps/WoodsBehindCabin"/>
@@ -213,13 +213,13 @@
   <object id="223" gid="90" x="928" y="288" width="64" height="64"/>
   <object id="228" gid="91" x="575.75" y="589.625" width="21" height="64"/>
  </objectgroup>
- <objectgroup id="8" name="SpawnPoints" locked="1">
+ <objectgroup id="8" name="SpawnPoints" visible="0" locked="1">
   <object id="203" name="from-woods" x="799" y="217"/>
   <object id="218" name="from-cabin-indoors" x="808" y="418"/>
   <object id="204" name="default" x="627" y="376"/>
  </objectgroup>
- <objectgroup id="9" name="FishingZones" locked="1">
-  <object id="206" x="600" y="563.727" width="52.4545" height="11.6364">
+ <objectgroup id="9" name="FishingZones">
+  <object id="206" x="668.543" y="515.451" width="354.864" height="11.6364">
    <properties>
     <property name="facingDirection" value="down"/>
    </properties>
