@@ -202,6 +202,8 @@ public sealed class GameplayScreen : IGameScreen
     private GardenGnome[] _gardenGnomes;
     private Boulder[] _welcomeMats;
     private Boulder[] _areaRugs;
+    private Boulder[] _vinylRecords;
+    private Boulder[] _hockeySticks;
     private Couch[] _couches;
     private CouchSitSequence _couchSitSequence;
     private WatercraftBoardSequence _watercraftBoardSequence;
@@ -632,6 +634,15 @@ public sealed class GameplayScreen : IGameScreen
         _gardenGnomes = PropFactory.CreateGardenGnomes(_content.Load<Texture2D>("Sprites/garden-gnome"), _worldRenderer.PropPlacements, allTrees);
         _welcomeMats = PropFactory.CreateWelcomeMats(_content.Load<Texture2D>("Sprites/welcome-mat"), _worldRenderer.PropPlacements);
         _areaRugs = PropFactory.CreateAreaRugs(_content.Load<Texture2D>("Sprites/area-rug"), _worldRenderer.PropPlacements);
+        var vinylRecords = new List<Boulder>();
+        vinylRecords.AddRange(PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/vinyl-record"), _worldRenderer.PropPlacements, "vinyl-record", isUnderwater: false));
+        vinylRecords.AddRange(PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/vinyl-record-blue-orange"), _worldRenderer.PropPlacements, "vinyl-record-blue-orange", isUnderwater: false));
+        vinylRecords.AddRange(PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/vinyl-record-green-cream"), _worldRenderer.PropPlacements, "vinyl-record-green-cream", isUnderwater: false));
+        vinylRecords.AddRange(PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/vinyl-record-magenta-cyan"), _worldRenderer.PropPlacements, "vinyl-record-magenta-cyan", isUnderwater: false));
+        vinylRecords.AddRange(PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/vinyl-record-indigo-mint"), _worldRenderer.PropPlacements, "vinyl-record-indigo-mint", isUnderwater: false));
+        vinylRecords.AddRange(PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/vinyl-record-orange-teal"), _worldRenderer.PropPlacements, "vinyl-record-orange-teal", isUnderwater: false));
+        _vinylRecords = vinylRecords.ToArray();
+        _hockeySticks = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/hockey-stick"), _worldRenderer.PropPlacements, "hockey-stick", isUnderwater: false);
         _couches = PropFactory.CreateCouches(_content.Load<Texture2D>("Sprites/old-couch"), _worldRenderer.PropPlacements);
         _couchSitSequence = new CouchSitSequence(PlayerFramePixels, PlayerFramePixels);
         _watercraftBoardSequence = new WatercraftBoardSequence(PlayerFramePixels, PlayerFramePixels);
@@ -3233,6 +3244,20 @@ public sealed class GameplayScreen : IGameScreen
                 _welcomeMats[i].Draw(_worldSpriteBatch, 0f);
             for (var i = 0; i < _areaRugs.Length; i++)
                 _areaRugs[i].Draw(_worldSpriteBatch, 0f);
+        }
+
+        for (var i = 0; i < _vinylRecords.Length; i++)
+        {
+            var depth = SortDepth(_vinylRecords[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _vinylRecords[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _hockeySticks.Length; i++)
+        {
+            var depth = SortDepth(_hockeySticks[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _hockeySticks[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _boulders.Length; i++)

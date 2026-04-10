@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="10" height="7" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="149">
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="10" height="7" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="153">
  <tileset firstgid="1" source="../Tilesets/CabinInterior.tsx"/>
  <tileset firstgid="15" source="../Tilesets/Props.tsx"/>
- <tileset firstgid="58" source="../Tilesets/CabinWallFrame.tsx"/>
- <layer id="1" name="Ground" width="10" height="7">
+ <tileset firstgid="65" source="../Tilesets/CabinWallFrame.tsx"/>
+ <layer id="1" name="Ground" width="10" height="7" locked="1">
   <data encoding="csv">
 9,9,9,9,9,9,9,9,9,9,
 10,10,10,10,10,10,10,10,10,10,
@@ -14,18 +14,22 @@
 1,1,1,1,1,1,8,5,6,7
 </data>
  </layer>
- <objectgroup id="4" name="stuff" locked="1">
+ <objectgroup id="4" name="stuff">
   <object id="5" gid="45" x="196.616" y="224.073" width="37" height="32"/>
   <object id="14" gid="48" x="5.01222" y="162.715" width="25" height="48"/>
   <object id="15" gid="49" x="31.2589" y="169.103" width="16" height="10"/>
   <object id="16" gid="47" x="134.305" y="201.224" width="24" height="80"/>
   <object id="17" gid="46" x="131.021" y="205.392" width="96" height="92" rotation="-90"/>
   <object id="18" gid="50" x="2.05913" y="203.349" width="32" height="34"/>
-  <object id="22" gid="51" x="32" y="76" width="64" height="40"/>
-  <object id="23" gid="52" x="98" y="75" width="20" height="32"/>
-  <object id="25" gid="54" x="12" y="85" width="20" height="32"/>
+  <object id="22" gid="51" x="15" y="70" width="64" height="40"/>
+  <object id="23" gid="52" x="78" y="70" width="20" height="32"/>
+  <object id="25" gid="54" x="1" y="84" width="20" height="32"/>
+  <object id="149" gid="63" x="108" y="26" width="16" height="16"/>
+  <object id="150" gid="61" x="87" y="32" width="16" height="16"/>
+  <object id="151" gid="60" x="100" y="52" width="16" height="16"/>
+  <object id="152" gid="64" x="253" y="70" width="32" height="32"/>
  </objectgroup>
- <objectgroup id="2" name="ZoneTriggers">
+ <objectgroup id="2" name="ZoneTriggers" locked="1">
   <object id="1" x="204.15" y="212.711" width="30" height="10.7655">
    <properties>
     <property name="targetMap" value="Maps/StarterMap"/>
@@ -39,7 +43,7 @@
    </properties>
   </object>
  </objectgroup>
- <objectgroup id="3" name="SpawnPoints">
+ <objectgroup id="3" name="SpawnPoints" locked="1">
   <object id="2" name="from-outdoors" x="219" y="199"/>
   <object id="3" name="default" x="163.664" y="89.6302"/>
   <object id="143" name="from-bedroom" x="214" y="69"/>
@@ -92,49 +96,49 @@
    <polyline points="0,0 40,-63"/>
   </object>
  </objectgroup>
- <objectgroup id="7" name="WallBorders">
-  <object id="87" gid="59" x="0" y="236" width="32" height="12"/>
-  <object id="88" gid="59" x="32" y="236" width="32" height="12"/>
-  <object id="89" gid="59" x="64" y="236" width="32" height="12"/>
-  <object id="94" gid="60" x="-12" y="224" width="12" height="32"/>
-  <object id="95" gid="60" x="-12" y="192" width="12" height="32"/>
-  <object id="96" gid="60" x="-12" y="160" width="12" height="32"/>
-  <object id="97" gid="60" x="-12" y="128" width="12" height="32"/>
-  <object id="98" gid="60" x="-12" y="96" width="12" height="32"/>
-  <object id="99" gid="60" x="-12" y="64" width="12" height="32"/>
-  <object id="100" gid="60" x="-12" y="32" width="12" height="32"/>
-  <object id="101" gid="62" x="-12" y="0" width="12" height="12"/>
-  <object id="102" gid="58" x="0" y="0" width="32" height="12"/>
-  <object id="103" gid="58" x="32" y="0" width="32" height="12"/>
-  <object id="104" gid="58" x="64" y="0" width="32" height="12"/>
-  <object id="105" gid="58" x="96" y="0" width="32" height="12"/>
-  <object id="106" gid="58" x="128" y="0" width="32" height="12"/>
-  <object id="107" gid="58" x="160" y="0" width="32" height="12"/>
-  <object id="108" gid="58" x="192" y="0" width="32" height="12"/>
-  <object id="109" gid="58" x="224" y="0" width="32" height="12"/>
-  <object id="110" gid="58" x="256" y="0" width="32" height="12"/>
-  <object id="111" gid="58" x="288" y="0" width="32" height="12"/>
-  <object id="113" gid="61" x="320" y="32" width="12" height="32"/>
-  <object id="114" gid="61" x="320" y="64" width="12" height="32"/>
-  <object id="119" gid="61" x="320" y="192" width="12" height="32"/>
-  <object id="120" gid="61" x="320" y="224" width="12" height="32"/>
-  <object id="122" gid="59" x="288" y="236" width="32" height="12"/>
-  <object id="123" gid="59" x="256" y="236" width="32" height="12"/>
-  <object id="124" gid="59" x="233" y="236" width="32" height="12"/>
-  <object id="125" gid="59" x="96" y="236" width="32" height="12"/>
-  <object id="126" gid="59" x="128" y="236" width="32" height="12"/>
-  <object id="131" gid="71" x="-12" y="236" width="12" height="12"/>
-  <object id="134" gid="67" x="-12" y="236" width="12" height="12"/>
-  <object id="135" gid="66" x="320" y="236" width="12" height="12"/>
-  <object id="136" gid="63" x="320" y="0" width="12" height="12"/>
-  <object id="137" gid="59" x="160" y="236" width="32" height="12"/>
-  <object id="138" gid="59" x="172" y="236" width="32" height="12"/>
-  <object id="139" gid="59" x="202" y="236" width="32" height="12"/>
+ <objectgroup id="7" name="WallBorders" locked="1">
+  <object id="87" gid="66" x="0" y="236" width="32" height="12"/>
+  <object id="88" gid="66" x="32" y="236" width="32" height="12"/>
+  <object id="89" gid="66" x="64" y="236" width="32" height="12"/>
+  <object id="94" gid="67" x="-12" y="224" width="12" height="32"/>
+  <object id="95" gid="67" x="-12" y="192" width="12" height="32"/>
+  <object id="96" gid="67" x="-12" y="160" width="12" height="32"/>
+  <object id="97" gid="67" x="-12" y="128" width="12" height="32"/>
+  <object id="98" gid="67" x="-12" y="96" width="12" height="32"/>
+  <object id="99" gid="67" x="-12" y="64" width="12" height="32"/>
+  <object id="100" gid="67" x="-12" y="32" width="12" height="32"/>
+  <object id="101" gid="69" x="-12" y="0" width="12" height="12"/>
+  <object id="102" gid="65" x="0" y="0" width="32" height="12"/>
+  <object id="103" gid="65" x="32" y="0" width="32" height="12"/>
+  <object id="104" gid="65" x="64" y="0" width="32" height="12"/>
+  <object id="105" gid="65" x="96" y="0" width="32" height="12"/>
+  <object id="106" gid="65" x="128" y="0" width="32" height="12"/>
+  <object id="107" gid="65" x="160" y="0" width="32" height="12"/>
+  <object id="108" gid="65" x="192" y="0" width="32" height="12"/>
+  <object id="109" gid="65" x="224" y="0" width="32" height="12"/>
+  <object id="110" gid="65" x="256" y="0" width="32" height="12"/>
+  <object id="111" gid="65" x="288" y="0" width="32" height="12"/>
+  <object id="113" gid="68" x="320" y="32" width="12" height="32"/>
+  <object id="114" gid="68" x="320" y="64" width="12" height="32"/>
+  <object id="119" gid="68" x="320" y="192" width="12" height="32"/>
+  <object id="120" gid="68" x="320" y="224" width="12" height="32"/>
+  <object id="122" gid="66" x="288" y="236" width="32" height="12"/>
+  <object id="123" gid="66" x="256" y="236" width="32" height="12"/>
+  <object id="124" gid="66" x="233" y="236" width="32" height="12"/>
+  <object id="125" gid="66" x="96" y="236" width="32" height="12"/>
+  <object id="126" gid="66" x="128" y="236" width="32" height="12"/>
+  <object id="131" gid="78" x="-12" y="236" width="12" height="12"/>
+  <object id="134" gid="74" x="-12" y="236" width="12" height="12"/>
+  <object id="135" gid="73" x="320" y="236" width="12" height="12"/>
+  <object id="136" gid="70" x="320" y="0" width="12" height="12"/>
+  <object id="137" gid="66" x="160" y="236" width="32" height="12"/>
+  <object id="138" gid="66" x="172" y="236" width="32" height="12"/>
+  <object id="139" gid="66" x="202" y="236" width="32" height="12"/>
   <object id="140" gid="43" x="201" y="64" width="27" height="43.2"/>
   <object id="141" gid="57" x="128" y="64" width="27" height="43.2"/>
-  <object id="145" gid="61" x="320" y="96" width="12" height="32"/>
-  <object id="146" gid="61" x="320" y="127" width="12" height="32"/>
-  <object id="147" gid="61" x="320" y="159" width="12" height="32"/>
-  <object id="148" gid="61" x="320" y="170" width="12" height="32"/>
+  <object id="145" gid="68" x="320" y="96" width="12" height="32"/>
+  <object id="146" gid="68" x="320" y="127" width="12" height="32"/>
+  <object id="147" gid="68" x="320" y="159" width="12" height="32"/>
+  <object id="148" gid="68" x="320" y="170" width="12" height="32"/>
  </objectgroup>
 </map>

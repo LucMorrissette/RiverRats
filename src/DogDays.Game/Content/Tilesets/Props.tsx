@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="43" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="50" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -272,5 +272,54 @@
       <property name="suppressOcclusion" type="bool" value="true"/>
     </properties>
     <image source="../Sprites/front-door-locked.png" width="20" height="32"/>
+  </tile>
+  <tile id="43">
+    <properties>
+      <property name="propType" value="vinyl-record"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/vinyl-record.png" width="16" height="16"/>
+  </tile>
+  <tile id="44">
+    <properties>
+      <property name="propType" value="vinyl-record-blue-orange"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/vinyl-record-blue-orange.png" width="16" height="16"/>
+  </tile>
+  <tile id="45">
+    <properties>
+      <property name="propType" value="vinyl-record-green-cream"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/vinyl-record-green-cream.png" width="16" height="16"/>
+  </tile>
+  <tile id="46">
+    <properties>
+      <property name="propType" value="vinyl-record-magenta-cyan"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/vinyl-record-magenta-cyan.png" width="16" height="16"/>
+  </tile>
+  <tile id="47">
+    <properties>
+      <property name="propType" value="vinyl-record-indigo-mint"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/vinyl-record-indigo-mint.png" width="16" height="16"/>
+  </tile>
+  <tile id="48">
+    <properties>
+      <property name="propType" value="vinyl-record-orange-teal"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/vinyl-record-orange-teal.png" width="16" height="16"/>
+  </tile>
+  <tile id="49">
+    <properties>
+      <property name="propType" value="hockey-stick"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/hockey-stick.png" width="32" height="32"/>
   </tile>
 </tileset>
